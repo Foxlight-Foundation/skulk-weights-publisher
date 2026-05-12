@@ -1,4 +1,4 @@
-# Smoke-tier vindex catalogue for Skulk LARQL Phase 1.
+# Vindex catalogue for Skulk LARQL publisher phases.
 #
 # Fields:
 # - key: stable workflow selector
@@ -32,3 +32,51 @@ models:
       - full
     output_name: qwen-2-5-7b-instruct-full-q4-k.vindex
     hf_repo: skulk/qwen-2-5-7b-instruct-full-q4-k-vindex
+
+  - key: gemma-4-26b-a4b-full-q4-k
+    source_model: google/gemma-4-26b-a4b-it
+    quant: q4k
+    slices:
+      - full
+    output_name: gemma-4-26b-a4b-it-full-q4-k.vindex
+    hf_repo: skulk/gemma-4-26b-a4b-it-full-q4-k-vindex
+
+  - key: gemma-4-26b-a4b-expert-server-q4-k
+    source_model: google/gemma-4-26b-a4b-it
+    quant: q4k
+    slices:
+      - expert-server
+    output_name: gemma-4-26b-a4b-it-expert-server-q4-k.vindex
+    hf_repo: skulk/gemma-4-26b-a4b-it-expert-server-q4-k-vindex
+
+  - key: mixtral-8x7b-full-q4-k
+    source_model: mistralai/Mixtral-8x7B-Instruct-v0.1
+    quant: q4k
+    slices:
+      - full
+    output_name: mixtral-8x7b-instruct-v0-1-full-q4-k.vindex
+    hf_repo: skulk/mixtral-8x7b-instruct-v0-1-full-q4-k-vindex
+
+  - key: mixtral-8x7b-expert-server-q4-k
+    source_model: mistralai/Mixtral-8x7B-Instruct-v0.1
+    quant: q4k
+    slices:
+      - expert-server
+    output_name: mixtral-8x7b-instruct-v0-1-expert-server-q4-k.vindex
+    hf_repo: skulk/mixtral-8x7b-instruct-v0-1-expert-server-q4-k-vindex
+
+  - key: mixtral-8x22b-full-q4-k
+    source_model: mistralai/Mixtral-8x22B-Instruct-v0.1
+    quant: q4k
+    slices:
+      - full
+    output_name: mixtral-8x22b-instruct-v0-1-full-q4-k.vindex
+    hf_repo: skulk/mixtral-8x22b-instruct-v0-1-full-q4-k-vindex
+
+  - key: mixtral-8x22b-expert-server-q4-k
+    source_model: mistralai/Mixtral-8x22B-Instruct-v0.1
+    quant: q4k
+    slices:
+      - expert-server
+    output_name: mixtral-8x22b-instruct-v0-1-expert-server-q4-k.vindex
+    hf_repo: skulk/mixtral-8x22b-instruct-v0-1-expert-server-q4-k-vindex

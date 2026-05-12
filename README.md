@@ -6,7 +6,7 @@ This repository owns extraction, publication, and catalogue metadata for
 vindexes consumed by Skulk. Skulk itself is a vindex consumer: it downloads
 `hf://...` vindex directories at runtime, but it does not extract them.
 
-## Phase 1 Scope
+## Publisher Scope
 
 Phase 1 scaffolds the publishing pipeline and smoke-tier manifest. It does not
 assume HuggingFace credentials or a registered self-hosted runner are already
@@ -20,6 +20,19 @@ Smoke-tier models:
 | `llama-3-2-3b-full-q4-k` | `meta-llama/Llama-3.2-3B-Instruct` | `q4k` | `full` |
 | `qwen-2-5-7b-full-q4-k` | `Qwen/Qwen2.5-7B-Instruct` | `q4k` | `full` |
 
+Phase 2 adds dry-run catalogue entries for the MoE sweet spot. These are the
+targets Skulk uses to validate `LarqlRunner` isolation and future FFN
+delegation work; actual HuggingFace publication remains operator-gated.
+
+| Key | Source model | Quant | Slices |
+|---|---|---|---|
+| `gemma-4-26b-a4b-full-q4-k` | `google/gemma-4-26b-a4b-it` | `q4k` | `full` |
+| `gemma-4-26b-a4b-expert-server-q4-k` | `google/gemma-4-26b-a4b-it` | `q4k` | `expert-server` |
+| `mixtral-8x7b-full-q4-k` | `mistralai/Mixtral-8x7B-Instruct-v0.1` | `q4k` | `full` |
+| `mixtral-8x7b-expert-server-q4-k` | `mistralai/Mixtral-8x7B-Instruct-v0.1` | `q4k` | `expert-server` |
+| `mixtral-8x22b-full-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `full` |
+| `mixtral-8x22b-expert-server-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `expert-server` |
+
 ## Required Operator Setup
 
 1. Install LARQL on the self-hosted runner and make `larql` available on
@@ -30,6 +43,8 @@ Smoke-tier models:
 4. Register a self-hosted GitHub Actions runner with the labels:
    `self-hosted`, `linux`, `larql`, `vindex`.
 5. Provision at least 200 GB of fast scratch storage for the Phase 1 smoke tier.
+   Phase 2 MoE entries require substantially more scratch capacity before
+   non-dry-run publication.
 
 ## Local Dry Run
 

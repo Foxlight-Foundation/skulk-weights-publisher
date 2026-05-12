@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish smoke-tier vindexes
+    name: Publish selected vindexes
     runs-on: [self-hosted, linux, larql, vindex]
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
