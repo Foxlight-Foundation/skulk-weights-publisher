@@ -1,0 +1,62 @@
+name: Publish vindexes
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Manifest key to publish, or 'all'"
+        required: true
+        default: all
+  schedule:
+    - cron: "17 8 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish smoke-tier vindexes
+    runs-on: [self-hosted, linux, larql, vindex]
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      SKULK_VINDEX_SCRATCH: ${{ vars.SKULK_VINDEX_SCRATCH || format('{0}/.scratch', github.workspace) }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install script dependencies
+        run: python3 -m pip install -r requirements.txt
+
+      - name: Check runner prerequisites
+        run: scripts/doctor.sh
+
+      - name: Resolve publish list
+        id: models
+        shell: bash
+        run: |
+          set -euo pipefail
+          requested="${{ github.event.inputs.model || 'all' }}"
+          if [ "$requested" = "all" ]; then
+            {
+              echo "keys<<EOF"
+              python3 -c 'import pathlib, yaml; manifest = yaml.safe_load(pathlib.Path("models.yaml").read_text()); print("\n".join(entry["key"] for entry in manifest.get("models", [])))'
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "keys<<EOF"
+              echo "$requested"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish selected vindexes
+        shell: bash
+        env:
+          MODEL_KEYS: ${{ steps.models.outputs.keys }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$MODEL_KEYS" | while IFS= read -r key; do
+            [ -n "$key" ] || continue
+            scripts/publish-vindex.sh --model "$key"
+          done

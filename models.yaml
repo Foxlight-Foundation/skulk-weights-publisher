@@ -1,0 +1,34 @@
+# Smoke-tier vindex catalogue for Skulk LARQL Phase 1.
+#
+# Fields:
+# - key: stable workflow selector
+# - source_model: upstream HuggingFace model id consumed by LARQL extraction
+# - quant: target vindex quantization
+# - slices: LARQL slice presets to publish for this model
+# - output_name: local output directory basename
+# - hf_repo: target HuggingFace repo id for the published vindex
+
+models:
+  - key: gemma-3-4b-full-q4-k
+    source_model: google/gemma-3-4b-it
+    quant: q4k
+    slices:
+      - full
+    output_name: gemma-3-4b-it-full-q4-k.vindex
+    hf_repo: skulk/gemma-3-4b-it-full-q4-k-vindex
+
+  - key: llama-3-2-3b-full-q4-k
+    source_model: meta-llama/Llama-3.2-3B-Instruct
+    quant: q4k
+    slices:
+      - full
+    output_name: llama-3-2-3b-instruct-full-q4-k.vindex
+    hf_repo: skulk/llama-3-2-3b-instruct-full-q4-k-vindex
+
+  - key: qwen-2-5-7b-full-q4-k
+    source_model: Qwen/Qwen2.5-7B-Instruct
+    quant: q4k
+    slices:
+      - full
+    output_name: qwen-2-5-7b-instruct-full-q4-k.vindex
+    hf_repo: skulk/qwen-2-5-7b-instruct-full-q4-k-vindex
