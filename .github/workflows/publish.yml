@@ -1,12 +1,30 @@
 name: Publish vindexes
 
 on:
+  pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       model:
         description: "Manifest key to publish, or 'all'"
         required: true
         default: all
+      tier:
+        description: "Tier used when model is 'all'"
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - moe
+          - all
+      dry_run:
+        description: "Print commands without extracting or publishing"
+        required: true
+        default: true
+        type: boolean
   schedule:
     - cron: "17 8 * * 1"
 
@@ -14,8 +32,32 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: Validate manifest and dry runs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install script dependencies
+        run: python3 -m pip install -r requirements.txt
+
+      - name: Validate manifest
+        run: python3 scripts/manifest.py validate
+
+      - name: Dry-run every manifest entry
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/manifest.py list --tier all | while IFS= read -r key; do
+            [ -n "$key" ] || continue
+            scripts/publish-vindex.sh --model "$key" --dry-run
+          done
+
   publish:
     name: Publish selected vindexes
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    needs: validate
     runs-on: [self-hosted, linux, larql, vindex]
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -28,7 +70,12 @@ jobs:
         run: python3 -m pip install -r requirements.txt
 
       - name: Check runner prerequisites
-        run: scripts/doctor.sh
+        run: |
+          if [ "${{ github.event.inputs.dry_run || 'false' }}" = "true" ]; then
+            scripts/doctor.sh
+          else
+            scripts/doctor.sh --publish
+          fi
 
       - name: Resolve publish list
         id: models
@@ -36,13 +83,15 @@ jobs:
         run: |
           set -euo pipefail
           requested="${{ github.event.inputs.model || 'all' }}"
+          tier="${{ github.event.inputs.tier || 'smoke' }}"
           if [ "$requested" = "all" ]; then
             {
               echo "keys<<EOF"
-              python3 -c 'import pathlib, yaml; manifest = yaml.safe_load(pathlib.Path("models.yaml").read_text()); print("\n".join(entry["key"] for entry in manifest.get("models", [])))'
+              python3 scripts/manifest.py list --tier "$tier"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
+            python3 scripts/manifest.py get --key "$requested" >/dev/null
             {
               echo "keys<<EOF"
               echo "$requested"
@@ -54,9 +103,14 @@ jobs:
         shell: bash
         env:
           MODEL_KEYS: ${{ steps.models.outputs.keys }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           set -euo pipefail
           printf '%s\n' "$MODEL_KEYS" | while IFS= read -r key; do
             [ -n "$key" ] || continue
-            scripts/publish-vindex.sh --model "$key"
+            args=(--model "$key")
+            if [ "$DRY_RUN" = "true" ]; then
+              args+=(--dry-run)
+            fi
+            scripts/publish-vindex.sh "${args[@]}"
           done

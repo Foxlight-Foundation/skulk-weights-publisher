@@ -8,9 +8,9 @@ vindexes consumed by Skulk. Skulk itself is a vindex consumer: it downloads
 
 ## Publisher Scope
 
-Phase 1 scaffolds the publishing pipeline and smoke-tier manifest. It does not
-assume HuggingFace credentials or a registered self-hosted runner are already
-available.
+Phase 1 scaffolds the publishing pipeline and smoke-tier manifest. CI validates
+the manifest and dry-runs every entry without requiring LARQL, HuggingFace
+credentials, or a registered self-hosted runner.
 
 Smoke-tier models:
 
@@ -20,9 +20,10 @@ Smoke-tier models:
 | `llama-3-2-3b-full-q4-k` | `meta-llama/Llama-3.2-3B-Instruct` | `q4k` | `full` |
 | `qwen-2-5-7b-full-q4-k` | `Qwen/Qwen2.5-7B-Instruct` | `q4k` | `full` |
 
-Phase 2 adds dry-run catalogue entries for the MoE sweet spot. These are the
-targets Skulk uses to validate `LarqlRunner` isolation and future FFN
-delegation work; actual HuggingFace publication remains operator-gated.
+Phase 2 adds catalogue entries for the MoE sweet spot. These are the targets
+Skulk uses to validate `LarqlRunner` isolation and future FFN delegation work;
+actual HuggingFace publication remains operator-gated because it depends on
+self-hosted runner capacity and HF credentials.
 
 | Key | Source model | Quant | Slices |
 |---|---|---|---|
@@ -51,19 +52,36 @@ delegation work; actual HuggingFace publication remains operator-gated.
 ```bash
 python3 -m pip install -r requirements.txt
 scripts/doctor.sh
+python3 scripts/manifest.py validate
 scripts/publish-vindex.sh --model gemma-3-4b-full-q4-k --dry-run
 ```
 
 The dry run prints the LARQL commands that would execute without extracting or
 publishing artifacts.
 
+## Publication Preflight
+
+Run this on the self-hosted runner before a real publish:
+
+```bash
+python3 -m pip install -r requirements.txt
+scripts/doctor.sh --publish
+scripts/publish-vindex.sh --model gemma-3-4b-full-q4-k --dry-run
+```
+
+Real publication refuses to overwrite an existing scratch output path. Remove
+the output directory manually or rerun with `--force` when you intentionally
+want to replace the local extraction output.
+
 ## Workflow
 
 `.github/workflows/publish.yml` supports:
 
-- weekly cron
-- manual dispatch for all smoke-tier models
+- pull request and main-branch validation on GitHub-hosted runners
+- weekly cron for the smoke tier
 - manual dispatch for one manifest key
+- manual dispatch for all entries in the `smoke`, `moe`, or `all` tiers
+- manual dry-run dispatch
 
 The workflow is intentionally conservative. It documents the required runner
 and credentials, but actual credential registration and runner capacity are
