@@ -1,7 +1,7 @@
 # Operator Setup
 
 Real vindex publication is designed for a self-hosted runner because LARQL
-extraction writes large local artifacts before upload.
+extraction writes large local vindex directories before upload.
 
 Use hosted GitHub runners for safe validation: install the package, validate the
 catalogue, run tests, and dry-run every entry. Use the self-hosted runner when

@@ -3,29 +3,25 @@ slug: /
 title: Skulk Vindex Publisher
 ---
 
-Skulk Vindex Publisher turns upstream Hugging Face models into publishable
-vindex artifacts for Skulk. It keeps a catalogue of artifacts, validates each
-publish plan, shows the exact LARQL commands that will run, and gives operators
-a repeatable way to publish model artifacts instead of rebuilding them by hand.
+Skulk Vindex Publisher publishes LARQL vindexes for Skulk. It keeps the list of
+upstream Hugging Face models Skulk wants, validates how each one should be
+extracted, shows the exact LARQL commands that will run, and runs the publish
+workflow so operators get repeatable Hugging Face repositories instead of
+one-off local builds.
 
 ## What is LARQL?
 
-LARQL is the artifact preparation toolchain used by this part of Skulk. It reads
-an upstream model, prepares it with the requested quantization and slice shape,
-writes the local vindex artifact, and publishes that artifact to the configured
-Hugging Face repository.
-
-In this project, LARQL is the engine behind the publish plan:
-
-```bash
-larql extract <source-model> -o <local-output> --quant <quant>
-larql publish <local-output> --repo <target-repo> --slices <slice-mode>
-```
+LARQL treats a model as a database. It decompiles transformer weights into a
+queryable format and exposes LQL, the Lazarus Query Language, for browsing,
+editing, running inference against, and recompiling model knowledge. In this
+project, we use LARQL through `larql extract` to create vindexes and
+`larql publish` to upload them.
 
 ## What is a vindex?
 
-A vindex is the prepared model artifact that LARQL builds and publishes. Think
-of it as a release artifact for inference: it records which upstream model was
-used, how it was prepared, which slice shape it has, where it was written
-locally, and where it was published. Skulk operators use the published vindex
-instead of guessing how to recreate the same artifact later.
+A vindex, short for vector index, is LARQL's on-disk representation of a model.
+It is a directory of memory-mapped files where transformer weights have been
+reorganized for queryability: gate vectors become a nearest-neighbor index,
+embeddings become token lookups, and down projections become edge labels.
+Published vindexes are what Skulk can refer to later by a stable Hugging Face
+repository name.

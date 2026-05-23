@@ -6,16 +6,16 @@ This guide gets you from a clean checkout to your first publisher dry-run.
 
 Before running commands, keep the core model in mind:
 
-- LARQL prepares the model artifact.
-- The prepared artifact is called a vindex.
-- This publisher validates and runs that preparation workflow.
+- LARQL decompiles transformer weights into queryable vindexes.
+- A vindex is a vector-index directory LARQL can query, run, and publish.
+- This publisher validates and runs the vindex publication workflow for Skulk.
 
 A dry-run is the best first command because it answers three practical
 questions:
 
 1. Which upstream model will be used?
-2. Where will the local vindex artifact be written?
-3. Which Hugging Face repository would receive the published artifact?
+2. Where will the local vindex directory be written?
+3. Which Hugging Face repository would receive the published vindex?
 
 It prints the LARQL commands without extracting weights or uploading files.
 
@@ -43,9 +43,9 @@ skulk-vindex manifest validate
 skulk-vindex manifest list --tier smoke
 ```
 
-The catalogue is `models.yaml`. It is the list of vindex artifacts this project
-knows how to build. The `smoke` tier contains the smaller entries that are safest
-for first publication tests.
+The catalogue is `models.yaml`. It is the list of vindexes this project knows
+how to build and publish. The `smoke` tier contains the smaller entries that are
+safest for first publication tests.
 
 ## 3. Check Your Machine
 
@@ -61,7 +61,7 @@ run LARQL:
 skulk-vindex doctor --publish
 ```
 
-## 4. Dry-Run One Artifact
+## 4. Dry-Run One Vindex
 
 ```bash
 skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run

@@ -21,7 +21,7 @@ skulk-vindex manifest validate
 
 ## `skulk-vindex manifest list`
 
-Lists manifest keys. Use this to see which artifacts are available by tier.
+Lists manifest keys. Use this to see which vindexes are available by tier.
 
 Options:
 

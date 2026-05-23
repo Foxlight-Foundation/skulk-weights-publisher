@@ -1,23 +1,25 @@
 # skulk-vindex-publisher
 
-Build and publish vindex artifacts for Skulk.
+Build and publish LARQL vindexes for Skulk.
 
-Skulk is a distributed LLM inference system. LARQL is the toolchain used here to
-prepare Skulk's LARQL-backed model artifacts. A vindex is the prepared artifact:
-a directory-shaped package derived from an upstream Hugging Face model and
-published for later use by Skulk operators.
+Skulk is a distributed LLM inference system. LARQL treats model weights as a
+database: it decompiles transformer weights into a queryable vindex and exposes
+LQL, the Lazarus Query Language, for browsing, editing, running inference
+against, and recompiling model knowledge. A vindex is a vector-index directory
+derived from an upstream Hugging Face model and published for later use by Skulk
+operators.
 
-This repository is the controlled artifact factory. It keeps the catalogue of
-publishable vindexes, validates that catalogue, prints the exact LARQL commands,
-and runs publication from a configured runner.
+This repository is the controlled publication workflow. It keeps the catalogue
+of publishable vindexes, validates that catalogue, prints the exact LARQL
+commands, and runs publication from a configured runner.
 
 ## Why This Exists
 
 Vindex publication is expensive and easy to get wrong. A bad command can write a
-large artifact to the wrong scratch path or publish it under the wrong Hugging
+large vindex to the wrong scratch path or publish it under the wrong Hugging
 Face repository. This project makes publication repeatable:
 
-- `models.yaml` describes every artifact
+- `models.yaml` describes every vindex
 - `skulk-vindex manifest validate` checks the catalogue
 - `skulk-vindex publish --dry-run` prints the LARQL plan
 - GitHub Actions validates every catalogue entry
@@ -68,7 +70,7 @@ skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
 The dry run prints the LARQL commands that would execute without extracting or
-publishing artifacts.
+publishing vindexes.
 
 ## Publication Preflight
 

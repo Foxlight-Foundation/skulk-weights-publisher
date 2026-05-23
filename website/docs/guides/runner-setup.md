@@ -3,8 +3,8 @@ title: Runner Setup
 ---
 
 Real publication needs a machine that can run LARQL, write large temporary
-artifacts, and upload to Hugging Face. In GitHub Actions, that machine is a
-self-hosted runner.
+vindex directories, and upload to Hugging Face. In GitHub Actions, that machine
+is a self-hosted runner.
 
 The runner is separate from ordinary PR validation. PR validation can build docs,
 validate `models.yaml`, and dry-run commands on hosted runners. Real publication

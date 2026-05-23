@@ -28,7 +28,7 @@ class ManifestError(ValueError):
 
 @dataclass(frozen=True)
 class ManifestEntry:
-    """One publishable vindex artifact entry from ``models.yaml``."""
+    """One publishable vindex entry from ``models.yaml``."""
 
     key: str
     source_model: str

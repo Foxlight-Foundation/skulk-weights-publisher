@@ -72,7 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="skulk-vindex",
-        description="Build, validate, and publish Skulk LARQL vindex artifacts.",
+        description="Build, validate, and publish Skulk LARQL vindexes.",
     )
     parser.add_argument(
         "--manifest",

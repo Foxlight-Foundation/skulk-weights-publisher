@@ -3,12 +3,12 @@ title: Publishing Lifecycle
 ---
 
 A vindex goes through a build-and-release lifecycle, just like any other
-artifact you expect production systems to consume.
+versioned output you expect production systems to consume.
 
-## 1. Describe The Artifact
+## 1. Describe The Vindex
 
-The artifact starts as a `models.yaml` entry. That entry names the source model,
-quantization, slice mode, local output directory, and target Hugging Face
+The vindex starts as a `models.yaml` entry. That entry names the source model,
+quantization, slice mode, local `.vindex` directory, and target Hugging Face
 repository.
 
 ## 2. Validate The Catalogue
@@ -47,10 +47,10 @@ uploaded.
 
 ## 6. Publish The Vindex
 
-After extraction, the publisher runs `larql publish` and uploads the artifact to
+After extraction, the publisher runs `larql publish` and uploads the vindex to
 the Hugging Face repository in the catalogue entry.
 
-## 7. Use The Published Artifact
+## 7. Use The Published Vindex
 
 Once published, the vindex has a stable repository name. Skulk operators can
-refer to that repository when they need the prepared artifact for runtime work.
+refer to that repository when they need the vindex for runtime work.

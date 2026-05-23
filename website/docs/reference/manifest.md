@@ -3,7 +3,7 @@ title: Manifest Reference
 ---
 
 `models.yaml` contains a top-level `models` list. Each item describes one
-publishable vindex artifact.
+publishable vindex.
 
 ```yaml
 models:
@@ -21,7 +21,7 @@ models:
 
 | Field | Meaning |
 |---|---|
-| `key` | Stable CLI and workflow selector for this artifact |
+| `key` | Stable CLI and workflow selector for this vindex |
 | `source_model` | Hugging Face model ID passed to `larql extract` |
 | `quant` | Quantization passed to LARQL |
 | `tier` | Publication group, currently `smoke` or `moe` |
@@ -67,4 +67,4 @@ larql publish .scratch/gemma-3-4b-it-full-q4-k.vindex \
 ```
 
 For `slices: [full]`, the publisher sends `--slices none` because LARQL treats
-that as the complete artifact publish path.
+that as the complete vindex publish path.

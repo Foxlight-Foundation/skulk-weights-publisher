@@ -27,8 +27,8 @@ and dashes.
 
 ## `full must not be combined with other slices`
 
-`full` represents the complete vindex artifact. Create a separate manifest entry
-for an `expert-server` slice.
+`full` represents the complete vindex. Create a separate manifest entry for an
+`expert-server` slice.
 
 ## `larql is required for non-dry-run publishing`
 

@@ -5,8 +5,9 @@ title: Add A Catalogue Entry
 Use this guide when you want to add a new publishable vindex.
 
 A catalogue entry should be boring and specific. It should tell a future
-operator exactly which model is being transformed, how LARQL will prepare it,
-what local directory will be created, and where the artifact will be published.
+operator exactly which model LARQL will extract, how the vindex should be
+stored, what local directory will be created, and where the vindex will be
+published.
 
 ## 1. Choose The Stable Key
 
@@ -32,15 +33,16 @@ model terms before running a real publish.
 
 ## 3. Select Quant And Slices
 
-`quant` describes how LARQL prepares the artifact. The current catalogue uses:
+`quant` describes how LARQL stores the extracted vindex. The current catalogue
+uses:
 
 ```yaml
 quant: q4k
 ```
 
-`slices` describes the artifact shape:
+`slices` describes the vindex shape:
 
-- `full`: publish the complete vindex artifact
+- `full`: publish the complete vindex
 - `expert-server`: publish an MoE expert-server slice
 
 `full` cannot be combined with another slice in the same entry.
@@ -49,14 +51,14 @@ quant: q4k
 
 The tier controls how operators select groups of entries.
 
-Use `smoke` for smaller artifacts that are appropriate for first publication
+Use `smoke` for smaller vindexes that are appropriate for first publication
 tests:
 
 ```yaml
 tier: smoke
 ```
 
-Use `moe` for larger MoE artifacts that should remain manual until the runner
+Use `moe` for larger MoE vindexes that should remain manual until the runner
 has enough disk, memory, and network capacity.
 
 ## 5. Set Output And Repository Names
@@ -81,5 +83,5 @@ skulk-vindex manifest get --key llama-3-2-3b-full-q4-k
 skulk-vindex publish --model llama-3-2-3b-full-q4-k --dry-run
 ```
 
-Commit the manifest change only after the dry-run command matches the artifact
+Commit the manifest change only after the dry-run command matches the vindex
 you intend to build and publish.

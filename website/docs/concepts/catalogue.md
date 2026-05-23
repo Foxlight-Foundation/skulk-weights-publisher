@@ -2,8 +2,8 @@
 title: The Catalogue
 ---
 
-The catalogue is `models.yaml`. It is the list of vindex artifacts this project
-knows how to build and publish.
+The catalogue is `models.yaml`. It is the list of vindexes this project knows
+how to build and publish.
 
 Each row answers one question: "If an operator asks for this vindex, exactly
 what should be built and where should it go?"
@@ -26,11 +26,11 @@ models:
 
 - `key`: the short name operators type in CLI commands and workflow dispatch
 - `source_model`: the Hugging Face model LARQL reads from
-- `quant`: the quantization LARQL uses when building the artifact
-- `tier`: whether this is a small first-test artifact or a larger manual target
-- `slices`: the artifact shape LARQL should publish
+- `quant`: the quantization LARQL uses when extracting the vindex
+- `tier`: whether this is a small first-test vindex or a larger manual target
+- `slices`: the vindex shape LARQL should publish
 - `output_name`: the local vindex directory name created under scratch storage
-- `hf_repo`: the Hugging Face repository that receives the published artifact
+- `hf_repo`: the Hugging Face repository that receives the published vindex
 
 ## Tiers
 
@@ -42,7 +42,7 @@ more network time, and more operator attention.
 
 ## Slice Modes
 
-`full` means "publish the whole vindex artifact."
+`full` means "publish the whole vindex."
 
 `expert-server` is a specialized slice used for MoE expert-server publication.
 It gets its own catalogue entry so the published repository name, output
