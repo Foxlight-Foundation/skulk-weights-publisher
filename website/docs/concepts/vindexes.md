@@ -12,11 +12,11 @@ Skulk is a distributed LLM inference system. Instead of assuming one machine
 does all of the work, Skulk is designed around a cluster of machines that can
 coordinate model loading and inference.
 
-Distributed inference makes model identity and model placement more important.
-Every machine in a cluster needs to agree on the exact vindex, not just a
-friendly model name. The cluster also needs to know which machines should run
-the inference hot path and which machines can serve large weight-heavy parts of
-the model.
+Distributed inference makes model identity, model placement, and hardware cost
+more important. Every machine in a cluster needs to agree on the exact vindex,
+not just a friendly model name. The cluster also needs to know which machines
+should run the inference hot path and which machines can serve large
+weight-heavy parts of the model.
 
 ## LARQL
 
@@ -45,12 +45,15 @@ nearest-neighbor index. Embeddings become token lookups. Down projections become
 edge labels. That is what lets LARQL query model knowledge with LQL instead of
 treating the weights as opaque runtime files.
 
-That matters because a vindex can be served independently from the machine doing
-the main inference work. Feed-forward network weights, including MoE expert
-weights, are large and memory-heavy. LARQL can host those weights from a
-CPU/high-memory server while another node runs the latency-sensitive inference
-path on GPU. For Skulk, that is the practical reason to separate model weights
-from one monolithic inference process.
+That matters because high-bandwidth GPU memory is expensive, and large models
+consume a lot of it just by keeping weights resident. Feed-forward network
+weights, including MoE expert weights, are large and memory-heavy. Some of that
+work still involves computation, but the expensive resource pressure is often
+weight access and memory capacity, not a requirement that every weight-serving
+machine be a GPU node. LARQL can host those weights from a CPU/high-memory
+server while another node runs the latency-sensitive inference path on GPU. For
+Skulk, that is the practical reason to separate model weights from one
+monolithic inference process.
 
 It also matters operationally because "use model X" is not specific enough for
 production inference. Operators need to know which vindex of model X they are

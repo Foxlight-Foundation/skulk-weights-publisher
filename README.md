@@ -6,8 +6,9 @@ Skulk is a distributed LLM inference system. LARQL treats model weights as a
 database: it decompiles transformer weights into a queryable vindex and exposes
 LQL, the Lazarus Query Language, for browsing, editing, running inference
 against, and recompiling model knowledge. A vindex is a vector-index directory
-derived from an upstream Hugging Face model and published so CPU/high-memory
-LARQL servers can host feed-forward weights while GPU nodes handle the
+derived from an upstream Hugging Face model and published so Skulk does not have
+to keep every weight resident in expensive GPU memory: CPU/high-memory LARQL
+servers can host feed-forward weights while GPU nodes handle the
 latency-sensitive inference path.
 
 This repository is the controlled publication workflow. It keeps the catalogue

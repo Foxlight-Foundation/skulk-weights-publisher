@@ -3,12 +3,12 @@ slug: /
 title: Skulk Vindex Publisher
 ---
 
-Skulk Vindex Publisher publishes LARQL vindexes for Skulk so model weights can
-be served separately from the GPU inference path. It keeps the list of upstream
-Hugging Face models Skulk wants, validates how each one should be extracted and
-sliced, shows the exact LARQL commands that will run, and runs the publish
-workflow so CPU/high-memory LARQL servers can host feed-forward weights while
-GPU nodes handle the latency-sensitive inference work.
+Skulk Vindex Publisher publishes LARQL vindexes for Skulk so model weights do
+not have to live entirely inside expensive GPU memory. It keeps the list of
+upstream Hugging Face models Skulk wants, validates how each one should be
+extracted and sliced, shows the exact LARQL commands that will run, and runs the
+publish workflow so CPU/high-memory LARQL servers can host feed-forward weights
+while GPU nodes handle the latency-sensitive inference work.
 
 ## What is LARQL?
 
@@ -31,9 +31,10 @@ machine to be a GPU inference node.
 
 ## Why do this?
 
-Large models are constrained by both compute and memory. The latency-sensitive
-inference path benefits from GPU, but FFN and expert weights are large,
-memory-heavy, and can be served by CPU/high-memory machines. A published vindex
-gives Skulk a stable way to split those jobs: GPU nodes handle inference,
-LARQL servers host the weight-heavy pieces, and every node refers to the same
-extracted and sliced model representation.
+Large GPUs and systems with high-bandwidth unified memory are expensive. If the
+whole model has to stay resident there, operators pay GPU prices for work that
+is often dominated by weight access and memory capacity rather than GPU-only
+compute. A published vindex gives Skulk a stable way to split that cost: GPU
+nodes handle the latency-sensitive inference path, LARQL servers on
+CPU/high-memory machines host the weight-heavy FFN and expert pieces, and every
+node refers to the same extracted and sliced model representation.
