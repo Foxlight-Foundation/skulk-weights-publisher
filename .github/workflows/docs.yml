@@ -72,7 +72,7 @@ jobs:
         if: github.event_name == 'push'
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           TARGET_DIR: ${{ steps.docs-path.outputs.target_dir }}
         run: |
           set -euo pipefail
