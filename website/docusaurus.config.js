@@ -3,7 +3,7 @@ const config = {
   tagline: "Build, validate, and publish LARQL vindexes for Skulk.",
 
   url: "https://foxlight-foundation.github.io",
-  baseUrl: "/skulk-vindex-publisher/",
+  baseUrl: process.env.DOCUSAURUS_BASE_URL || "/skulk-vindex-publisher/",
   organizationName: "Foxlight-Foundation",
   projectName: "skulk-vindex-publisher",
 

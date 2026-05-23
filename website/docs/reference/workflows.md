@@ -22,10 +22,22 @@ capacity for the selected model family.
 ## Docs Workflow
 
 `.github/workflows/docs.yml` builds the Docusaurus site on pull requests and
-pushes to `main`.
+pushes to branches.
 
 Pull requests upload `website/build` as an artifact so reviewers can inspect the
 generated static site.
 
-Pushes to `main` upload the same build output to GitHub Pages and deploy it with
-`actions/deploy-pages`.
+Pushes to `main` publish the production site from the `gh-pages` branch root:
+
+```text
+https://foxlight-foundation.github.io/skulk-vindex-publisher/
+```
+
+Pushes to other branches publish branch previews under `previews/<branch>`:
+
+```text
+https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/
+```
+
+The workflow sets Docusaurus `baseUrl` per branch so links and static assets use
+the same path that GitHub Pages serves.
