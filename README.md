@@ -2,6 +2,8 @@
 
 Build and publish LARQL vindexes for Skulk.
 
+Documentation: <https://foxlight-foundation.github.io/skulk-vindex-publisher/>
+
 Skulk is a distributed LLM inference system. LARQL treats model weights as a
 database: it decompiles transformer weights into a queryable vindex and exposes
 LQL, the Lazarus Query Language, for browsing, editing, running inference
@@ -102,6 +104,12 @@ The workflow validates catalogue changes on hosted runners and reserves real
 publication for the labelled self-hosted runner.
 
 ## Documentation Site
+
+Published documentation is available at:
+
+```text
+https://foxlight-foundation.github.io/skulk-vindex-publisher/
+```
 
 The novice-facing documentation lives in `website/docs/` and builds with
 Docusaurus:
