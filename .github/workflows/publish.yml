@@ -39,17 +39,37 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install script dependencies
-        run: python3 -m pip install -r requirements.txt
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package and development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Lint Python
+        run: ruff check
+
+      - name: Type check Python
+        run: basedpyright
+
+      - name: Run unit tests
+        run: pytest
+
+      - name: Lint shell wrappers
+        run: bash -n scripts/doctor.sh scripts/publish-vindex.sh
 
       - name: Validate manifest
-        run: python3 scripts/manifest.py validate
+        run: skulk-vindex manifest validate
 
       - name: Dry-run every manifest entry
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/manifest.py list --tier all | while IFS= read -r key; do
+          skulk-vindex manifest list --tier all | while IFS= read -r key; do
             [ -n "$key" ] || continue
             scripts/publish-vindex.sh --model "$key" --dry-run
           done
@@ -66,8 +86,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install script dependencies
-        run: python3 -m pip install -r requirements.txt
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
 
       - name: Check runner prerequisites
         run: |
@@ -87,11 +115,11 @@ jobs:
           if [ "$requested" = "all" ]; then
             {
               echo "keys<<EOF"
-              python3 scripts/manifest.py list --tier "$tier"
+              skulk-vindex manifest list --tier "$tier"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
-            python3 scripts/manifest.py get --key "$requested" >/dev/null
+            skulk-vindex manifest get --key "$requested" >/dev/null
             {
               echo "keys<<EOF"
               echo "$requested"

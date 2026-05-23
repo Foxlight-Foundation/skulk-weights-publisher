@@ -1,7 +1,14 @@
 # Operator Setup
 
-This repository is designed for a self-hosted runner because vindex extraction
-is disk-heavy and can exceed commodity hosted-runner limits.
+Real vindex publication is designed for a self-hosted runner because LARQL
+extraction writes large local vindex directories before upload. The published
+output is what later lets Skulk keep expensive GPU memory focused on the
+latency-sensitive inference path while CPU/high-memory LARQL servers host
+weight-heavy FFN and expert pieces.
+
+Use hosted GitHub runners for safe validation: install the package, validate the
+catalogue, run tests, and dry-run every entry. Use the self-hosted runner when
+you are ready to run `larql extract` and `larql publish`.
 
 ## GitHub Actions Runner
 
@@ -14,15 +21,17 @@ larql
 vindex
 ```
 
-Phase 1 smoke-tier capacity target:
+First-publish capacity target:
 
 - at least 200 GB scratch space
-- stable network path to HuggingFace
+- stable network path to Hugging Face
 - `larql` available on `PATH`
 
-MoE-tier entries are manual by default and require substantially more scratch
-space than the smoke tier. Do not enable broad MoE publication until the runner
-has enough disk for the selected model family.
+The runner does not need to be the eventual runtime server. It needs enough disk
+and network to extract and upload the vindex safely. MoE-tier entries are manual
+by default and require substantially more scratch space than the smoke tier. Do
+not enable broad MoE publication until the runner has enough disk for the
+selected model family.
 
 Set `SKULK_VINDEX_SCRATCH` on the runner if the scratch directory should live
 outside the checkout.
@@ -33,30 +42,34 @@ Configure this GitHub Actions secret:
 
 | Secret | Purpose |
 |---|---|
-| `HF_TOKEN` | HuggingFace token with write access to the target `skulk/` repos |
+| `HF_TOKEN` | Hugging Face token with write access to the target `skulk/` repos |
 
 Do not commit tokens to this repository.
 
 ## Validation
 
-Before enabling the scheduled workflow, run:
+Before enabling the scheduled workflow, install the package and run the local
+validation path:
 
 ```bash
-python3 -m pip install -r requirements.txt
-scripts/doctor.sh
-python3 scripts/manifest.py validate
-scripts/publish-vindex.sh --model gemma-3-4b-full-q4-k --dry-run
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+skulk-vindex doctor
+skulk-vindex manifest validate
+skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
 Before real publication, run the stricter preflight:
 
 ```bash
-scripts/doctor.sh --publish
-scripts/publish-vindex.sh --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex doctor --publish
+skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
-Then use manual workflow dispatch for a single smoke-tier entry before enabling
-the full weekly run.
+Then use manual workflow dispatch for a single smoke-tier entry before expanding
+publication to more keys.
 
 ## Workflow Dispatch
 
@@ -64,5 +77,5 @@ the full weekly run.
 - `model=<manifest-key>` publishes one entry and ignores `tier`.
 - `dry_run=true` runs the same manifest resolution path but only prints LARQL
   commands.
-- `tier=moe` is for explicit large-model publication after capacity has been
-  verified.
+- `tier=moe` is for explicit large-model and expert-server publication after
+  capacity has been verified.
