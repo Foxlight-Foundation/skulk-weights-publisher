@@ -39,20 +39,24 @@ Do not commit tokens to this repository.
 
 ## Validation
 
-Before enabling the scheduled workflow, run:
+Before enabling the scheduled workflow, install the package and run the local
+validation path:
 
 ```bash
-python3 -m pip install -r requirements.txt
-scripts/doctor.sh
-python3 scripts/manifest.py validate
-scripts/publish-vindex.sh --model gemma-3-4b-full-q4-k --dry-run
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+skulk-vindex doctor
+skulk-vindex manifest validate
+skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
 Before real publication, run the stricter preflight:
 
 ```bash
-scripts/doctor.sh --publish
-scripts/publish-vindex.sh --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex doctor --publish
+skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
 Then use manual workflow dispatch for a single smoke-tier entry before enabling

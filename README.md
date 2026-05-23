@@ -47,13 +47,24 @@ self-hosted runner capacity and HF credentials.
    Phase 2 MoE entries require substantially more scratch capacity before
    non-dry-run publication.
 
-## Local Dry Run
+## Install The CLI
+
+Use the package CLI for local development, CI validation, and runner operation:
 
 ```bash
-python3 -m pip install -r requirements.txt
-scripts/doctor.sh
-python3 scripts/manifest.py validate
-scripts/publish-vindex.sh --model gemma-3-4b-full-q4-k --dry-run
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+The legacy script names remain as compatibility wrappers, but `skulk-vindex` is
+the product interface:
+
+```bash
+skulk-vindex doctor
+skulk-vindex manifest validate
+skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
 The dry run prints the LARQL commands that would execute without extracting or
@@ -64,9 +75,9 @@ publishing artifacts.
 Run this on the self-hosted runner before a real publish:
 
 ```bash
-python3 -m pip install -r requirements.txt
-scripts/doctor.sh --publish
-scripts/publish-vindex.sh --model gemma-3-4b-full-q4-k --dry-run
+python -m pip install -e .
+skulk-vindex doctor --publish
+skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
 Real publication refuses to overwrite an existing scratch output path. Remove
@@ -86,3 +97,17 @@ want to replace the local extraction output.
 The workflow is intentionally conservative. It documents the required runner
 and credentials, but actual credential registration and runner capacity are
 operator-managed.
+
+## Documentation Site
+
+The novice-facing documentation lives in `website/docs/` and builds with
+Docusaurus:
+
+```bash
+cd website
+npm ci
+npm run build
+```
+
+Pull requests build the site as a validation artifact. Merges to `main` deploy
+the same build output to GitHub Pages through `.github/workflows/docs.yml`.
