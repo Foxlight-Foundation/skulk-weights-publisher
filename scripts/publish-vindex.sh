@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/publish-vindex.sh --model <manifest-key> [--dry-run]
+  scripts/publish-vindex.sh --model <manifest-key> [--dry-run] [--force]
 
 Environment:
   SKULK_VINDEX_SCRATCH  Scratch root for extraction output (default: ./.scratch)
@@ -14,6 +14,7 @@ USAGE
 
 model_key=""
 dry_run=0
+force=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -23,6 +24,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --dry-run)
       dry_run=1
+      shift
+      ;;
+    --force)
+      force=1
       shift
       ;;
     -h|--help)
@@ -48,32 +53,11 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-manifest_json="$(
-  python3 - "$model_key" <<'PY'
-import json
-import pathlib
-import sys
-
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("PyYAML is required: python3 -m pip install pyyaml", file=sys.stderr)
-    raise SystemExit(1)
-
-model_key = sys.argv[1]
-manifest = yaml.safe_load(pathlib.Path("models.yaml").read_text())
-for entry in manifest.get("models", []):
-    if entry.get("key") == model_key:
-        print(json.dumps(entry))
-        break
-else:
-    print(f"model key not found in models.yaml: {model_key}", file=sys.stderr)
-    raise SystemExit(1)
-PY
-)"
+manifest_json="$(python3 scripts/manifest.py get --key "$model_key")"
 
 source_model="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["source_model"])' "$manifest_json")"
 quant="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["quant"])' "$manifest_json")"
+tier="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["tier"])' "$manifest_json")"
 output_name="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["output_name"])' "$manifest_json")"
 hf_repo="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["hf_repo"])' "$manifest_json")"
 slices="$(python3 -c 'import json,sys; print(",".join(json.loads(sys.argv[1])["slices"]))' "$manifest_json")"
@@ -90,10 +74,12 @@ extract_cmd=(larql extract "$source_model" -o "$output_path" --quant "$quant")
 publish_cmd=(larql publish "$output_path" --repo "$hf_repo" --slices "$publish_slices")
 
 echo "model key: $model_key"
+echo "tier: $tier"
 echo "source model: $source_model"
 echo "output path: $output_path"
 echo "target repo: hf://$hf_repo"
 echo "publish slices: $publish_slices"
+echo "force overwrite: $force"
 printf 'extract command:'
 printf ' %q' "${extract_cmd[@]}"
 printf '\n'
@@ -117,5 +103,14 @@ if [ -z "${HF_TOKEN:-}" ]; then
 fi
 
 mkdir -p "$scratch_root"
+if [ -e "$output_path" ]; then
+  if [ "$force" -ne 1 ]; then
+    echo "output path already exists: $output_path" >&2
+    echo "remove it manually or rerun with --force to replace it" >&2
+    exit 1
+  fi
+  rm -rf "$output_path"
+fi
+
 "${extract_cmd[@]}"
 "${publish_cmd[@]}"
