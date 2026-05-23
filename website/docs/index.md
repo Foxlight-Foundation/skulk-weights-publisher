@@ -28,3 +28,12 @@ embeddings become token lookups, and down projections become edge labels.
 Because the weights are in this structured form, LARQL can serve FFN and expert
 weights from CPU/high-memory nodes instead of requiring every weight-serving
 machine to be a GPU inference node.
+
+## Why do this?
+
+Large models are constrained by both compute and memory. The latency-sensitive
+inference path benefits from GPU, but FFN and expert weights are large,
+memory-heavy, and can be served by CPU/high-memory machines. A published vindex
+gives Skulk a stable way to split those jobs: GPU nodes handle inference,
+LARQL servers host the weight-heavy pieces, and every node refers to the same
+extracted and sliced model representation.
