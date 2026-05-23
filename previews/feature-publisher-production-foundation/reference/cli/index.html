@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">CLI Reference | Skulk Vindex Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/cli"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="CLI Reference | Skulk Vindex Publisher"><meta data-rh="true" name="description" content="The skulk-vindex CLI has three jobs:"><meta data-rh="true" property="og:description" content="The skulk-vindex CLI has three jobs:"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/cli"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/cli" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/cli" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"CLI Reference","item":"https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/cli"}]}</script><link rel="stylesheet" href="/skulk-vindex-publisher/previews/feature-publisher-production-foundation/assets/css/styles.2c920404.css">
-<script src="/skulk-vindex-publisher/previews/feature-publisher-production-foundation/assets/js/runtime~main.caab7db1.js" defer="defer"></script>
+<script src="/skulk-vindex-publisher/previews/feature-publisher-production-foundation/assets/js/runtime~main.e0e4a6ff.js" defer="defer"></script>
 <script src="/skulk-vindex-publisher/previews/feature-publisher-production-foundation/assets/js/main.4822efe2.js" defer="defer"></script>
 </head>
 <body>
@@ -17,6 +17,9 @@
 <li class="">check the local environment</li>
 <li class="">plan or run one vindex publication</li>
 </ul>
+<p>Those jobs keep publication reviewable before LARQL extracts large weight
+directories. The published vindex is the stable object Skulk can later place
+across GPU inference nodes and CPU/high-memory weight-serving nodes.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="skulk-vindex-manifest-validate"><code>skulk-vindex manifest validate</code><a href="#skulk-vindex-manifest-validate" class="hash-link" aria-label="Direct link to skulk-vindex-manifest-validate" title="Direct link to skulk-vindex-manifest-validate" translate="no">​</a></h2>
 <p>Validates <code>models.yaml</code>. Run this after changing the catalogue and before
 publishing.</p>
@@ -44,7 +47,9 @@ scratch directory access, and manifest validity.</p>
 <p>Adds publication-specific checks for <code>larql</code> and <code>HF_TOKEN</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="skulk-vindex-publish---model-key"><code>skulk-vindex publish --model KEY</code><a href="#skulk-vindex-publish---model-key" class="hash-link" aria-label="Direct link to skulk-vindex-publish---model-key" title="Direct link to skulk-vindex-publish---model-key" translate="no">​</a></h2>
 <p>Builds the publish plan for one manifest entry. With <code>--dry-run</code>, it only prints
-the plan. Without <code>--dry-run</code>, it runs LARQL extraction and publication.</p>
+the plan. Without <code>--dry-run</code>, it runs LARQL extraction and publication.
+Review the slice mode before publishing; it is the part of the manifest that
+connects this vindex to the intended runtime hardware role.</p>
 <p>Options:</p>
 <ul>
 <li class=""><code>--dry-run</code>: print commands without running LARQL</li>

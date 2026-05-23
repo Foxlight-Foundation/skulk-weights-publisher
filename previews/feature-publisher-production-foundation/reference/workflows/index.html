@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Workflow Reference | Skulk Vindex Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/workflows"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Workflow Reference | Skulk Vindex Publisher"><meta data-rh="true" name="description" content="The repository has two GitHub Actions workflows: one for vindex publication and"><meta data-rh="true" property="og:description" content="The repository has two GitHub Actions workflows: one for vindex publication and"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/workflows"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/workflows" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/workflows" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Workflow Reference","item":"https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/reference/workflows"}]}</script><link rel="stylesheet" href="/skulk-vindex-publisher/previews/feature-publisher-production-foundation/assets/css/styles.2c920404.css">
-<script src="/skulk-vindex-publisher/previews/feature-publisher-production-foundation/assets/js/runtime~main.caab7db1.js" defer="defer"></script>
+<script src="/skulk-vindex-publisher/previews/feature-publisher-production-foundation/assets/js/runtime~main.e0e4a6ff.js" defer="defer"></script>
 <script src="/skulk-vindex-publisher/previews/feature-publisher-production-foundation/assets/js/main.4822efe2.js" defer="defer"></script>
 </head>
 <body>
@@ -30,6 +30,9 @@ tests, validates <code>models.yaml</code>, and dry-runs every catalogue entry.</
 <p>The publish job uses the <code>self-hosted</code>, <code>linux</code>, <code>larql</code>, and <code>vindex</code> runner
 labels. It resolves the requested manifest keys and runs the same CLI operators
 use locally.</p>
+<p>This job publishes the vindexes Skulk will later place across runtime hardware.
+The runner performs extraction and upload; it is not required to be the GPU node
+or the CPU/high-memory LARQL server that eventually consumes the output.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="docs-workflow">Docs Workflow<a href="#docs-workflow" class="hash-link" aria-label="Direct link to Docs Workflow" title="Direct link to Docs Workflow" translate="no">​</a></h2>
 <p><code>.github/workflows/docs.yml</code> builds the Docusaurus site on pull requests and
 pushes to branches.</p>
