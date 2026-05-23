@@ -4,6 +4,12 @@ title: Quickstart
 
 This guide gets you from a clean checkout to your first publisher dry-run.
 
+Before running commands, keep the core model in mind:
+
+- LARQL prepares the model artifact.
+- The prepared artifact is called a vindex.
+- This publisher validates and runs that preparation workflow.
+
 A dry-run is the best first command because it answers three practical
 questions:
 

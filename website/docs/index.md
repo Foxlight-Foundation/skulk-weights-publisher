@@ -3,37 +3,48 @@ slug: /
 title: Skulk Vindex Publisher
 ---
 
-Skulk Vindex Publisher is the tool that turns upstream Hugging Face model
-weights into packaged artifacts that Skulk operators can publish, inspect, and
-reuse.
+You probably already know what an LLM is and what inference means. The new terms
+here are **Skulk**, **LARQL**, and **vindex**.
 
-If you know how LLM inference works but have not worked with Skulk, LARQL, or a
-vindex before, the short version is:
+**Skulk** is a distributed inference system. It is built for running model
+workloads across one or more machines instead of treating inference as a
+single-process, single-machine problem.
 
-- **Skulk** runs LLM inference across one or more machines.
-- **LARQL** prepares model artifacts for Skulk's LARQL-backed runtime path.
-- A **vindex** is the prepared artifact that gets published and later downloaded.
-- This project is the publishing workstation for those artifacts.
+**LARQL** is the artifact preparation toolchain used by this part of Skulk. It
+takes an upstream Hugging Face model and prepares a Skulk-ready model artifact
+with a specific quantization and slice shape.
 
-Think of a vindex like a release artifact for model inference. The upstream
-model on Hugging Face is the source material. LARQL builds the vindex from that
-source. Skulk uses the published vindex when an operator wants that model path.
+A **vindex** is that prepared artifact. It is the thing LARQL builds and
+publishes. Skulk operators can then refer to the published vindex instead of
+rebuilding or guessing how the artifact was produced.
+
+Skulk Vindex Publisher is the tool that makes those vindexes repeatable. It
+keeps the catalogue, validates each entry, prints the exact LARQL commands, and
+runs publication from a configured runner.
 
 ## Why This Exists
 
-Large-model artifacts are expensive to build and easy to publish incorrectly.
-The same source model can produce different outputs depending on quantization,
-slice type, scratch storage, and publication target. A hand-written shell command
-is not enough for a production catalogue.
+Inference systems care deeply about artifact identity. A model name alone is not
+enough. The runtime also needs to know how the artifact was prepared, which
+quantization was used, whether the artifact is complete or sliced, and where the
+published output lives.
+
+That is what a vindex captures for Skulk.
+
+LARQL can build the artifact, but production use needs more than a one-off shell
+command. Operators need a catalogue, dry-runs, validation, consistent names, and
+a safe publishing workflow.
 
 This repository gives Skulk a controlled artifact factory:
 
-- a catalogue of model artifacts Skulk expects to exist
-- a CLI that explains and validates each publish plan before it runs
-- a dry-run path that shows the exact LARQL commands
-- GitHub Actions validation so catalogue changes are reviewed before publishing
-- a publishing workflow for the controlled runner that has disk, LARQL, and
+- a catalogue of vindexes Skulk operators can publish
+- a CLI that explains and validates each vindex plan before it runs
+- a dry-run path that shows the exact `larql extract` and `larql publish`
+  commands
+- GitHub Actions validation for catalogue and docs changes
+- a publishing workflow for the controlled runner with disk, LARQL, and
   Hugging Face credentials
 
-Start with [Skulk, LARQL, and vindexes](concepts/vindexes.md) if the nouns are
-new. Start with the [quickstart](quickstart.md) if you want to run the tool.
+Start with [Skulk, LARQL, and vindexes](concepts/vindexes.md) for the mental
+model. Start with the [quickstart](quickstart.md) when you are ready to run a
+dry-run.
