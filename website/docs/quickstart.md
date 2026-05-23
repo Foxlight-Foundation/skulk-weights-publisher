@@ -8,7 +8,8 @@ Before running commands, keep the core model in mind:
 
 - LARQL decompiles transformer weights into queryable vindexes.
 - A vindex is a vector-index directory LARQL can query, run, and publish.
-- This publisher validates and runs the vindex publication workflow for Skulk.
+- Skulk uses published vindexes to place weight-serving work on the right
+  machines, including CPU/high-memory servers for FFN and expert weights.
 
 A dry-run is the best first command because it answers three practical
 questions:

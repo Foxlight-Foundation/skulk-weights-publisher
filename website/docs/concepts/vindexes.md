@@ -12,8 +12,11 @@ Skulk is a distributed LLM inference system. Instead of assuming one machine
 does all of the work, Skulk is designed around a cluster of machines that can
 coordinate model loading and inference.
 
-Distributed inference makes model identity more important. Every machine in a
-cluster needs to agree on the exact vindex, not just a friendly model name.
+Distributed inference makes model identity and model placement more important.
+Every machine in a cluster needs to agree on the exact vindex, not just a
+friendly model name. The cluster also needs to know which machines should run
+the inference hot path and which machines can serve large weight-heavy parts of
+the model.
 
 ## LARQL
 
@@ -29,8 +32,8 @@ larql extract <source-model> -o <local-output> --quant <quant>
 larql publish <local-output> --repo <target-repo> --slices <slice-mode>
 ```
 
-`extract` creates the local vindex. `publish` uploads the vindex to the Hugging
-Face repository listed in the catalogue.
+`extract` creates the local vindex. `publish` uploads the vindex, or a sliced
+form of it, to the Hugging Face repository listed in the catalogue.
 
 ## Vindex
 
@@ -42,8 +45,16 @@ nearest-neighbor index. Embeddings become token lookups. Down projections become
 edge labels. That is what lets LARQL query model knowledge with LQL instead of
 treating the weights as opaque runtime files.
 
-That matters because "use model X" is not specific enough for production
-inference. Operators also need to know which vindex of model X they are using.
+That matters because a vindex can be served independently from the machine doing
+the main inference work. Feed-forward network weights, including MoE expert
+weights, are large and memory-heavy. LARQL can host those weights from a
+CPU/high-memory server while another node runs the latency-sensitive inference
+path on GPU. For Skulk, that is the practical reason to separate model weights
+from one monolithic inference process.
+
+It also matters operationally because "use model X" is not specific enough for
+production inference. Operators need to know which vindex of model X they are
+using and where each slice is supposed to run.
 
 LARQL extraction levels decide which operations the vindex can support:
 
@@ -57,7 +68,8 @@ The catalogue records the production contract around that vindex:
 
 - source model: which upstream Hugging Face model LARQL reads from
 - quantization: how LARQL stores the extracted weights
-- slice mode: whether the published vindex is complete or a specialized slice
+- slice mode: whether the published vindex is complete or an expert-server
+  slice
 - output name: the local `.vindex` directory produced under scratch storage
 - target repository: where the vindex is published
 
@@ -67,7 +79,7 @@ Skulk Vindex Publisher is the automation layer around LARQL publication. It
 reads the catalogue, validates that entries are well formed, prints the exact
 command plan, and runs publication from the machine configured for that job.
 
-The publisher matters because vindex publication is expensive and stateful. A
-bad command can waste hours of compute, fill scratch storage, or publish a
-vindex under the wrong name. The publisher makes the process repeatable before
-Skulk depends on the result.
+The publisher matters because this split only works when every machine agrees
+on the same extracted and sliced weights. A bad command can waste hours of
+compute, fill scratch storage, or publish a vindex under the wrong name. The
+publisher makes the process repeatable before Skulk depends on the result.
