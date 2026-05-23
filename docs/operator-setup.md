@@ -1,7 +1,10 @@
 # Operator Setup
 
 Real vindex publication is designed for a self-hosted runner because LARQL
-extraction writes large local vindex directories before upload.
+extraction writes large local vindex directories before upload. The published
+output is what later lets Skulk keep expensive GPU memory focused on the
+latency-sensitive inference path while CPU/high-memory LARQL servers host
+weight-heavy FFN and expert pieces.
 
 Use hosted GitHub runners for safe validation: install the package, validate the
 catalogue, run tests, and dry-run every entry. Use the self-hosted runner when
@@ -24,9 +27,11 @@ First-publish capacity target:
 - stable network path to Hugging Face
 - `larql` available on `PATH`
 
-MoE-tier entries are manual by default and require substantially more scratch
-space than the smoke tier. Do not enable broad MoE publication until the runner
-has enough disk for the selected model family.
+The runner does not need to be the eventual runtime server. It needs enough disk
+and network to extract and upload the vindex safely. MoE-tier entries are manual
+by default and require substantially more scratch space than the smoke tier. Do
+not enable broad MoE publication until the runner has enough disk for the
+selected model family.
 
 Set `SKULK_VINDEX_SCRATCH` on the runner if the scratch directory should live
 outside the checkout.
@@ -72,5 +77,5 @@ publication to more keys.
 - `model=<manifest-key>` publishes one entry and ignores `tier`.
 - `dry_run=true` runs the same manifest resolution path but only prints LARQL
   commands.
-- `tier=moe` is for explicit large-model publication after capacity has been
-  verified.
+- `tier=moe` is for explicit large-model and expert-server publication after
+  capacity has been verified.

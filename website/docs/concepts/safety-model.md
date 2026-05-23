@@ -2,9 +2,10 @@
 title: Publishing Safety
 ---
 
-Vindex publication can consume real resources. The publisher is designed so you
-can inspect the plan before LARQL uses disk, network, or Hugging Face write
-access.
+Vindex publication can consume real resources. LARQL extraction writes large
+weight directories, and publication uploads them to Hugging Face. The publisher
+is designed so you can inspect the plan before LARQL uses disk, network, or
+Hugging Face write access.
 
 ## Commands You Can Run Freely
 
@@ -37,7 +38,8 @@ skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
 The dry-run prints the exact `larql extract` and `larql publish` commands. It
-is the normal review step before a runner starts doing expensive work.
+is the normal review step before a runner starts doing expensive work, and it is
+where you confirm the output will support the intended GPU/CPU placement split.
 
 ## Overwrite Protection
 

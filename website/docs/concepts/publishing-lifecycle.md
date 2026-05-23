@@ -2,14 +2,18 @@
 title: Publishing Lifecycle
 ---
 
-A vindex goes through a build-and-release lifecycle, just like any other
-versioned output you expect production systems to consume.
+A vindex goes through a build-and-release lifecycle because it is the boundary
+between expensive GPU inference nodes and cheaper CPU/high-memory weight
+servers. The goal is a stable, published model representation that every Skulk
+node can agree on before runtime placement begins.
 
 ## 1. Describe The Vindex
 
 The vindex starts as a `models.yaml` entry. That entry names the source model,
 quantization, slice mode, local `.vindex` directory, and target Hugging Face
-repository.
+repository. The slice mode is part of the runtime contract: it tells operators
+whether they are publishing a complete vindex or a specialized expert-server
+shape for weight serving.
 
 ## 2. Validate The Catalogue
 
@@ -27,7 +31,9 @@ skulk-vindex doctor --publish
 ```
 
 The publishing runner needs Python, LARQL, writable scratch storage, network
-access to Hugging Face, and `HF_TOKEN`.
+access to Hugging Face, and `HF_TOKEN`. It does not have to be the eventual
+runtime host; it is the machine that performs the expensive extraction and
+upload.
 
 ## 4. Review The Plan
 
@@ -37,7 +43,7 @@ skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 
 The dry-run prints the exact `larql extract` and `larql publish` commands. This
 is the last cheap place to catch a wrong source model, path, slice mode, or
-repository.
+repository before disk-heavy extraction begins.
 
 ## 5. Extract The Vindex
 
@@ -53,4 +59,5 @@ the Hugging Face repository in the catalogue entry.
 ## 7. Use The Published Vindex
 
 Once published, the vindex has a stable repository name. Skulk operators can
-refer to that repository when they need the vindex for runtime work.
+use that name when assigning GPU nodes to the latency-sensitive inference path
+and CPU/high-memory LARQL servers to FFN or expert weight serving.

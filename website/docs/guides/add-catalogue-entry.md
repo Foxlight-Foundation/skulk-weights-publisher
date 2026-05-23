@@ -7,7 +7,8 @@ Use this guide when you want to add a new publishable vindex.
 A catalogue entry should be boring and specific. It should tell a future
 operator exactly which model LARQL will extract, how the vindex should be
 stored, what local directory will be created, and where the vindex will be
-published.
+published. For sliced entries, it should also make the intended runtime role
+obvious: complete model representation or expert-server weight serving.
 
 ## 1. Choose The Stable Key
 
@@ -43,7 +44,8 @@ quant: q4k
 `slices` describes the vindex shape:
 
 - `full`: publish the complete vindex
-- `expert-server`: publish an MoE expert-server slice
+- `expert-server`: publish an MoE expert-server slice for CPU/high-memory
+  weight serving
 
 `full` cannot be combined with another slice in the same entry.
 
@@ -59,7 +61,8 @@ tier: smoke
 ```
 
 Use `moe` for larger MoE vindexes that should remain manual until the runner
-has enough disk, memory, and network capacity.
+has enough disk, memory, and network capacity. These are usually the entries
+most relevant to keeping expert weights out of expensive GPU memory.
 
 ## 5. Set Output And Repository Names
 
@@ -84,4 +87,4 @@ skulk-vindex publish --model llama-3-2-3b-full-q4-k --dry-run
 ```
 
 Commit the manifest change only after the dry-run command matches the vindex
-you intend to build and publish.
+you intend to build, publish, and place in Skulk.

@@ -9,6 +9,9 @@ is a self-hosted runner.
 The runner is separate from ordinary PR validation. PR validation can build docs,
 validate `models.yaml`, and dry-run commands on hosted runners. Real publication
 uses the self-hosted runner because extraction is disk-heavy and credentialed.
+The runner is also separate from the eventual Skulk runtime placement: it
+creates the published vindex that later lets CPU/high-memory LARQL servers host
+weight-heavy FFN or expert pieces while GPU nodes handle the inference hot path.
 
 Required labels:
 
@@ -27,6 +30,9 @@ Runner requirements:
 - `HF_TOKEN` configured as a GitHub Actions secret
 - fast scratch storage
 
+GPU hardware is not a runner requirement for publication. The important
+capacity is disk for extraction and network for upload.
+
 Set `SKULK_VINDEX_SCRATCH` if the scratch directory should live outside the
 checkout.
 
@@ -35,8 +41,8 @@ checkout.
 Start by publishing one `smoke` entry. Provision at least 200 GB of fast scratch
 storage for that first path.
 
-MoE entries require substantially more scratch space. Treat them as explicit
-operator actions, not background validation.
+MoE and expert-server entries require substantially more scratch space. Treat
+them as explicit operator actions, not background validation.
 
 ## Runner Preflight
 

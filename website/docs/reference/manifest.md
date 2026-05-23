@@ -3,7 +3,8 @@ title: Manifest Reference
 ---
 
 `models.yaml` contains a top-level `models` list. Each item describes one
-publishable vindex.
+publishable vindex and the slice shape Skulk can later place on runtime
+hardware.
 
 ```yaml
 models:
@@ -25,7 +26,7 @@ models:
 | `source_model` | Hugging Face model ID passed to `larql extract` |
 | `quant` | Quantization passed to LARQL |
 | `tier` | Publication group, currently `smoke` or `moe` |
-| `slices` | LARQL slice mode, currently `full` or `expert-server` |
+| `slices` | LARQL slice mode, currently `full` or `expert-server`; this is the runtime placement shape |
 | `output_name` | Local vindex directory basename under scratch storage |
 | `hf_repo` | Hugging Face repository passed to `larql publish` |
 
@@ -68,3 +69,7 @@ larql publish .scratch/gemma-3-4b-it-full-q4-k.vindex \
 
 For `slices: [full]`, the publisher sends `--slices none` because LARQL treats
 that as the complete vindex publish path.
+
+For `slices: [expert-server]`, the output is meant for MoE expert weight
+serving from CPU/high-memory LARQL servers instead of forcing those weights into
+GPU memory.

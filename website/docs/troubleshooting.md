@@ -47,6 +47,11 @@ The publisher refuses to overwrite local extraction output by default. Remove
 the directory manually, choose another scratch root, or rerun with `--force`
 when replacement is intentional.
 
+This check matters because extraction output can be large and may correspond to
+a specific runtime role. Accidentally reusing a path can leave operators unsure
+which vindex should be placed on GPU inference nodes or CPU/high-memory LARQL
+servers.
+
 Use a different scratch root when you want to keep the old output:
 
 ```bash

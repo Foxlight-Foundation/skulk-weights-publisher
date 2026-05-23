@@ -25,6 +25,10 @@ The publish job uses the `self-hosted`, `linux`, `larql`, and `vindex` runner
 labels. It resolves the requested manifest keys and runs the same CLI operators
 use locally.
 
+This job publishes the vindexes Skulk will later place across runtime hardware.
+The runner performs extraction and upload; it is not required to be the GPU node
+or the CPU/high-memory LARQL server that eventually consumes the output.
+
 ## Docs Workflow
 
 `.github/workflows/docs.yml` builds the Docusaurus site on pull requests and

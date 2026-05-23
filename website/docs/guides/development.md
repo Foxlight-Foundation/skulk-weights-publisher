@@ -7,6 +7,9 @@ publishing workflow, or documentation.
 
 The development goal is simple: every change should preserve the ability to
 explain a vindex publish plan before any real extraction or upload happens.
+That plan is not only a file-transfer plan; it is how the project records which
+published vindex Skulk can later place on GPU inference nodes or CPU/high-memory
+weight-serving nodes.
 
 ## Python Setup
 

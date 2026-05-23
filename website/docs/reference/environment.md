@@ -22,6 +22,10 @@ directories here before publication.
 
 If unset, the publisher uses `.scratch` inside the current checkout.
 
+Use fast storage with enough capacity for the selected vindex shape. Full and
+expert-server outputs exist to support Skulk's runtime placement split, but the
+publisher still needs local scratch space before anything reaches Hugging Face.
+
 Example:
 
 ```bash

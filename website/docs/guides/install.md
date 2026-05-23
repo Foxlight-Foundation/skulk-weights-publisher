@@ -3,7 +3,9 @@ title: Install
 ---
 
 Install the publisher when you want to inspect the catalogue, dry-run a publish,
-or run the publishing workflow on a configured runner.
+or run the publishing workflow on a configured runner. The CLI exists to make
+vindex publication repeatable before Skulk relies on those vindexes for
+GPU/CPU runtime placement.
 
 ## Local Development Install
 

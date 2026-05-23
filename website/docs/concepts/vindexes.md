@@ -64,7 +64,7 @@ LARQL extraction levels decide which operations the vindex can support:
 | Level | Enables | Why it matters |
 |---|---|---|
 | `browse` | `DESCRIBE`, `WALK`, `SELECT` | Query and inspect model knowledge without a full forward pass. |
-| `inference` | browse operations plus `INFER` | Run inference from the vindex. This is LARQL's default extraction level. |
+| `inference` | browse operations plus `INFER` | Run inference. This is LARQL's default extraction level. |
 | `all` | inference operations plus `COMPILE` | Bake patch overlays into a new standalone vindex. |
 
 The catalogue records the production contract around that vindex:

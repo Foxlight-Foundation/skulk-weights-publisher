@@ -8,6 +8,10 @@ The `skulk-vindex` CLI has three jobs:
 - check the local environment
 - plan or run one vindex publication
 
+Those jobs keep publication reviewable before LARQL extracts large weight
+directories. The published vindex is the stable object Skulk can later place
+across GPU inference nodes and CPU/high-memory weight-serving nodes.
+
 ## `skulk-vindex manifest validate`
 
 Validates `models.yaml`. Run this after changing the catalogue and before
@@ -59,6 +63,8 @@ Adds publication-specific checks for `larql` and `HF_TOKEN`.
 
 Builds the publish plan for one manifest entry. With `--dry-run`, it only prints
 the plan. Without `--dry-run`, it runs LARQL extraction and publication.
+Review the slice mode before publishing; it is the part of the manifest that
+connects this vindex to the intended runtime hardware role.
 
 Options:
 
