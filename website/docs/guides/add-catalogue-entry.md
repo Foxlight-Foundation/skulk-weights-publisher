@@ -2,22 +2,26 @@
 title: Add A Catalogue Entry
 ---
 
-Use this guide when you want the publisher to know about a new vindex artifact.
+Use this guide when you want to add a new publishable vindex.
+
+A catalogue entry should be boring and specific. It should tell a future
+operator exactly which model is being transformed, how LARQL will prepare it,
+what local directory will be created, and where the artifact will be published.
 
 ## 1. Choose The Stable Key
 
-The `key` is what operators type in CLI commands and workflow dispatch. Keep it
-lowercase, descriptive, and stable:
+The `key` is the name operators type:
 
 ```yaml
 key: llama-3-2-3b-full-q4-k
 ```
 
-Do not change an existing key after it has appeared in automation or docs.
+Use lowercase letters, numbers, and dashes. Include enough detail that the key
+distinguishes model family, size, slice mode, and quantization.
 
 ## 2. Pick The Source Model
 
-Set `source_model` to the upstream Hugging Face model ID consumed by LARQL:
+`source_model` is the Hugging Face model LARQL reads from:
 
 ```yaml
 source_model: meta-llama/Llama-3.2-3B-Instruct
@@ -28,25 +32,37 @@ model terms before running a real publish.
 
 ## 3. Select Quant And Slices
 
-The current catalogue supports `q4k` quantization and these slice modes:
+`quant` describes how LARQL prepares the artifact. The current catalogue uses:
+
+```yaml
+quant: q4k
+```
+
+`slices` describes the artifact shape:
 
 - `full`: publish the complete vindex artifact
-- `expert-server`: publish an MoE expert-server slice for delegation testing
+- `expert-server`: publish an MoE expert-server slice
 
 `full` cannot be combined with another slice in the same entry.
 
 ## 4. Assign The Tier
 
-Use `smoke` for small artifacts that can run in scheduled validation and early
-publication tests.
+The tier controls how operators select groups of entries.
+
+Use `smoke` for smaller artifacts that are appropriate for first publication
+tests:
+
+```yaml
+tier: smoke
+```
 
 Use `moe` for larger MoE artifacts that should remain manual until the runner
 has enough disk, memory, and network capacity.
 
 ## 5. Set Output And Repository Names
 
-`output_name` is the local scratch directory basename. It must end in
-`.vindex` and must not include a slash.
+`output_name` is the local directory LARQL writes under scratch storage. It must
+end in `.vindex` and must not include a slash.
 
 `hf_repo` is the target Hugging Face repository:
 

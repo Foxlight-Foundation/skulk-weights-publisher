@@ -2,7 +2,8 @@
 title: Manifest Reference
 ---
 
-`models.yaml` contains a top-level `models` list.
+`models.yaml` contains a top-level `models` list. Each item describes one
+publishable vindex artifact.
 
 ```yaml
 models:
@@ -16,7 +17,19 @@ models:
     hf_repo: skulk/gemma-3-4b-it-full-q4-k-vindex
 ```
 
-Validation rules:
+## Field Reference
+
+| Field | Meaning |
+|---|---|
+| `key` | Stable CLI and workflow selector for this artifact |
+| `source_model` | Hugging Face model ID passed to `larql extract` |
+| `quant` | Quantization passed to LARQL |
+| `tier` | Publication group, currently `smoke` or `moe` |
+| `slices` | LARQL slice mode, currently `full` or `expert-server` |
+| `output_name` | Local vindex directory basename under scratch storage |
+| `hf_repo` | Hugging Face repository passed to `larql publish` |
+
+## Validation Rules
 
 - `key` must be lowercase kebab-case and unique
 - `source_model` must look like `owner/name`
@@ -26,3 +39,32 @@ Validation rules:
 - `full` cannot be combined with other slices
 - `output_name` must be a `.vindex` basename
 - `hf_repo` must look like `owner/name` and be unique
+
+## Generated Commands
+
+This entry:
+
+```yaml
+key: gemma-3-4b-full-q4-k
+source_model: google/gemma-3-4b-it
+quant: q4k
+slices:
+  - full
+output_name: gemma-3-4b-it-full-q4-k.vindex
+hf_repo: skulk/gemma-3-4b-it-full-q4-k-vindex
+```
+
+produces this command shape:
+
+```bash
+larql extract google/gemma-3-4b-it \
+  -o .scratch/gemma-3-4b-it-full-q4-k.vindex \
+  --quant q4k
+
+larql publish .scratch/gemma-3-4b-it-full-q4-k.vindex \
+  --repo skulk/gemma-3-4b-it-full-q4-k-vindex \
+  --slices none
+```
+
+For `slices: [full]`, the publisher sends `--slices none` because LARQL treats
+that as the complete artifact publish path.

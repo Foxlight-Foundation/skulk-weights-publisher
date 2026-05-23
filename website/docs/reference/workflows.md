@@ -2,12 +2,15 @@
 title: Workflow Reference
 ---
 
+The repository has two GitHub Actions workflows: one for vindex publication and
+one for documentation.
+
 ## Publish Workflow
 
 `.github/workflows/publish.yml` has two jobs:
 
-- `validate`: runs on hosted GitHub runners and performs safe checks
-- `publish`: runs only for manual dispatch or schedule on the self-hosted runner
+- `validate`: runs safe checks on hosted GitHub runners
+- `publish`: runs LARQL publication on the self-hosted runner
 
 Manual dispatch inputs:
 
@@ -15,9 +18,12 @@ Manual dispatch inputs:
 - `tier`: used when `model` is `all`
 - `dry_run`: prints commands without publishing
 
-Scheduled publication is intentionally scoped to smoke-tier entries. MoE entries
-should stay manual until the runner has enough disk, memory, and network
-capacity for the selected model family.
+The validate job installs the package, lints the code, type-checks it, runs unit
+tests, validates `models.yaml`, and dry-runs every catalogue entry.
+
+The publish job uses the `self-hosted`, `linux`, `larql`, and `vindex` runner
+labels. It resolves the requested manifest keys and runs the same CLI operators
+use locally.
 
 ## Docs Workflow
 

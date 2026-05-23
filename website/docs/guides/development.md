@@ -2,8 +2,11 @@
 title: Development
 ---
 
-Use this workflow when changing the publisher code, catalogue validation, or
-documentation.
+Use this workflow when changing the publisher code, catalogue validation,
+publishing workflow, or documentation.
+
+The development goal is simple: every change should preserve the ability to
+explain a vindex publish plan before any real extraction or upload happens.
 
 ## Python Setup
 
@@ -35,6 +38,8 @@ skulk-vindex manifest list --tier all | while IFS= read -r key; do
 done
 ```
 
+That loop proves every catalogue entry can produce a dry-run plan.
+
 ## Documentation Setup
 
 ```bash
@@ -43,8 +48,15 @@ npm ci
 npm run build
 ```
 
-Use `npm run start` when editing docs locally. Pull requests build the site and
-upload the static output as an artifact.
+Use `npm run start` when editing docs locally.
+
+Pushes to feature branches publish preview docs under:
+
+```text
+https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/<branch>/
+```
+
+Pushes to `main` publish the production docs root.
 
 ## Compatibility Wrappers
 

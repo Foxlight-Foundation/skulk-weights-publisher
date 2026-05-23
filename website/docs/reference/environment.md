@@ -2,9 +2,12 @@
 title: Environment Reference
 ---
 
+The publisher reads a small set of environment values. These values are about
+publication, not ordinary catalogue validation.
+
 ## `HF_TOKEN`
 
-Required only for real publication.
+Required for real publication.
 
 The token must have write access to every target Hugging Face repository used by
 the selected manifest entries. In GitHub Actions, configure it as a repository
@@ -14,8 +17,10 @@ secret named `HF_TOKEN`.
 
 Optional.
 
-Sets the scratch root used for local extraction output. If unset, the publisher
-uses `.scratch` inside the current checkout.
+Sets the scratch root used for local extraction output. LARQL writes vindex
+directories here before publication.
+
+If unset, the publisher uses `.scratch` inside the current checkout.
 
 Example:
 
@@ -36,3 +41,9 @@ skulk-vindex publish \
 Real publication requires `larql` to be discoverable on `PATH`.
 
 Dry-runs do not require `larql`, because they only print the command plan.
+
+Check the publishing runner with:
+
+```bash
+skulk-vindex doctor --publish
+```

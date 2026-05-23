@@ -1,11 +1,14 @@
 ---
-title: Safety Model
+title: Publishing Safety
 ---
 
-The publisher separates safe operations from operations that can consume large
-amounts of disk, network, and Hugging Face quota.
+Vindex publication can consume real resources. The publisher is designed so you
+can inspect the plan before LARQL uses disk, network, or Hugging Face write
+access.
 
-Safe commands:
+## Commands You Can Run Freely
+
+These commands inspect local files and print plans:
 
 - `skulk-vindex manifest validate`
 - `skulk-vindex manifest list`
@@ -13,12 +16,17 @@ Safe commands:
 - `skulk-vindex doctor`
 - `skulk-vindex publish --dry-run`
 
-Publishing commands:
+They are useful on a laptop, in pull-request validation, and on the publishing
+runner before a real publish.
 
-- require `larql` on `PATH`
-- require `HF_TOKEN`
-- create a scratch output directory
-- upload the resulting vindex to the configured Hugging Face repository
+## Commands That Publish
+
+A real publish runs LARQL and writes to Hugging Face. It needs:
+
+- `larql` available on `PATH`
+- `HF_TOKEN` with write access to the target repository
+- scratch storage for the extracted vindex directory
+- network access to Hugging Face
 
 ## Dry-Run First
 
@@ -29,16 +37,14 @@ skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
 The dry-run prints the exact `larql extract` and `larql publish` commands. It
-does not check whether the upstream model license allows access, because that is
-resolved by LARQL and Hugging Face during real extraction.
+is the normal review step before a runner starts doing expensive work.
 
 ## Overwrite Protection
 
 Real publication refuses to replace an existing local output directory unless
 you pass `--force`.
 
-Use `--force` only when the previous local extraction output is disposable. It
-does not delete or roll back a remote Hugging Face repository.
+Use `--force` only when the previous local extraction output is disposable.
 
 ## Secret Handling
 

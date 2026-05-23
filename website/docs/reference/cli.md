@@ -2,11 +2,18 @@
 title: CLI Reference
 ---
 
+The `skulk-vindex` CLI has three jobs:
+
+- inspect the catalogue
+- check the local environment
+- plan or run one vindex publication
+
 ## `skulk-vindex manifest validate`
 
-Validates `models.yaml`.
+Validates `models.yaml`. Run this after changing the catalogue and before
+publishing.
 
-Use this before every publish and after every catalogue edit:
+Example:
 
 ```bash
 skulk-vindex manifest validate
@@ -14,7 +21,7 @@ skulk-vindex manifest validate
 
 ## `skulk-vindex manifest list`
 
-Lists manifest keys.
+Lists manifest keys. Use this to see which artifacts are available by tier.
 
 Options:
 
@@ -30,7 +37,8 @@ skulk-vindex manifest list --tier smoke
 
 ## `skulk-vindex manifest get --key KEY`
 
-Prints one manifest entry as JSON.
+Prints one manifest entry as JSON. Use this when you want to inspect exactly
+what a key resolves to before publishing.
 
 Example:
 
@@ -40,7 +48,8 @@ skulk-vindex manifest get --key gemma-3-4b-full-q4-k
 
 ## `skulk-vindex doctor`
 
-Checks local prerequisites that are safe on any machine.
+Checks local prerequisites that are safe on any machine: Python dependencies,
+scratch directory access, and manifest validity.
 
 ## `skulk-vindex doctor --publish`
 
@@ -48,7 +57,8 @@ Adds publication-specific checks for `larql` and `HF_TOKEN`.
 
 ## `skulk-vindex publish --model KEY`
 
-Runs extraction and publication for one manifest entry.
+Builds the publish plan for one manifest entry. With `--dry-run`, it only prints
+the plan. Without `--dry-run`, it runs LARQL extraction and publication.
 
 Options:
 
@@ -62,6 +72,15 @@ Examples:
 skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 skulk-vindex publish --model gemma-3-4b-full-q4-k --scratch /fast/skulk-vindexes
 ```
+
+Expected dry-run output includes:
+
+- manifest key
+- source model
+- local output path
+- target Hugging Face repository
+- `larql extract` command
+- `larql publish` command
 
 ## Global Options
 

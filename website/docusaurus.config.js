@@ -1,6 +1,6 @@
 const config = {
   title: "Skulk Vindex Publisher",
-  tagline: "Build, validate, and publish LARQL vindexes for Skulk.",
+  tagline: "Prepare and publish model artifacts for Skulk.",
 
   url: "https://foxlight-foundation.github.io",
   baseUrl: process.env.DOCUSAURUS_BASE_URL || "/skulk-vindex-publisher/",

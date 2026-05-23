@@ -1,32 +1,35 @@
 # skulk-vindex-publisher
 
-Publisher for Skulk LARQL vindex artifacts.
+Build and publish vindex artifacts for Skulk.
 
-This repository owns extraction, publication, and catalogue metadata for
-vindexes consumed by Skulk. Skulk itself is a vindex consumer: it downloads
-`hf://...` vindex directories at runtime, but it does not extract them.
+Skulk is a distributed LLM inference system. LARQL is the toolchain used here to
+prepare Skulk's LARQL-backed model artifacts. A vindex is the prepared artifact:
+a directory-shaped package derived from an upstream Hugging Face model and
+published for later use by Skulk operators.
 
-## Publisher Scope
+This repository is the controlled artifact factory. It keeps the catalogue of
+publishable vindexes, validates that catalogue, prints the exact LARQL commands,
+and runs publication from a configured runner.
 
-Phase 1 scaffolds the publishing pipeline and smoke-tier manifest. CI validates
-the manifest and dry-runs every entry without requiring LARQL, HuggingFace
-credentials, or a registered self-hosted runner.
+## Why This Exists
 
-Smoke-tier models:
+Vindex publication is expensive and easy to get wrong. A bad command can write a
+large artifact to the wrong scratch path or publish it under the wrong Hugging
+Face repository. This project makes publication repeatable:
+
+- `models.yaml` describes every artifact
+- `skulk-vindex manifest validate` checks the catalogue
+- `skulk-vindex publish --dry-run` prints the LARQL plan
+- GitHub Actions validates every catalogue entry
+- the self-hosted runner performs real LARQL publication
+
+## Catalogue
 
 | Key | Source model | Quant | Slices |
 |---|---|---|---|
 | `gemma-3-4b-full-q4-k` | `google/gemma-3-4b-it` | `q4k` | `full` |
 | `llama-3-2-3b-full-q4-k` | `meta-llama/Llama-3.2-3B-Instruct` | `q4k` | `full` |
 | `qwen-2-5-7b-full-q4-k` | `Qwen/Qwen2.5-7B-Instruct` | `q4k` | `full` |
-
-Phase 2 adds catalogue entries for the MoE sweet spot. These are the targets
-Skulk uses to validate `LarqlRunner` isolation and future FFN delegation work;
-actual HuggingFace publication remains operator-gated because it depends on
-self-hosted runner capacity and HF credentials.
-
-| Key | Source model | Quant | Slices |
-|---|---|---|---|
 | `gemma-4-26b-a4b-full-q4-k` | `google/gemma-4-26b-a4b-it` | `q4k` | `full` |
 | `gemma-4-26b-a4b-expert-server-q4-k` | `google/gemma-4-26b-a4b-it` | `q4k` | `expert-server` |
 | `mixtral-8x7b-full-q4-k` | `mistralai/Mixtral-8x7B-Instruct-v0.1` | `q4k` | `full` |
@@ -36,16 +39,13 @@ self-hosted runner capacity and HF credentials.
 
 ## Required Operator Setup
 
-1. Install LARQL on the self-hosted runner and make `larql` available on
-   `PATH`.
-2. Install a HuggingFace CLI/tooling path compatible with LARQL publication.
-3. Configure `HF_TOKEN` as a GitHub Actions secret with write access to the
-   target HuggingFace organization.
-4. Register a self-hosted GitHub Actions runner with the labels:
+1. Install LARQL on the self-hosted runner and make `larql` available on `PATH`.
+2. Configure `HF_TOKEN` as a GitHub Actions secret with write access to the
+   target Hugging Face organization.
+3. Register a self-hosted GitHub Actions runner with the labels:
    `self-hosted`, `linux`, `larql`, `vindex`.
-5. Provision at least 200 GB of fast scratch storage for the Phase 1 smoke tier.
-   Phase 2 MoE entries require substantially more scratch capacity before
-   non-dry-run publication.
+4. Provision at least 200 GB of fast scratch storage for the first smoke-tier
+   publish. MoE entries require substantially more scratch capacity.
 
 ## Install The CLI
 
@@ -94,9 +94,8 @@ want to replace the local extraction output.
 - manual dispatch for all entries in the `smoke`, `moe`, or `all` tiers
 - manual dry-run dispatch
 
-The workflow is intentionally conservative. It documents the required runner
-and credentials, but actual credential registration and runner capacity are
-operator-managed.
+The workflow validates catalogue changes on hosted runners and reserves real
+publication for the labelled self-hosted runner.
 
 ## Documentation Site
 
@@ -109,5 +108,6 @@ npm ci
 npm run build
 ```
 
-Pull requests build the site as a validation artifact. Merges to `main` deploy
-the same build output to GitHub Pages through `.github/workflows/docs.yml`.
+Pull requests build the site as a validation artifact. Branch pushes publish
+preview docs under `/previews/<branch>/`. Pushes to `main` publish the root docs
+site.

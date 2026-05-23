@@ -2,10 +2,23 @@
 title: Error Reference
 ---
 
+Use this page when a publisher command exits before running the publish you
+expected.
+
 ## `models.yaml not found; run from the repository root`
 
 The default manifest path is `models.yaml` in the current directory. Run the
-command from the repository root or pass `--manifest PATH`.
+command from the repository root:
+
+```bash
+skulk-vindex manifest validate
+```
+
+Or pass the manifest explicitly:
+
+```bash
+skulk-vindex --manifest /path/to/models.yaml manifest validate
+```
 
 ## `key must be lowercase kebab-case`
 
@@ -32,3 +45,9 @@ repository.
 The local scratch output directory already exists. Remove the directory, choose
 another scratch root, or rerun with `--force` if replacing the local output is
 intentional.
+
+Use `--force` only when replacing the local extraction output is expected:
+
+```bash
+skulk-vindex publish --model gemma-3-4b-full-q4-k --force
+```

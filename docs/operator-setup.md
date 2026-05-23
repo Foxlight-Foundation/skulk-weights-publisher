@@ -1,7 +1,11 @@
 # Operator Setup
 
-This repository is designed for a self-hosted runner because vindex extraction
-is disk-heavy and can exceed commodity hosted-runner limits.
+Real vindex publication is designed for a self-hosted runner because LARQL
+extraction writes large local artifacts before upload.
+
+Use hosted GitHub runners for safe validation: install the package, validate the
+catalogue, run tests, and dry-run every entry. Use the self-hosted runner when
+you are ready to run `larql extract` and `larql publish`.
 
 ## GitHub Actions Runner
 
@@ -14,10 +18,10 @@ larql
 vindex
 ```
 
-Phase 1 smoke-tier capacity target:
+First-publish capacity target:
 
 - at least 200 GB scratch space
-- stable network path to HuggingFace
+- stable network path to Hugging Face
 - `larql` available on `PATH`
 
 MoE-tier entries are manual by default and require substantially more scratch
@@ -33,7 +37,7 @@ Configure this GitHub Actions secret:
 
 | Secret | Purpose |
 |---|---|
-| `HF_TOKEN` | HuggingFace token with write access to the target `skulk/` repos |
+| `HF_TOKEN` | Hugging Face token with write access to the target `skulk/` repos |
 
 Do not commit tokens to this repository.
 
@@ -59,8 +63,8 @@ skulk-vindex doctor --publish
 skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
 ```
 
-Then use manual workflow dispatch for a single smoke-tier entry before enabling
-the full weekly run.
+Then use manual workflow dispatch for a single smoke-tier entry before expanding
+publication to more keys.
 
 ## Workflow Dispatch
 
