@@ -14,10 +14,11 @@ servers can host it.
 ## 1. Validate The Catalogue
 
 ```bash
-skulk-vindex manifest validate
+skulk-vindex catalogue validate
 ```
 
-This proves `models.yaml` is structurally safe before the runner starts.
+This proves the effective catalogue is structurally safe before the runner
+starts.
 
 ## 2. Check Publication Prerequisites
 
@@ -26,12 +27,12 @@ skulk-vindex doctor --publish
 ```
 
 This checks the pieces needed for a real publish: LARQL, `HF_TOKEN`, scratch
-storage, Python dependencies, and the manifest.
+storage, Python dependencies, and the catalogue.
 
 ## 3. Review The Dry-Run
 
 ```bash
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Read the source model, output path, target repository, and slice mode. The
@@ -43,7 +44,7 @@ is supposed to support.
 ```bash
 export HF_TOKEN=...
 export SKULK_VINDEX_SCRATCH=/fast/scratch/skulk-vindexes
-skulk-vindex publish --model gemma-3-4b-full-q4-k
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k
 ```
 
 The command refuses to overwrite an existing output path. Use `--force` only
@@ -51,7 +52,7 @@ when you intentionally want to replace a local extraction output.
 
 ## 5. Record The Result
 
-After publication, record the manifest key, source model, target repository,
+After publication, record the catalogue key, source model, target repository,
 slice mode, and runner used. That gives Skulk operators a concrete vindex to
 inspect when they start assigning GPU inference nodes and CPU/high-memory LARQL
 servers.

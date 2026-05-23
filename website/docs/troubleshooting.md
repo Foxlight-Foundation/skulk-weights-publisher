@@ -4,13 +4,25 @@ title: Troubleshooting
 
 Most publisher errors fall into one of three groups:
 
-- the command cannot find the catalogue
+- the command cannot find an operator config or manifest source
 - the local machine is missing a publishing prerequisite
 - the scratch output path already exists
 
+## `skulk-vindex.yaml not found`
+
+The built-in Foxlight catalogue does not need a config file. You only need
+`--config PATH` when you are adding operator catalogue sources. If you pass
+`--config`, make sure the path exists:
+
+```bash
+skulk-vindex --config skulk-vindex.yaml catalogue validate
+```
+
 ## `models.yaml not found`
 
-Run commands from the repository root, or pass `--manifest PATH`.
+This error comes from legacy single-manifest mode or from an operator source
+listed in `skulk-vindex.yaml`. Run commands from the repository root, fix the
+source path, or pass `--manifest PATH` when you intentionally want legacy mode.
 
 ## `missing command: larql`
 
@@ -20,7 +32,7 @@ publication, not for normal validation or dry-runs.
 Run the safe command first:
 
 ```bash
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Then run the publishing preflight on the runner:
@@ -56,6 +68,6 @@ Use a different scratch root when you want to keep the old output:
 
 ```bash
 skulk-vindex publish \
-  --model gemma-3-4b-full-q4-k \
+  --model foxlight/gemma-3-4b-full-q4-k \
   --scratch /fast/scratch/skulk-vindexes-2
 ```

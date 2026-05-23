@@ -40,13 +40,23 @@ This installs the `skulk-vindex` command from the current checkout.
 ## 2. Validate The Catalogue
 
 ```bash
-skulk-vindex manifest validate
-skulk-vindex manifest list --tier smoke
+skulk-vindex catalogue validate
+skulk-vindex catalogue sources
+skulk-vindex catalogue list --tier smoke
 ```
 
-The catalogue is `models.yaml`. It is the list of vindexes this project knows
-how to build and publish. The `smoke` tier contains the smaller entries that are
-safest for first publication tests.
+The Foxlight catalogue is included automatically. The `smoke` tier contains the
+smaller entries that are safest for first publication tests. Keys are
+namespaced, so Foxlight entries begin with `foxlight/`.
+
+To add your own catalogue later, create a starter config:
+
+```bash
+skulk-vindex catalogue init
+```
+
+Then add a source file under your own namespace and run commands with
+`--config skulk-vindex.yaml`. The built-in Foxlight entries are still included.
 
 ## 3. Check Your Machine
 
@@ -55,7 +65,7 @@ skulk-vindex doctor
 ```
 
 The doctor command checks the local Python environment, scratch directory, and
-manifest. Use the stricter publishing checks on the machine that will actually
+catalogue. Use the stricter publishing checks on the machine that will actually
 run LARQL:
 
 ```bash
@@ -65,13 +75,13 @@ skulk-vindex doctor --publish
 ## 4. Dry-Run One Vindex
 
 ```bash
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 You should see a summary like:
 
 ```text
-model key: gemma-3-4b-full-q4-k
+model key: foxlight/gemma-3-4b-full-q4-k
 source model: google/gemma-3-4b-it
 output path: .scratch/gemma-3-4b-it-full-q4-k.vindex
 target repo: hf://skulk/gemma-3-4b-it-full-q4-k-vindex
@@ -80,7 +90,7 @@ publish command: larql publish ...
 ```
 
 That output is the contract. If the source model, output path, slice mode, or
-target repository is wrong, fix `models.yaml` before publishing.
+target repository is wrong, fix the catalogue source before publishing.
 
 ## 5. Learn The Pieces
 

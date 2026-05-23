@@ -18,7 +18,7 @@ class PublishError(RuntimeError):
 
 @dataclass(frozen=True)
 class PublishPlan:
-    """Concrete commands and paths for publishing one manifest entry."""
+    """Concrete commands and paths for publishing one catalogue entry."""
 
     entry: ManifestEntry
     scratch_root: Path

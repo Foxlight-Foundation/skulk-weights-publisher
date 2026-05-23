@@ -1,18 +1,8 @@
-# Legacy single-manifest copy of the Foxlight vindex catalogue.
+# Built-in Foxlight catalogue for Skulk LARQL vindexes.
 #
-# The product CLI loads the packaged Foxlight catalogue from
-# src/skulk_vindex_publisher/catalogues/foxlight.yaml by default and exposes
-# keys under the `foxlight/` namespace. Keep this file for older automation that
-# still calls `skulk-vindex --manifest models.yaml ...`.
-#
-# Fields:
-# - key: stable workflow selector
-# - source_model: upstream HuggingFace model id consumed by LARQL extraction
-# - quant: target vindex quantization
-# - tier: smoke for scheduled publication, moe for manual large-model publication
-# - slices: LARQL slice presets to publish for this model
-# - output_name: local output directory basename
-# - hf_repo: target HuggingFace repo id for the published vindex
+# Keys in this file are short source keys. The merged catalogue exposes them
+# under the `foxlight/` namespace, for example:
+# `foxlight/gemma-3-4b-full-q4-k`.
 
 models:
   - key: gemma-3-4b-full-q4-k

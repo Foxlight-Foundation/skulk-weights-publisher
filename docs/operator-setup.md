@@ -10,6 +10,11 @@ Use hosted GitHub runners for safe validation: install the package, validate the
 catalogue, run tests, and dry-run every entry. Use the self-hosted runner when
 you are ready to run `larql extract` and `larql publish`.
 
+The Foxlight catalogue is included by default. If you maintain your own vindex
+library, add a checked-in `skulk-vindex.yaml` that points at your operator
+manifest and pass that path through `catalogue_config` when dispatching the
+workflow.
+
 ## GitHub Actions Runner
 
 Register a Linux self-hosted runner with these labels:
@@ -57,15 +62,15 @@ python3 -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -e .
 skulk-vindex doctor
-skulk-vindex manifest validate
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex catalogue validate
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Before real publication, run the stricter preflight:
 
 ```bash
 skulk-vindex doctor --publish
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Then use manual workflow dispatch for a single smoke-tier entry before expanding
@@ -74,8 +79,9 @@ publication to more keys.
 ## Workflow Dispatch
 
 - `model=all`, `tier=smoke`, `dry_run=false` publishes the scheduled smoke set.
-- `model=<manifest-key>` publishes one entry and ignores `tier`.
-- `dry_run=true` runs the same manifest resolution path but only prints LARQL
+- `model=<catalogue-key>` publishes one entry and ignores `tier`.
+- `catalogue_config=skulk-vindex.yaml` includes operator catalogue sources.
+- `dry_run=true` runs the same catalogue resolution path but only prints LARQL
   commands.
 - `tier=moe` is for explicit large-model and expert-server publication after
   capacity has been verified.

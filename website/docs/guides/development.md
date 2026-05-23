@@ -34,14 +34,16 @@ bash -n scripts/doctor.sh scripts/publish-vindex.sh
 Then validate the catalogue and every dry-run path:
 
 ```bash
-skulk-vindex manifest validate
-skulk-vindex manifest list --tier all | while IFS= read -r key; do
+skulk-vindex catalogue validate
+skulk-vindex catalogue list --tier all | while IFS= read -r key; do
   [ -n "$key" ] || continue
   skulk-vindex publish --model "$key" --dry-run >/dev/null
 done
 ```
 
-That loop proves every catalogue entry can produce a dry-run plan.
+That loop proves every effective catalogue entry can produce a dry-run plan.
+Use `--config skulk-vindex.yaml` in both commands when testing operator
+catalogue sources.
 
 ## Documentation Setup
 

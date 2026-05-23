@@ -2,14 +2,26 @@
 title: The Catalogue
 ---
 
-The catalogue is `models.yaml`. It is the list of vindexes this project knows
-how to build and publish for Skulk.
+The catalogue is the library of vindexes the publisher knows how to build for
+Skulk. Each entry answers one operational question: if an operator selects this
+key, exactly which Hugging Face model should LARQL extract, which vindex shape
+should be published, what local output should be written, and which Hugging
+Face repository should receive it?
 
-Each row answers one question: "If an operator asks for this vindex, exactly
-what should be built, where should it go, and what runtime role is it meant to
-support?"
+## Built-In Foxlight Catalogue
 
-Example:
+The Foxlight catalogue is packaged with the CLI and loaded automatically. You
+do not need a local config file to inspect or dry-run those entries:
+
+```bash
+skulk-vindex catalogue validate
+skulk-vindex catalogue list --tier smoke
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+```
+
+Foxlight entries use the `foxlight/` namespace in the merged catalogue. The
+source file stores the short key, and the catalogue layer exposes the effective
+key:
 
 ```yaml
 models:
@@ -23,9 +35,43 @@ models:
     hf_repo: skulk/gemma-3-4b-it-full-q4-k-vindex
 ```
 
+Effective CLI key:
+
+```text
+foxlight/gemma-3-4b-full-q4-k
+```
+
+## Operator Catalogues
+
+Operators can add their own catalogue sources without forking the Foxlight
+catalogue. Create `skulk-vindex.yaml`:
+
+```bash
+skulk-vindex catalogue init
+```
+
+Then point it at an operator-owned manifest file:
+
+```yaml
+catalogues:
+  - path: ./operator-vindexes.yaml
+    namespace: my-org
+    hf_owner: my-org
+```
+
+`namespace` controls the effective CLI key. `hf_owner` controls which Hugging
+Face account or organization the entries are allowed to publish into. With the
+config above, a source entry with `key: llama-3-8b-full-q4-k` becomes:
+
+```text
+my-org/llama-3-8b-full-q4-k
+```
+
+The Foxlight catalogue is still included automatically when you pass the config.
+
 ## Fields In Plain Language
 
-- `key`: the short name operators type in CLI commands and workflow dispatch
+- `key`: the short source key before the namespace is added
 - `source_model`: the Hugging Face model LARQL reads from
 - `quant`: the quantization LARQL uses when extracting the vindex
 - `tier`: whether this is a small first-test vindex or a larger manual target
@@ -53,17 +99,19 @@ It gets its own catalogue entry so the published repository name, output
 directory, and workflow selection stay explicit for CPU/high-memory expert
 serving.
 
-The CLI validates the catalogue before any publish command is planned.
+The CLI validates the merged catalogue before any publish command is planned:
 
 ```bash
-skulk-vindex manifest validate
-skulk-vindex manifest get --key gemma-3-4b-full-q4-k
+skulk-vindex --config skulk-vindex.yaml catalogue validate
+skulk-vindex --config skulk-vindex.yaml catalogue get --key my-org/llama-3-8b-full-q4-k
 ```
 
-When you change `models.yaml`, run a dry-run before you commit:
+When you change a source file, run a dry-run before you commit:
 
 ```bash
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex --config skulk-vindex.yaml publish \
+  --model my-org/llama-3-8b-full-q4-k \
+  --dry-run
 ```
 
 The dry-run is how you confirm that the catalogue entry produces the LARQL

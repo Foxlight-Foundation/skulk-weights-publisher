@@ -5,20 +5,30 @@ title: Error Reference
 Use this page when a publisher command exits before running the publish you
 expected.
 
-## `models.yaml not found; run from the repository root`
+## `skulk-vindex.yaml not found`
 
-The default manifest path is `models.yaml` in the current directory. Run the
-command from the repository root:
+The built-in Foxlight catalogue works without a config file. This error means
+you passed `--config PATH` and that path does not exist.
 
 ```bash
-skulk-vindex manifest validate
+skulk-vindex --config skulk-vindex.yaml catalogue validate
 ```
 
-Or pass the manifest explicitly:
+## `models.yaml not found; run from the repository root`
+
+This error appears when legacy `--manifest` mode or an operator source path
+points at a missing manifest file. Run the command from the repository root or
+pass the correct path:
 
 ```bash
 skulk-vindex --manifest /path/to/models.yaml manifest validate
 ```
+
+## `hf_repo owner must be '...'`
+
+An operator source in `skulk-vindex.yaml` declares `hf_owner`, and one entry is
+trying to publish to a different Hugging Face owner. Fix `hf_repo` or use a
+different source block with the correct owner.
 
 ## `key must be lowercase kebab-case`
 
@@ -49,5 +59,5 @@ intentional.
 Use `--force` only when replacing the local extraction output is expected:
 
 ```bash
-skulk-vindex publish --model gemma-3-4b-full-q4-k --force
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --force
 ```
