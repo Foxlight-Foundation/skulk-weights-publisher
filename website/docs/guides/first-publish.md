@@ -3,7 +3,8 @@ title: First Publish
 ---
 
 Your first real publish should prove the whole path with one small vindex:
-catalogue entry, runner, LARQL, scratch storage, Hugging Face token, and upload.
+catalogue entry, runner, LARQL, scratch storage, Hugging Face token, upload,
+and collection update.
 
 Use a `smoke` entry first. It gives you the same workflow shape as larger
 vindexes with less disk and time risk. Once the path works, larger full and
@@ -35,9 +36,9 @@ storage, Python dependencies, and the catalogue.
 skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
-Read the source model, output path, target repository, and slice mode. The
-dry-run should match the vindex you intend to publish and the runtime role it
-is supposed to support.
+Read the source model, output path, target repository, collection, and slice
+mode. The dry-run should match the vindex you intend to publish and the runtime
+role it is supposed to support.
 
 ## 4. Publish
 
@@ -53,6 +54,6 @@ when you intentionally want to replace a local extraction output.
 ## 5. Record The Result
 
 After publication, record the catalogue key, source model, target repository,
-slice mode, and runner used. That gives Skulk operators a concrete vindex to
-inspect when they start assigning GPU inference nodes and CPU/high-memory LARQL
-servers.
+collection, slice mode, and runner used. That gives Skulk operators a concrete
+vindex to inspect when they start assigning GPU inference nodes and
+CPU/high-memory LARQL servers.

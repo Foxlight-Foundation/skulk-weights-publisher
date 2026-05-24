@@ -7,6 +7,7 @@ Most publisher errors fall into one of three groups:
 - the command cannot find an operator config or manifest source
 - the local machine is missing a publishing prerequisite
 - the scratch output path already exists
+- Hugging Face accepted the publish but rejected the collection update
 
 ## `skulk-vindex.yaml not found`
 
@@ -44,13 +45,23 @@ skulk-vindex doctor --publish
 ## `HF_TOKEN is not set`
 
 Real publication needs a Hugging Face token with write access to the target
-repository.
+repository and collection.
 
 In GitHub Actions, configure `HF_TOKEN` as a repository secret. On a manual
 runner shell, export it before publishing:
 
 ```bash
 export HF_TOKEN=...
+```
+
+## `failed to add ... to collection ...`
+
+The LARQL publish finished, but the Hugging Face collection update failed.
+Confirm that the collection slug exists and that `HF_TOKEN` has permission to
+modify it. The built-in Foxlight entries target:
+
+```text
+FoxlightAI/vindexes-6a124406dd5fb439c431b051
 ```
 
 ## `output path already exists`

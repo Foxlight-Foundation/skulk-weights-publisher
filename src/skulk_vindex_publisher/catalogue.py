@@ -9,7 +9,12 @@ from typing import Any, Literal, cast
 
 import yaml
 
+from skulk_vindex_publisher.defaults import (
+    DEFAULT_FOXLIGHT_HF_OWNER,
+    DEFAULT_FOXLIGHT_VINDEX_COLLECTION,
+)
 from skulk_vindex_publisher.manifest import (
+    HF_COLLECTION_PATTERN,
     NAMESPACE_PATTERN,
     ManifestEntry,
     ManifestError,
@@ -29,6 +34,7 @@ catalogues: []
 #   - path: ./operator-vindexes.yaml
 #     namespace: my-org
 #     hf_owner: my-org
+#     hf_collection: my-org/my-vindexes-0123456789abcdef01234567
 """
 
 CatalogueSourceKind = Literal["builtin", "path", "manifest"]
@@ -42,6 +48,7 @@ class CatalogueSource:
     kind: CatalogueSourceKind
     namespace: str | None
     hf_owner: str | None
+    hf_collection: str | None
     origin: str
     entries: tuple[ManifestEntry, ...]
 
@@ -108,6 +115,7 @@ def _load_legacy_manifest_view(path: Path) -> CatalogueView:
         kind="manifest",
         namespace=None,
         hf_owner=None,
+        hf_collection=None,
         origin=str(path),
         entries=entries,
     )
@@ -122,13 +130,15 @@ def _load_builtin_source(name: str) -> CatalogueSource:
         payload,
         label=f"builtin:{name}",
         namespace="foxlight",
-        hf_owner="skulk",
+        hf_owner=DEFAULT_FOXLIGHT_HF_OWNER,
+        hf_collection=DEFAULT_FOXLIGHT_VINDEX_COLLECTION,
     )
     return CatalogueSource(
         name=name,
         kind="builtin",
         namespace="foxlight",
-        hf_owner="skulk",
+        hf_owner=DEFAULT_FOXLIGHT_HF_OWNER,
+        hf_collection=DEFAULT_FOXLIGHT_VINDEX_COLLECTION,
         origin=f"package:{name}",
         entries=entries,
     )
@@ -193,7 +203,7 @@ def _load_config_source(
             )
         return _load_builtin_source(builtin)
 
-    extra_fields = set(source) - {"path", "namespace", "hf_owner"}
+    extra_fields = set(source) - {"path", "namespace", "hf_owner", "hf_collection"}
     if extra_fields:
         raise ManifestError(
             f"{config_path}: catalogues[{index}] unsupported fields "
@@ -205,21 +215,40 @@ def _load_config_source(
     )
     namespace = _require_source_string(config_path, index, source, "namespace")
     hf_owner = _require_source_string(config_path, index, source, "hf_owner")
+    hf_collection = _optional_source_string(
+        config_path,
+        index,
+        source,
+        "hf_collection",
+    )
     if not NAMESPACE_PATTERN.fullmatch(namespace):
         raise ManifestError(
             f"{config_path}: catalogues[{index}] namespace must be lowercase "
             "kebab/dot-case"
         )
+    if hf_collection is not None:
+        if not HF_COLLECTION_PATTERN.fullmatch(hf_collection):
+            raise ManifestError(
+                f"{config_path}: catalogues[{index}].hf_collection must look "
+                "like owner/slug"
+            )
+        if hf_collection.split("/", maxsplit=1)[0] != hf_owner:
+            raise ManifestError(
+                f"{config_path}: catalogues[{index}].hf_collection owner must "
+                f"be {hf_owner!r}"
+            )
     entries = validate_manifest(
         source_path,
         namespace=namespace,
         hf_owner=hf_owner,
+        hf_collection=hf_collection,
     )
     return CatalogueSource(
         name=namespace,
         kind="path",
         namespace=namespace,
         hf_owner=hf_owner,
+        hf_collection=hf_collection,
         origin=str(source_path),
         entries=entries,
     )
@@ -234,8 +263,23 @@ def _require_source_string(
     value = source.get(field)
     if not isinstance(value, str) or not value.strip():
         raise ManifestError(
-            f"{config_path}: catalogues[{index}].{field} must be a "
-            "non-empty string"
+            f"{config_path}: catalogues[{index}].{field} must be a non-empty string"
+        )
+    return value
+
+
+def _optional_source_string(
+    config_path: Path,
+    index: int,
+    source: dict[str, Any],
+    field: str,
+) -> str | None:
+    value = source.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ManifestError(
+            f"{config_path}: catalogues[{index}].{field} must be a non-empty string"
         )
     return value
 

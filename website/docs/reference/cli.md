@@ -115,12 +115,14 @@ scratch directory access, and catalogue validity.
 
 ## `skulk-vindex doctor --publish`
 
-Adds publication-specific checks for `larql` and `HF_TOKEN`.
+Adds publication-specific checks for `larql`, `HF_TOKEN`, and the
+`huggingface_hub` package used for collection updates.
 
 ## `skulk-vindex publish --model KEY`
 
 Builds the publish plan for one catalogue entry. With `--dry-run`, it only
-prints the plan. Without `--dry-run`, it runs LARQL extraction and publication.
+prints the plan. Without `--dry-run`, it runs LARQL extraction and publication,
+then adds the published repository to the configured Hugging Face collection.
 Review the slice mode before publishing; it is the part of the catalogue that
 connects this vindex to the intended runtime hardware role.
 
@@ -145,5 +147,6 @@ Expected dry-run output includes:
 - source model
 - local output path
 - target Hugging Face repository
+- target Hugging Face collection
 - `larql extract` command
 - `larql publish` command

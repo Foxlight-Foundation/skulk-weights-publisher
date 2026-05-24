@@ -17,11 +17,13 @@ This repository is the controlled publication workflow. It keeps the catalogue
 of publishable vindexes, validates that catalogue, prints the exact LARQL
 commands, and runs publication from a configured runner.
 
-The Foxlight catalogue is included automatically. Operators can add their own
-catalogue files with `skulk-vindex.yaml`; the merged catalogue uses namespaced
-keys such as `foxlight/gemma-3-4b-full-q4-k` and
-`my-org/my-model-full-q4-k` so shared Foxlight entries and local operator
-entries can coexist safely.
+The Foxlight catalogue is included automatically and publishes to the
+`FoxlightAI` Hugging Face organization and the public
+[`Vindexes`](https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051)
+collection. Operators can add their own catalogue files with
+`skulk-vindex.yaml`; the merged catalogue uses namespaced keys such as
+`foxlight/gemma-3-4b-full-q4-k` and `my-org/my-model-full-q4-k` so shared
+Foxlight entries and local operator entries can coexist safely.
 
 ## Why This Exists
 
@@ -29,7 +31,8 @@ Vindex publication is expensive and easy to get wrong. A bad command can write a
 large vindex to the wrong scratch path or publish it under the wrong Hugging
 Face repository. This project makes publication repeatable:
 
-- packaged Foxlight catalogue entries describe shared Skulk vindexes
+- packaged Foxlight catalogue entries describe shared Skulk vindexes published
+  under `FoxlightAI`
 - `skulk-vindex.yaml` can add operator-owned catalogue source files
 - `skulk-vindex catalogue validate` checks the merged catalogue
 - `skulk-vindex publish --dry-run` prints the LARQL plan
@@ -54,7 +57,7 @@ Face repository. This project makes publication repeatable:
 
 1. Install LARQL on the self-hosted runner and make `larql` available on `PATH`.
 2. Configure `HF_TOKEN` as a GitHub Actions secret with write access to the
-   target Hugging Face organization.
+   target Hugging Face organization and collection.
 3. Register a self-hosted GitHub Actions runner with the labels:
    `self-hosted`, `linux`, `larql`, `vindex`.
 4. Provision at least 200 GB of fast scratch storage for the first smoke-tier
@@ -96,6 +99,13 @@ skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 Real publication refuses to overwrite an existing scratch output path. Remove
 the output directory manually or rerun with `--force` when you intentionally
 want to replace the local extraction output.
+
+After `larql publish` succeeds, the publisher adds the model repo to the entry's
+configured Hugging Face collection. The built-in Foxlight entries target:
+
+```text
+https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051
+```
 
 ## Workflow
 

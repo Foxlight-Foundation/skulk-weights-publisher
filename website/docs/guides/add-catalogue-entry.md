@@ -21,12 +21,14 @@ catalogues:
   - path: ./operator-vindexes.yaml
     namespace: my-org
     hf_owner: my-org
+    hf_collection: my-org/vindexes-0123456789abcdef01234567
 ```
 
 `namespace` is the prefix operators type in CLI commands. `hf_owner` is the
 Hugging Face account or organization every entry in that source must publish
-to. This guard catches accidental publishes to the wrong namespace before LARQL
-does any expensive work.
+to. `hf_collection` is optional and points successful publishes from this source
+at your own public or private vindex collection. These guards catch accidental
+publishes to the wrong namespace before LARQL does any expensive work.
 
 ## 2. Choose The Stable Key
 
@@ -88,7 +90,7 @@ Use `moe` for larger MoE vindexes that should remain manual until the runner
 has enough disk, memory, and network capacity. These are usually the entries
 most relevant to keeping expert weights out of expensive GPU memory.
 
-## 6. Set Output And Repository Names
+## 6. Set Output, Repository, And Collection Names
 
 `output_name` is the local directory LARQL writes under scratch storage. It must
 end in `.vindex` and must not include a slash.
@@ -100,6 +102,10 @@ end in `.vindex` and must not include a slash.
 output_name: llama-3-1-8b-instruct-full-q4-k.vindex
 hf_repo: my-org/llama-3-1-8b-instruct-full-q4-k-vindex
 ```
+
+If the source config sets `hf_collection`, the published repo is added to that
+collection after `larql publish` succeeds. You can also set `hf_collection` on a
+single manifest entry when one entry needs a different collection.
 
 ## 7. Validate And Dry-Run
 

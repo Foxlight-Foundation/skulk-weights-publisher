@@ -9,6 +9,7 @@ description = "Build, validate, and publish LARQL vindexes for Skulk."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "huggingface_hub>=1.0.0,<2",
   "PyYAML>=6.0.2,<7",
 ]
 

@@ -81,6 +81,16 @@ def run_doctor(
                 else "HF_TOKEN is not set; publication will fail",
             )
         )
+        has_huggingface_hub = importlib.util.find_spec("huggingface_hub") is not None
+        checks.append(
+            DoctorCheck(
+                name="huggingface-hub",
+                ok=has_huggingface_hub,
+                message="found Python package: huggingface_hub"
+                if has_huggingface_hub
+                else "missing Python package: huggingface_hub",
+            )
+        )
 
     scratch_root = default_scratch_root(env)
     try:
