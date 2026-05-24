@@ -26,8 +26,6 @@ const config = {
         docs: {
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
-          editUrl:
-            "https://github.com/Foxlight-Foundation/skulk-vindex-publisher/tree/main/website/",
         },
         blog: false,
         theme: {
