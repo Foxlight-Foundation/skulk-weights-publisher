@@ -16,6 +16,10 @@ namespaced keys such as `foxlight/gemma-3-4b-full-q4-k` and
 `my-org/my-model-full-q4-k` so shared Foxlight vindexes and local operator
 vindexes remain distinct.
 
+**New to Skulk and LARQL?** Read [How Skulk Works](concepts/how-skulk-works.md)
+before the quickstart. It explains the cluster architecture, what vindexes are,
+and why the publisher exists.
+
 ## What is LARQL?
 
 LARQL treats a model as a database. It decompiles transformer weights into a

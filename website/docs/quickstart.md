@@ -4,15 +4,20 @@ title: Quickstart
 
 This guide gets you from a clean checkout to your first publisher dry-run.
 
-Before running commands, keep the core model in mind:
+If you are new to Skulk and LARQL, read [How Skulk Works](concepts/how-skulk-works.md)
+first. It explains the cluster architecture, what a vindex is, and why the
+publisher exists before you run any commands.
+
+If you already have that context, keep the core model in mind:
 
 - LARQL decompiles transformer weights into queryable vindexes.
 - A vindex is a vector-index directory LARQL can query, run, and publish.
 - Skulk uses published vindexes to place weight-serving work on the right
-  machines, including CPU/high-memory servers for FFN and expert weights.
+  machines: GPU nodes for the attention path, CPU/high-memory LARQL servers
+  for FFN and expert weights.
 
-A dry-run is the best first command because it answers three practical
-questions:
+A dry-run is the best first command because it answers four practical questions
+before touching any disk or network:
 
 1. Which upstream model will be used?
 2. Where will the local vindex directory be written?
@@ -95,7 +100,14 @@ That output is the contract. If the source model, output path, slice mode,
 target repository, or collection is wrong, fix the catalogue source before
 publishing.
 
-## 5. Learn The Pieces
+One thing that looks surprising: entries with `slices: [full]` show
+`--slices none` in the generated `larql publish` command. That is correct —
+LARQL uses `none` to mean "publish the complete vindex." The catalogue field
+is `full`; the LARQL flag is `none`. They refer to the same thing.
 
-Read [Skulk, LARQL, and vindexes](concepts/vindexes.md) next. It explains why
-the publisher exists and what the dry-run output means.
+## 5. Go Deeper
+
+[How Skulk Works](concepts/how-skulk-works.md) explains the end-to-end cluster
+architecture and why the vindex format exists. [Skulk, LARQL, and
+Vindexes](concepts/vindexes.md) covers the vindex structure and extraction
+levels in more detail.

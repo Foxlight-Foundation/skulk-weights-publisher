@@ -6,6 +6,7 @@ module.exports = {
       type: "category",
       label: "Concepts",
       items: [
+        "concepts/how-skulk-works",
         "concepts/vindexes",
         "concepts/catalogue",
         "concepts/publishing-lifecycle",
