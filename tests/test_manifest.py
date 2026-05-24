@@ -18,6 +18,7 @@ def test_validate_manifest_loads_catalogue() -> None:
     assert len(entries) == 9
     assert entries[0].key == "gemma-3-4b-full-q4-k"
     assert entries[0].publish_slices == "none"
+    assert entries[0].hf_collection == "FoxlightAI/vindexes-6a124406dd5fb439c431b051"
 
 
 def test_list_entries_filters_by_tier() -> None:
@@ -51,17 +52,63 @@ models:
     tier: smoke
     slices: [full]
     output_name: model-a.vindex
-    hf_repo: skulk/model-a
+    hf_repo: FoxlightAI/model-a
   - key: duplicate
     source_model: owner/model-b
     quant: q4k
     tier: smoke
     slices: [full]
     output_name: model-b.vindex
-    hf_repo: skulk/model-b
+    hf_repo: FoxlightAI/model-b
 """,
         encoding="utf-8",
     )
 
     with pytest.raises(ManifestError, match="duplicate key"):
         validate_manifest(manifest)
+
+
+def test_default_hugging_face_collection_is_applied(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+""",
+        encoding="utf-8",
+    )
+
+    entries = validate_manifest(
+        manifest,
+        hf_owner="acme",
+        hf_collection="acme/vindexes-0123456789abcdef01234567",
+    )
+
+    assert entries[0].hf_collection == "acme/vindexes-0123456789abcdef01234567"
+
+
+def test_hugging_face_collection_owner_must_match_config(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    hf_collection: other/vindexes-0123456789abcdef01234567
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError, match="hf_collection owner must be 'acme'"):
+        validate_manifest(manifest, hf_owner="acme")

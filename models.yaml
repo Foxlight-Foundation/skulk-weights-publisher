@@ -13,6 +13,7 @@
 # - slices: LARQL slice presets to publish for this model
 # - output_name: local output directory basename
 # - hf_repo: target HuggingFace repo id for the published vindex
+# - hf_collection: Hugging Face collection that lists the published repo
 
 models:
   - key: gemma-3-4b-full-q4-k
@@ -22,7 +23,8 @@ models:
     slices:
       - full
     output_name: gemma-3-4b-it-full-q4-k.vindex
-    hf_repo: skulk/gemma-3-4b-it-full-q4-k-vindex
+    hf_repo: FoxlightAI/gemma-3-4b-it-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
   - key: llama-3-2-3b-full-q4-k
     source_model: meta-llama/Llama-3.2-3B-Instruct
@@ -31,7 +33,8 @@ models:
     slices:
       - full
     output_name: llama-3-2-3b-instruct-full-q4-k.vindex
-    hf_repo: skulk/llama-3-2-3b-instruct-full-q4-k-vindex
+    hf_repo: FoxlightAI/llama-3-2-3b-instruct-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
   - key: qwen-2-5-7b-full-q4-k
     source_model: Qwen/Qwen2.5-7B-Instruct
@@ -40,7 +43,8 @@ models:
     slices:
       - full
     output_name: qwen-2-5-7b-instruct-full-q4-k.vindex
-    hf_repo: skulk/qwen-2-5-7b-instruct-full-q4-k-vindex
+    hf_repo: FoxlightAI/qwen-2-5-7b-instruct-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
   - key: gemma-4-26b-a4b-full-q4-k
     source_model: google/gemma-4-26b-a4b-it
@@ -49,7 +53,8 @@ models:
     slices:
       - full
     output_name: gemma-4-26b-a4b-it-full-q4-k.vindex
-    hf_repo: skulk/gemma-4-26b-a4b-it-full-q4-k-vindex
+    hf_repo: FoxlightAI/gemma-4-26b-a4b-it-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
   - key: gemma-4-26b-a4b-expert-server-q4-k
     source_model: google/gemma-4-26b-a4b-it
@@ -58,7 +63,8 @@ models:
     slices:
       - expert-server
     output_name: gemma-4-26b-a4b-it-expert-server-q4-k.vindex
-    hf_repo: skulk/gemma-4-26b-a4b-it-expert-server-q4-k-vindex
+    hf_repo: FoxlightAI/gemma-4-26b-a4b-it-expert-server-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
   - key: mixtral-8x7b-full-q4-k
     source_model: mistralai/Mixtral-8x7B-Instruct-v0.1
@@ -67,7 +73,8 @@ models:
     slices:
       - full
     output_name: mixtral-8x7b-instruct-v0-1-full-q4-k.vindex
-    hf_repo: skulk/mixtral-8x7b-instruct-v0-1-full-q4-k-vindex
+    hf_repo: FoxlightAI/mixtral-8x7b-instruct-v0-1-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
   - key: mixtral-8x7b-expert-server-q4-k
     source_model: mistralai/Mixtral-8x7B-Instruct-v0.1
@@ -76,7 +83,8 @@ models:
     slices:
       - expert-server
     output_name: mixtral-8x7b-instruct-v0-1-expert-server-q4-k.vindex
-    hf_repo: skulk/mixtral-8x7b-instruct-v0-1-expert-server-q4-k-vindex
+    hf_repo: FoxlightAI/mixtral-8x7b-instruct-v0-1-expert-server-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
   - key: mixtral-8x22b-full-q4-k
     source_model: mistralai/Mixtral-8x22B-Instruct-v0.1
@@ -85,7 +93,8 @@ models:
     slices:
       - full
     output_name: mixtral-8x22b-instruct-v0-1-full-q4-k.vindex
-    hf_repo: skulk/mixtral-8x22b-instruct-v0-1-full-q4-k-vindex
+    hf_repo: FoxlightAI/mixtral-8x22b-instruct-v0-1-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
   - key: mixtral-8x22b-expert-server-q4-k
     source_model: mistralai/Mixtral-8x22B-Instruct-v0.1
@@ -94,4 +103,5 @@ models:
     slices:
       - expert-server
     output_name: mixtral-8x22b-instruct-v0-1-expert-server-q4-k.vindex
-    hf_repo: skulk/mixtral-8x22b-instruct-v0-1-expert-server-q4-k-vindex
+    hf_repo: FoxlightAI/mixtral-8x22b-instruct-v0-1-expert-server-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051

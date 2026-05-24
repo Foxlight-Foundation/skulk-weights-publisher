@@ -25,7 +25,7 @@ runner before a real publish.
 A real publish runs LARQL and writes to Hugging Face. It needs:
 
 - `larql` available on `PATH`
-- `HF_TOKEN` with write access to the target repository
+- `HF_TOKEN` with write access to the target repository and collection
 - scratch storage for the extracted vindex directory
 - network access to Hugging Face
 

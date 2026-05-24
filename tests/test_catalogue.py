@@ -10,6 +10,10 @@ from skulk_vindex_publisher.catalogue import (
     load_catalogue_view,
     write_default_config,
 )
+from skulk_vindex_publisher.defaults import (
+    DEFAULT_FOXLIGHT_HF_OWNER,
+    DEFAULT_FOXLIGHT_VINDEX_COLLECTION,
+)
 from skulk_vindex_publisher.manifest import ManifestError
 
 
@@ -47,8 +51,12 @@ def test_default_catalogue_loads_packaged_foxlight_entries(
     assert len(view.sources) == 1
     assert view.sources[0].kind == "builtin"
     assert view.sources[0].namespace == "foxlight"
+    assert view.sources[0].hf_owner == DEFAULT_FOXLIGHT_HF_OWNER
+    assert view.sources[0].hf_collection == DEFAULT_FOXLIGHT_VINDEX_COLLECTION
     assert len(view.entries) == 9
     assert view.entries[0].key == "foxlight/gemma-3-4b-full-q4-k"
+    assert view.entries[0].hf_repo.startswith("FoxlightAI/")
+    assert view.entries[0].hf_collection == DEFAULT_FOXLIGHT_VINDEX_COLLECTION
     assert [entry.key for entry in filter_catalogue_entries(view, "smoke")] == [
         "foxlight/gemma-3-4b-full-q4-k",
         "foxlight/llama-3-2-3b-full-q4-k",
@@ -78,6 +86,28 @@ catalogues:
     assert [source.name for source in view.sources] == ["foxlight", "acme"]
     assert len(view.entries) == 10
     assert entry.hf_repo == "acme/local-7b-full-q4-k-vindex"
+    assert entry.hf_collection is None
+
+
+def test_operator_catalogue_can_configure_collection(tmp_path: Path) -> None:
+    operator_manifest = tmp_path / "operator-vindexes.yaml"
+    _write_operator_manifest(operator_manifest)
+    config = tmp_path / "skulk-vindex.yaml"
+    config.write_text(
+        """
+catalogues:
+  - path: ./operator-vindexes.yaml
+    namespace: acme
+    hf_owner: acme
+    hf_collection: acme/vindexes-0123456789abcdef01234567
+""",
+        encoding="utf-8",
+    )
+
+    view = load_catalogue_view(config_path=config)
+    entry = find_catalogue_entry("acme/local-7b-full-q4-k", view)
+
+    assert entry.hf_collection == "acme/vindexes-0123456789abcdef01234567"
 
 
 def test_empty_config_is_valid_because_foxlight_is_automatic(
@@ -145,7 +175,7 @@ def test_duplicate_hugging_face_repo_across_sources_is_rejected(
     _write_operator_manifest(
         operator_manifest,
         output_name="operator-gemma-3-4b-full-q4-k.vindex",
-        hf_repo="skulk/gemma-3-4b-it-full-q4-k-vindex",
+        hf_repo="FoxlightAI/gemma-3-4b-it-full-q4-k-vindex",
     )
     config = tmp_path / "skulk-vindex.yaml"
     config.write_text(
@@ -153,7 +183,7 @@ def test_duplicate_hugging_face_repo_across_sources_is_rejected(
 catalogues:
   - path: ./operator-vindexes.yaml
     namespace: acme
-    hf_owner: skulk
+    hf_owner: FoxlightAI
 """,
         encoding="utf-8",
     )
@@ -180,4 +210,23 @@ catalogues:
     )
 
     with pytest.raises(ManifestError, match="hf_repo owner must be 'acme'"):
+        load_catalogue_view(config_path=config)
+
+
+def test_operator_collection_owner_must_match_config(tmp_path: Path) -> None:
+    operator_manifest = tmp_path / "operator-vindexes.yaml"
+    _write_operator_manifest(operator_manifest)
+    config = tmp_path / "skulk-vindex.yaml"
+    config.write_text(
+        """
+catalogues:
+  - path: ./operator-vindexes.yaml
+    namespace: acme
+    hf_owner: acme
+    hf_collection: other/vindexes-0123456789abcdef01234567
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError, match="hf_collection owner must be 'acme'"):
         load_catalogue_view(config_path=config)

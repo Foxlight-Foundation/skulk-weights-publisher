@@ -24,11 +24,14 @@ tests, validates the effective catalogue, and dry-runs every catalogue entry.
 
 The publish job uses the `self-hosted`, `linux`, `larql`, and `vindex` runner
 labels. It resolves the requested catalogue keys and runs the same CLI operators
-use locally.
+use locally. After each successful LARQL publish, the CLI adds the published
+model repo to the entry's configured Hugging Face collection.
 
 By default, the workflow uses the built-in Foxlight catalogue. Pass
 `catalogue_config` when dispatching the workflow to include operator sources
 from a checked-in `skulk-vindex.yaml`; Foxlight entries remain included.
+Set the repository variable `SKULK_VINDEX_COLLECTION` only when you need to
+override the collection target for the selected run.
 
 This job publishes the vindexes Skulk will later place across runtime hardware.
 The runner performs extraction and upload; it is not required to be the GPU node

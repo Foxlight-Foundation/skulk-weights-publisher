@@ -10,10 +10,17 @@ Use hosted GitHub runners for safe validation: install the package, validate the
 catalogue, run tests, and dry-run every entry. Use the self-hosted runner when
 you are ready to run `larql extract` and `larql publish`.
 
-The Foxlight catalogue is included by default. If you maintain your own vindex
-library, add a checked-in `skulk-vindex.yaml` that points at your operator
-manifest and pass that path through `catalogue_config` when dispatching the
-workflow.
+The Foxlight catalogue is included by default and publishes to the `FoxlightAI`
+Hugging Face organization. Successful Foxlight publishes are also added to the
+public `Vindexes` collection:
+
+```text
+https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051
+```
+
+If you maintain your own vindex library, add a checked-in
+`skulk-vindex.yaml` that points at your operator manifest and pass that path
+through `catalogue_config` when dispatching the workflow.
 
 ## GitHub Actions Runner
 
@@ -47,7 +54,7 @@ Configure this GitHub Actions secret:
 
 | Secret | Purpose |
 |---|---|
-| `HF_TOKEN` | Hugging Face token with write access to the target `skulk/` repos |
+| `HF_TOKEN` | Hugging Face token with write access to the target repos and collections |
 
 Do not commit tokens to this repository.
 
@@ -81,6 +88,8 @@ publication to more keys.
 - `model=all`, `tier=smoke`, `dry_run=false` publishes the scheduled smoke set.
 - `model=<catalogue-key>` publishes one entry and ignores `tier`.
 - `catalogue_config=skulk-vindex.yaml` includes operator catalogue sources.
+- `SKULK_VINDEX_COLLECTION` can be set as a repository variable to override
+  collection updates for a run; set it to `none` to skip collection updates.
 - `dry_run=true` runs the same catalogue resolution path but only prints LARQL
   commands.
 - `tier=moe` is for explicit large-model and expert-server publication after

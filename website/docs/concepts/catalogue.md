@@ -10,8 +10,11 @@ Face repository should receive it?
 
 ## Built-In Foxlight Catalogue
 
-The Foxlight catalogue is packaged with the CLI and loaded automatically. You
-do not need a local config file to inspect or dry-run those entries:
+The Foxlight catalogue is packaged with the CLI and loaded automatically. Those
+entries publish to the `FoxlightAI` Hugging Face organization and are added to
+the public
+[`Vindexes`](https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051)
+collection. You do not need a local config file to inspect or dry-run them:
 
 ```bash
 skulk-vindex catalogue validate
@@ -32,7 +35,8 @@ models:
     slices:
       - full
     output_name: gemma-3-4b-it-full-q4-k.vindex
-    hf_repo: skulk/gemma-3-4b-it-full-q4-k-vindex
+    hf_repo: FoxlightAI/gemma-3-4b-it-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 ```
 
 Effective CLI key:
@@ -57,11 +61,14 @@ catalogues:
   - path: ./operator-vindexes.yaml
     namespace: my-org
     hf_owner: my-org
+    hf_collection: my-org/vindexes-0123456789abcdef01234567
 ```
 
 `namespace` controls the effective CLI key. `hf_owner` controls which Hugging
-Face account or organization the entries are allowed to publish into. With the
-config above, a source entry with `key: llama-3-8b-full-q4-k` becomes:
+Face account or organization the entries are allowed to publish into.
+`hf_collection` is optional; when set, successful publishes from that source are
+added to the collection after `larql publish` finishes. With the config above,
+a source entry with `key: llama-3-8b-full-q4-k` becomes:
 
 ```text
 my-org/llama-3-8b-full-q4-k
@@ -78,6 +85,7 @@ The Foxlight catalogue is still included automatically when you pass the config.
 - `slices`: the vindex shape LARQL should publish for the intended runtime role
 - `output_name`: the local vindex directory name created under scratch storage
 - `hf_repo`: the Hugging Face repository that receives the published vindex
+- `hf_collection`: the Hugging Face collection that receives the published repo
 
 ## Tiers
 

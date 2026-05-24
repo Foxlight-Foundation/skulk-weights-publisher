@@ -23,6 +23,7 @@ from skulk_vindex_publisher.publisher import (
     build_publish_plan,
     default_scratch_root,
     execute_publish_plan,
+    resolve_publish_collection,
 )
 
 
@@ -35,8 +36,7 @@ def _catalogue_view_from_args(args: argparse.Namespace) -> CatalogueView:
 def _cmd_catalogue_validate(args: argparse.Namespace) -> int:
     view = _catalogue_view_from_args(args)
     print(
-        f"catalogue valid: {len(view.entries)} entries from "
-        f"{len(view.sources)} sources"
+        f"catalogue valid: {len(view.entries)} entries from {len(view.sources)} sources"
     )
     return 0
 
@@ -48,6 +48,7 @@ def _cmd_catalogue_sources(args: argparse.Namespace) -> int:
             f"{source.kind} {source.name} "
             f"namespace={source.namespace or '-'} "
             f"hf_owner={source.hf_owner or '-'} "
+            f"hf_collection={source.hf_collection or '-'} "
             f"entries={len(source.entries)} "
             f"origin={source.origin}"
         )
@@ -93,7 +94,13 @@ def _cmd_publish(args: argparse.Namespace) -> int:
     scratch_root = (
         Path(args.scratch).expanduser() if args.scratch else default_scratch_root()
     )
-    plan = build_publish_plan(entry, scratch_root=scratch_root)
+    collection_slug = resolve_publish_collection(entry)
+    plan = build_publish_plan(
+        entry,
+        scratch_root=scratch_root,
+        collection_slug=collection_slug,
+        use_entry_collection=False,
+    )
     for line in plan.summary_lines(force=args.force):
         print(line)
     if args.dry_run:

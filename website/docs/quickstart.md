@@ -17,6 +17,7 @@ questions:
 1. Which upstream model will be used?
 2. Where will the local vindex directory be written?
 3. Which Hugging Face repository would receive the published vindex?
+4. Which Hugging Face collection would list the published repo?
 
 It prints the LARQL commands without extracting weights or uploading files.
 
@@ -84,13 +85,15 @@ You should see a summary like:
 model key: foxlight/gemma-3-4b-full-q4-k
 source model: google/gemma-3-4b-it
 output path: .scratch/gemma-3-4b-it-full-q4-k.vindex
-target repo: hf://skulk/gemma-3-4b-it-full-q4-k-vindex
+target repo: hf://FoxlightAI/gemma-3-4b-it-full-q4-k-vindex
+collection: https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051
 extract command: larql extract ...
 publish command: larql publish ...
 ```
 
-That output is the contract. If the source model, output path, slice mode, or
-target repository is wrong, fix the catalogue source before publishing.
+That output is the contract. If the source model, output path, slice mode,
+target repository, or collection is wrong, fix the catalogue source before
+publishing.
 
 ## 5. Learn The Pieces
 

@@ -30,6 +30,12 @@ An operator source in `skulk-vindex.yaml` declares `hf_owner`, and one entry is
 trying to publish to a different Hugging Face owner. Fix `hf_repo` or use a
 different source block with the correct owner.
 
+## `hf_collection owner must be '...'`
+
+An operator source declares `hf_owner`, and its collection points at a different
+Hugging Face owner. Use a collection owned by the same account or organization,
+or move the entry into a separate source block.
+
 ## `key must be lowercase kebab-case`
 
 Manifest keys are stable automation selectors. Use lowercase letters, numbers,
@@ -48,7 +54,13 @@ The command is trying to publish for real. Install LARQL and make sure
 ## `HF_TOKEN is required for non-dry-run publishing`
 
 Set `HF_TOKEN` to a Hugging Face token with write access to the target
-repository.
+repository and collection.
+
+## `failed to add ... to collection ...`
+
+The vindex repo was published, but the follow-up collection update failed.
+Check that `HF_TOKEN` can write to the collection and that the collection slug is
+correct.
 
 ## `output path already exists`
 

@@ -10,8 +10,8 @@ publication, not ordinary catalogue validation.
 Required for real publication.
 
 The token must have write access to every target Hugging Face repository used by
-the selected catalogue entries. In GitHub Actions, configure it as a repository
-secret named `HF_TOKEN`.
+the selected catalogue entries and any configured collection. In GitHub
+Actions, configure it as a repository secret named `HF_TOKEN`.
 
 ## `SKULK_VINDEX_SCRATCH`
 
@@ -51,3 +51,18 @@ Check the publishing runner with:
 ```bash
 skulk-vindex doctor --publish
 ```
+
+## `SKULK_VINDEX_COLLECTION`
+
+Optional.
+
+Overrides the collection target for a publish command. If unset, each catalogue
+entry uses its own `hf_collection` value. The built-in Foxlight catalogue uses:
+
+```text
+FoxlightAI/vindexes-6a124406dd5fb439c431b051
+```
+
+Set this only when you intentionally want all selected entries in that publish
+run to land in a different collection. Set it to `none` to skip collection
+updates for a one-off run.

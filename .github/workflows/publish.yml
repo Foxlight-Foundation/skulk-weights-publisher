@@ -99,6 +99,7 @@ jobs:
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       SKULK_VINDEX_SCRATCH: ${{ vars.SKULK_VINDEX_SCRATCH || format('{0}/.scratch', github.workspace) }}
+      SKULK_VINDEX_COLLECTION: ${{ vars.SKULK_VINDEX_COLLECTION || '' }}
       CATALOGUE_CONFIG: ${{ github.event.inputs.catalogue_config || '' }}
     steps:
       - name: Check out repository

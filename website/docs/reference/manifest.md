@@ -21,7 +21,8 @@ models:
     slices:
       - full
     output_name: gemma-3-4b-it-full-q4-k.vindex
-    hf_repo: skulk/gemma-3-4b-it-full-q4-k-vindex
+    hf_repo: FoxlightAI/gemma-3-4b-it-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 ```
 
 If that source is loaded under the `foxlight` namespace, the effective
@@ -48,6 +49,7 @@ my-org/gemma-3-4b-full-q4-k
 | `slices` | LARQL slice mode, currently `full` or `expert-server`; this is the runtime placement shape |
 | `output_name` | Local vindex directory basename under scratch storage |
 | `hf_repo` | Hugging Face repository passed to `larql publish` |
+| `hf_collection` | Optional Hugging Face collection slug updated after publish succeeds |
 
 ## Validation Rules
 
@@ -61,6 +63,8 @@ my-org/gemma-3-4b-full-q4-k
 - `output_name` must be a `.vindex` basename and unique in the merged catalogue
 - `hf_repo` must look like `owner/name` and be unique in the merged catalogue
 - operator `hf_repo` owners must match the source `hf_owner` in `skulk-vindex.yaml`
+- `hf_collection` must look like `owner/slug`
+- operator `hf_collection` owners must match the source `hf_owner` in `skulk-vindex.yaml`
 
 ## Generated Commands
 
@@ -73,7 +77,8 @@ quant: q4k
 slices:
   - full
 output_name: gemma-3-4b-it-full-q4-k.vindex
-hf_repo: skulk/gemma-3-4b-it-full-q4-k-vindex
+hf_repo: FoxlightAI/gemma-3-4b-it-full-q4-k-vindex
+hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
 ```
 
 produces this command shape:
@@ -84,9 +89,12 @@ larql extract google/gemma-3-4b-it \
   --quant q4k
 
 larql publish .scratch/gemma-3-4b-it-full-q4-k.vindex \
-  --repo skulk/gemma-3-4b-it-full-q4-k-vindex \
+  --repo FoxlightAI/gemma-3-4b-it-full-q4-k-vindex \
   --slices none
 ```
+
+After the LARQL publish command succeeds, the publisher adds the repository to
+the configured collection using the Hugging Face Hub API.
 
 For `slices: [full]`, the publisher sends `--slices none` because LARQL treats
 that as the complete vindex publish path.

@@ -17,6 +17,7 @@ ALLOWED_TIERS = {"smoke", "moe"}
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 NAMESPACE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 HF_REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+HF_COLLECTION_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 VindexQuant = Literal["q4k"]
 VindexSlice = Literal["full", "expert-server"]
@@ -38,6 +39,7 @@ class ManifestEntry:
     slices: tuple[VindexSlice, ...]
     output_name: str
     hf_repo: str
+    hf_collection: str | None = None
 
     @property
     def publish_slices(self) -> str:
@@ -76,12 +78,22 @@ def _require_string(entry: dict[str, Any], field: str, key: str) -> str:
     return value
 
 
+def _optional_string(entry: dict[str, Any], field: str, key: str) -> str | None:
+    value = entry.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ManifestError(f"{key}: {field} must be a non-empty string")
+    return value
+
+
 def validate_manifest_payload(
     payload: dict[str, Any],
     *,
     label: str,
     namespace: str | None = None,
     hf_owner: str | None = None,
+    hf_collection: str | None = None,
 ) -> tuple[ManifestEntry, ...]:
     """Return validated manifest entries from an already loaded payload."""
 
@@ -89,6 +101,14 @@ def validate_manifest_payload(
         raise ManifestError(f"{label}: namespace must be lowercase kebab/dot-case")
     if hf_owner is not None and not hf_owner.strip():
         raise ManifestError(f"{label}: hf_owner must be a non-empty string")
+    if hf_collection is not None and not HF_COLLECTION_PATTERN.fullmatch(hf_collection):
+        raise ManifestError(f"{label}: hf_collection must look like owner/slug")
+    if (
+        hf_owner is not None
+        and hf_collection is not None
+        and hf_collection.split("/", maxsplit=1)[0] != hf_owner
+    ):
+        raise ManifestError(f"{label}: hf_collection owner must be {hf_owner!r}")
     raw_models = payload.get("models")
     if not isinstance(raw_models, list) or not raw_models:
         raise ManifestError(f"{label}: models must be a non-empty list")
@@ -129,9 +149,7 @@ def validate_manifest_payload(
         if not isinstance(raw_slices, list) or not raw_slices:
             raise ManifestError(f"{effective_key}: slices must be a non-empty list")
         if any(not isinstance(slice_name, str) for slice_name in raw_slices):
-            raise ManifestError(
-                f"{effective_key}: slices must contain only strings"
-            )
+            raise ManifestError(f"{effective_key}: slices must contain only strings")
         slices = tuple(cast(list[str], raw_slices))
         unknown_slices = set(slices) - ALLOWED_SLICES
         if unknown_slices:
@@ -149,21 +167,33 @@ def validate_manifest_payload(
                 f"{effective_key}: output_name must be a .vindex basename"
             )
         if output_name in seen_outputs:
-            raise ManifestError(
-                f"{effective_key}: duplicate output_name {output_name}"
-            )
+            raise ManifestError(f"{effective_key}: duplicate output_name {output_name}")
         seen_outputs.add(output_name)
 
         hf_repo = _require_string(entry, "hf_repo", effective_key)
         if not HF_REPO_PATTERN.fullmatch(hf_repo):
             raise ManifestError(f"{effective_key}: hf_repo must look like owner/name")
         if hf_owner is not None and hf_repo.split("/", maxsplit=1)[0] != hf_owner:
-            raise ManifestError(
-                f"{effective_key}: hf_repo owner must be {hf_owner!r}"
-            )
+            raise ManifestError(f"{effective_key}: hf_repo owner must be {hf_owner!r}")
         if hf_repo in seen_repos:
             raise ManifestError(f"{effective_key}: duplicate hf_repo {hf_repo}")
         seen_repos.add(hf_repo)
+
+        entry_hf_collection = (
+            _optional_string(entry, "hf_collection", effective_key) or hf_collection
+        )
+        if entry_hf_collection is not None:
+            if not HF_COLLECTION_PATTERN.fullmatch(entry_hf_collection):
+                raise ManifestError(
+                    f"{effective_key}: hf_collection must look like owner/slug"
+                )
+            if (
+                hf_owner is not None
+                and entry_hf_collection.split("/", maxsplit=1)[0] != hf_owner
+            ):
+                raise ManifestError(
+                    f"{effective_key}: hf_collection owner must be {hf_owner!r}"
+                )
 
         entries.append(
             ManifestEntry(
@@ -174,6 +204,7 @@ def validate_manifest_payload(
                 slices=cast(tuple[VindexSlice, ...], slices),
                 output_name=output_name,
                 hf_repo=hf_repo,
+                hf_collection=entry_hf_collection,
             )
         )
 
@@ -185,6 +216,7 @@ def validate_manifest(
     *,
     namespace: str | None = None,
     hf_owner: str | None = None,
+    hf_collection: str | None = None,
 ) -> tuple[ManifestEntry, ...]:
     """Return validated manifest entries or raise a descriptive error."""
 
@@ -193,6 +225,7 @@ def validate_manifest(
         label=str(path),
         namespace=namespace,
         hf_owner=hf_owner,
+        hf_collection=hf_collection,
     )
 
 
@@ -202,10 +235,16 @@ def find_entry(
     *,
     namespace: str | None = None,
     hf_owner: str | None = None,
+    hf_collection: str | None = None,
 ) -> ManifestEntry:
     """Return the manifest entry matching ``key``."""
 
-    for entry in validate_manifest(path, namespace=namespace, hf_owner=hf_owner):
+    for entry in validate_manifest(
+        path,
+        namespace=namespace,
+        hf_owner=hf_owner,
+        hf_collection=hf_collection,
+    ):
         if entry.key == key:
             return entry
     raise ManifestError(f"model key not found in {path}: {key}")
@@ -217,10 +256,16 @@ def list_entries(
     *,
     namespace: str | None = None,
     hf_owner: str | None = None,
+    hf_collection: str | None = None,
 ) -> tuple[ManifestEntry, ...]:
     """Return manifest entries filtered by publication tier."""
 
-    entries = validate_manifest(path, namespace=namespace, hf_owner=hf_owner)
+    entries = validate_manifest(
+        path,
+        namespace=namespace,
+        hf_owner=hf_owner,
+        hf_collection=hf_collection,
+    )
     if tier == "all":
         return entries
     return tuple(entry for entry in entries if entry.tier == tier)
