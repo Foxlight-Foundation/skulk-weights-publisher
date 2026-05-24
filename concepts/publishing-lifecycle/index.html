@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Publishing Lifecycle | Skulk Vindex Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-vindex-publisher/concepts/publishing-lifecycle"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Publishing Lifecycle | Skulk Vindex Publisher"><meta data-rh="true" name="description" content="A vindex goes through a build-and-release lifecycle because it is the boundary"><meta data-rh="true" property="og:description" content="A vindex goes through a build-and-release lifecycle because it is the boundary"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/concepts/publishing-lifecycle"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/concepts/publishing-lifecycle" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/concepts/publishing-lifecycle" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Publishing Lifecycle","item":"https://foxlight-foundation.github.io/skulk-vindex-publisher/concepts/publishing-lifecycle"}]}</script><link rel="stylesheet" href="/skulk-vindex-publisher/assets/css/styles.2c920404.css">
-<script src="/skulk-vindex-publisher/assets/js/runtime~main.9750e9ce.js" defer="defer"></script>
+<script src="/skulk-vindex-publisher/assets/js/runtime~main.6e76e5d7.js" defer="defer"></script>
 <script src="/skulk-vindex-publisher/assets/js/main.15ce5837.js" defer="defer"></script>
 </head>
 <body>
@@ -16,13 +16,15 @@ between expensive GPU inference nodes and cheaper CPU/high-memory weight
 servers. The goal is a stable, published model representation that every Skulk
 node can agree on before runtime placement begins.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-describe-the-vindex">1. Describe The Vindex<a href="#1-describe-the-vindex" class="hash-link" aria-label="Direct link to 1. Describe The Vindex" title="Direct link to 1. Describe The Vindex" translate="no">​</a></h2>
-<p>The vindex starts as a <code>models.yaml</code> entry. That entry names the source model,
-quantization, slice mode, local <code>.vindex</code> directory, and target Hugging Face
-repository. The slice mode is part of the runtime contract: it tells operators
-whether they are publishing a complete vindex or a specialized expert-server
-shape for weight serving.</p>
+<p>The vindex starts as a catalogue source entry. The built-in Foxlight entries
+are packaged with the CLI, and operator entries can be added through
+<code>skulk-vindex.yaml</code>. Each entry names the source model, quantization, slice
+mode, local <code>.vindex</code> directory, and target Hugging Face repository. The slice
+mode is part of the runtime contract: it tells operators whether they are
+publishing a complete vindex or a specialized expert-server shape for weight
+serving.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="2-validate-the-catalogue">2. Validate The Catalogue<a href="#2-validate-the-catalogue" class="hash-link" aria-label="Direct link to 2. Validate The Catalogue" title="Direct link to 2. Validate The Catalogue" translate="no">​</a></h2>
-<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-vindex manifest validate</span><br></div></code></pre></div></div>
+<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-vindex catalogue validate</span><br></div></code></pre></div></div>
 <p>Validation catches duplicate keys, unsupported slice names, bad repository
 names, and output names that would not be safe to write.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-check-the-runner">3. Check The Runner<a href="#3-check-the-runner" class="hash-link" aria-label="Direct link to 3. Check The Runner" title="Direct link to 3. Check The Runner" translate="no">​</a></h2>
@@ -32,7 +34,7 @@ access to Hugging Face, and <code>HF_TOKEN</code>. It does not have to be the ev
 runtime host; it is the machine that performs the expensive extraction and
 upload.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="4-review-the-plan">4. Review The Plan<a href="#4-review-the-plan" class="hash-link" aria-label="Direct link to 4. Review The Plan" title="Direct link to 4. Review The Plan" translate="no">​</a></h2>
-<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-vindex publish </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--model</span><span class="token plain"> gemma-3-4b-full-q4-k --dry-run</span><br></div></code></pre></div></div>
+<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-vindex publish </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--model</span><span class="token plain"> foxlight/gemma-3-4b-full-q4-k --dry-run</span><br></div></code></pre></div></div>
 <p>The dry-run prints the exact <code>larql extract</code> and <code>larql publish</code> commands. This
 is the last cheap place to catch a wrong source model, path, slice mode, or
 repository before disk-heavy extraction begins.</p>
