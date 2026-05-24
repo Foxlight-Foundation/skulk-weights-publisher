@@ -1,10 +1,10 @@
 ---
 slug: /
-title: Skulk Vindex Publisher
+title: "SVP: Skulk Vindex Publisher"
 ---
 
-Skulk Vindex Publisher publishes LARQL vindexes for Skulk so model weights do
-not have to live entirely inside expensive GPU memory. It keeps the list of
+SVP: Skulk Vindex Publisher publishes LARQL vindexes for Skulk so model weights
+do not have to live entirely inside expensive GPU memory. It keeps the list of
 upstream Hugging Face models Skulk wants, validates how each one should be
 extracted and sliced, shows the exact LARQL commands that will run, and runs the
 publish workflow so CPU/high-memory LARQL servers can host feed-forward weights

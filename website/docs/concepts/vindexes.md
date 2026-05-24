@@ -76,11 +76,11 @@ The catalog records the production contract around that vindex:
 - output name: the local `.vindex` directory produced under scratch storage
 - target repository: where the vindex is published
 
-## The Publisher
+## SVP: Skulk Vindex Publisher
 
-Skulk Vindex Publisher is the automation layer around LARQL publication. It
-reads the catalog, validates that entries are well formed, prints the exact
-command plan, and runs publication from the machine configured for that job.
+SVP is the automation layer around LARQL publication. It reads the catalog,
+validates that entries are well formed, prints the exact command plan, and runs
+publication from the machine configured for that job.
 
 The publisher matters because this split only works when every machine agrees
 on the same extracted and sliced weights. A bad command can waste hours of

@@ -1,5 +1,5 @@
 const config = {
-  title: "Skulk Vindex Publisher",
+  title: "SVP: Skulk Vindex Publisher",
   tagline: "Prepare and publish model artifacts for Skulk.",
 
   url: "https://foxlight-foundation.github.io",
@@ -37,7 +37,7 @@ const config = {
 
   themeConfig: {
     navbar: {
-      title: "Skulk Vindex Publisher",
+      title: "SVP",
       items: [
         {
           type: "docSidebar",

@@ -1,4 +1,4 @@
-# skulk-vindex-publisher
+# SVP: Skulk Vindex Publisher
 
 Build and publish LARQL vindexes for Skulk.
 
