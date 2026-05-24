@@ -10,7 +10,7 @@ publication, not ordinary catalogue validation.
 Required for real publication.
 
 The token must have write access to every target Hugging Face repository used by
-the selected manifest entries. In GitHub Actions, configure it as a repository
+the selected catalogue entries. In GitHub Actions, configure it as a repository
 secret named `HF_TOKEN`.
 
 ## `SKULK_VINDEX_SCRATCH`
@@ -36,7 +36,7 @@ You can override this for one command with `--scratch`:
 
 ```bash
 skulk-vindex publish \
-  --model gemma-3-4b-full-q4-k \
+  --model foxlight/gemma-3-4b-full-q4-k \
   --scratch /fast/scratch/skulk-vindexes
 ```
 

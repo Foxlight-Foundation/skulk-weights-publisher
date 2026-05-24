@@ -14,16 +14,21 @@ one for documentation.
 
 Manual dispatch inputs:
 
-- `model`: one manifest key or `all`
+- `model`: one catalogue key or `all`
+- `catalogue_config`: optional `skulk-vindex.yaml` path for operator sources
 - `tier`: used when `model` is `all`
 - `dry_run`: prints commands without publishing
 
 The validate job installs the package, lints the code, type-checks it, runs unit
-tests, validates `models.yaml`, and dry-runs every catalogue entry.
+tests, validates the effective catalogue, and dry-runs every catalogue entry.
 
 The publish job uses the `self-hosted`, `linux`, `larql`, and `vindex` runner
-labels. It resolves the requested manifest keys and runs the same CLI operators
+labels. It resolves the requested catalogue keys and runs the same CLI operators
 use locally.
+
+By default, the workflow uses the built-in Foxlight catalogue. Pass
+`catalogue_config` when dispatching the workflow to include operator sources
+from a checked-in `skulk-vindex.yaml`; Foxlight entries remain included.
 
 This job publishes the vindexes Skulk will later place across runtime hardware.
 The runner performs extraction and upload; it is not required to be the GPU node

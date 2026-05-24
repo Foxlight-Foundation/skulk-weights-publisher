@@ -4,7 +4,7 @@ title: CLI Reference
 
 The `skulk-vindex` CLI has three jobs:
 
-- inspect the catalogue
+- inspect the merged catalogue
 - check the local environment
 - plan or run one vindex publication
 
@@ -12,20 +12,50 @@ Those jobs keep publication reviewable before LARQL extracts large weight
 directories. The published vindex is the stable object Skulk can later place
 across GPU inference nodes and CPU/high-memory weight-serving nodes.
 
-## `skulk-vindex manifest validate`
+## Global Options
 
-Validates `models.yaml`. Run this after changing the catalogue and before
-publishing.
+Global options come before the subcommand.
+
+`--config PATH` loads `PATH` as `skulk-vindex.yaml`. The built-in Foxlight
+catalogue is still included, and the config can add operator catalogue sources.
+
+```bash
+skulk-vindex --config skulk-vindex.yaml catalogue validate
+```
+
+`--manifest PATH` is a legacy single-file mode. It bypasses the merged
+catalogue and reads one manifest source directly.
+
+```bash
+skulk-vindex --manifest /path/to/models.yaml manifest validate
+```
+
+## `skulk-vindex catalogue validate`
+
+Validates the effective catalogue. Run this after changing
+`skulk-vindex.yaml` or any source file.
 
 Example:
 
 ```bash
-skulk-vindex manifest validate
+skulk-vindex catalogue validate
+skulk-vindex --config skulk-vindex.yaml catalogue validate
 ```
 
-## `skulk-vindex manifest list`
+## `skulk-vindex catalogue sources`
 
-Lists manifest keys. Use this to see which vindexes are available by tier.
+Prints the sources that contributed entries to the merged catalogue.
+
+Example:
+
+```bash
+skulk-vindex catalogue sources
+```
+
+## `skulk-vindex catalogue list`
+
+Lists effective catalogue keys. Use this to see which vindexes are available by
+tier.
 
 Options:
 
@@ -36,24 +66,52 @@ Options:
 Example:
 
 ```bash
-skulk-vindex manifest list --tier smoke
+skulk-vindex catalogue list --tier smoke
 ```
 
-## `skulk-vindex manifest get --key KEY`
+## `skulk-vindex catalogue get --key KEY`
 
-Prints one manifest entry as JSON. Use this when you want to inspect exactly
-what a key resolves to before publishing.
+Prints one catalogue entry as JSON. Use this when you want to inspect exactly
+what a namespaced key resolves to before publishing.
 
 Example:
 
 ```bash
-skulk-vindex manifest get --key gemma-3-4b-full-q4-k
+skulk-vindex catalogue get --key foxlight/gemma-3-4b-full-q4-k
+```
+
+## `skulk-vindex catalogue init`
+
+Writes a starter `skulk-vindex.yaml`. The generated file is valid immediately
+because the Foxlight catalogue is included automatically. Add operator sources
+when you are ready.
+
+Options:
+
+- `--output PATH`: write to a path other than `skulk-vindex.yaml`
+- `--force`: replace an existing file
+
+Example:
+
+```bash
+skulk-vindex catalogue init
+```
+
+## `skulk-vindex manifest ...`
+
+`manifest` is a compatibility alias for the catalogue inspection commands.
+Prefer `catalogue` in new automation.
+
+Use `--manifest PATH` when you need true single-file legacy behavior:
+
+```bash
+skulk-vindex --manifest models.yaml manifest list --tier smoke
 ```
 
 ## `skulk-vindex doctor`
 
 Checks local prerequisites that are safe on any machine: Python dependencies,
-scratch directory access, and manifest validity.
+scratch directory access, and catalogue validity.
 
 ## `skulk-vindex doctor --publish`
 
@@ -61,9 +119,9 @@ Adds publication-specific checks for `larql` and `HF_TOKEN`.
 
 ## `skulk-vindex publish --model KEY`
 
-Builds the publish plan for one manifest entry. With `--dry-run`, it only prints
-the plan. Without `--dry-run`, it runs LARQL extraction and publication.
-Review the slice mode before publishing; it is the part of the manifest that
+Builds the publish plan for one catalogue entry. With `--dry-run`, it only
+prints the plan. Without `--dry-run`, it runs LARQL extraction and publication.
+Review the slice mode before publishing; it is the part of the catalogue that
 connects this vindex to the intended runtime hardware role.
 
 Options:
@@ -75,23 +133,17 @@ Options:
 Examples:
 
 ```bash
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
-skulk-vindex publish --model gemma-3-4b-full-q4-k --scratch /fast/skulk-vindexes
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-vindex --config skulk-vindex.yaml publish \
+  --model my-org/llama-3-8b-full-q4-k \
+  --scratch /fast/skulk-vindexes
 ```
 
 Expected dry-run output includes:
 
-- manifest key
+- catalogue key
 - source model
 - local output path
 - target Hugging Face repository
 - `larql extract` command
 - `larql publish` command
-
-## Global Options
-
-All commands accept `--manifest PATH` before the subcommand:
-
-```bash
-skulk-vindex --manifest /path/to/models.yaml manifest validate
-```

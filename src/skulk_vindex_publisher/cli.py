@@ -7,12 +7,16 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from skulk_vindex_publisher.catalogue import (
+    CatalogueView,
+    filter_catalogue_entries,
+    find_catalogue_entry,
+    load_catalogue_view,
+    write_default_config,
+)
 from skulk_vindex_publisher.doctor import run_doctor
 from skulk_vindex_publisher.manifest import (
     ManifestError,
-    find_entry,
-    list_entries,
-    validate_manifest,
 )
 from skulk_vindex_publisher.publisher import (
     PublishError,
@@ -22,27 +26,70 @@ from skulk_vindex_publisher.publisher import (
 )
 
 
-def _cmd_manifest_validate(args: argparse.Namespace) -> int:
-    entries = validate_manifest(Path(args.manifest))
-    print(f"{args.manifest} valid: {len(entries)} entries")
+def _catalogue_view_from_args(args: argparse.Namespace) -> CatalogueView:
+    config_path = Path(args.config) if args.config else None
+    manifest_path = Path(args.manifest) if args.manifest else None
+    return load_catalogue_view(config_path=config_path, manifest_path=manifest_path)
+
+
+def _cmd_catalogue_validate(args: argparse.Namespace) -> int:
+    view = _catalogue_view_from_args(args)
+    print(
+        f"catalogue valid: {len(view.entries)} entries from "
+        f"{len(view.sources)} sources"
+    )
     return 0
 
 
-def _cmd_manifest_get(args: argparse.Namespace) -> int:
-    entry = find_entry(args.key, Path(args.manifest))
+def _cmd_catalogue_sources(args: argparse.Namespace) -> int:
+    view = _catalogue_view_from_args(args)
+    for source in view.sources:
+        print(
+            f"{source.kind} {source.name} "
+            f"namespace={source.namespace or '-'} "
+            f"hf_owner={source.hf_owner or '-'} "
+            f"entries={len(source.entries)} "
+            f"origin={source.origin}"
+        )
+    return 0
+
+
+def _cmd_catalogue_get(args: argparse.Namespace) -> int:
+    view = _catalogue_view_from_args(args)
+    entry = find_catalogue_entry(args.key, view)
     print(entry.to_json())
     return 0
 
 
-def _cmd_manifest_list(args: argparse.Namespace) -> int:
-    entries = list_entries(args.tier, Path(args.manifest))
+def _cmd_catalogue_list(args: argparse.Namespace) -> int:
+    view = _catalogue_view_from_args(args)
+    entries = filter_catalogue_entries(view, args.tier)
     for entry in entries:
         print(entry.key)
     return 0
 
 
+def _cmd_catalogue_init(args: argparse.Namespace) -> int:
+    output_path = Path(args.output)
+    write_default_config(output_path, force=args.force)
+    print(f"wrote {output_path}")
+    return 0
+
+
+def _cmd_manifest_validate(args: argparse.Namespace) -> int:
+    return _cmd_catalogue_validate(args)
+
+
+def _cmd_manifest_get(args: argparse.Namespace) -> int:
+    return _cmd_catalogue_get(args)
+
+
+def _cmd_manifest_list(args: argparse.Namespace) -> int:
+    return _cmd_catalogue_list(args)
+
+
 def _cmd_publish(args: argparse.Namespace) -> int:
-    entry = find_entry(args.model, Path(args.manifest))
+    entry = find_catalogue_entry(args.model, _catalogue_view_from_args(args))
     scratch_root = (
         Path(args.scratch).expanduser() if args.scratch else default_scratch_root()
     )
@@ -57,7 +104,13 @@ def _cmd_publish(args: argparse.Namespace) -> int:
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
-    report = run_doctor(publish=args.publish, manifest_path=Path(args.manifest))
+    config_path = Path(args.config) if args.config else None
+    manifest_path = Path(args.manifest) if args.manifest else None
+    report = run_doctor(
+        publish=args.publish,
+        config_path=config_path,
+        manifest_path=manifest_path,
+    )
     for check in report.checks:
         stream = sys.stdout if check.ok else sys.stderr
         print(check.message, file=stream)
@@ -74,16 +127,51 @@ def build_parser() -> argparse.ArgumentParser:
         prog="skulk-vindex",
         description="Build, validate, and publish Skulk LARQL vindexes.",
     )
-    parser.add_argument(
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument(
+        "--config",
+        help=(
+            "Path to skulk-vindex.yaml. If omitted, skulk-vindex.yaml is used "
+            "when present; otherwise the built-in Foxlight catalogue is used."
+        ),
+    )
+    source_group.add_argument(
         "--manifest",
-        default="models.yaml",
-        help="Path to the vindex catalogue manifest.",
+        help="Legacy path to one vindex manifest.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    catalogue_parser = subparsers.add_parser(
+        "catalogue",
+        help="Validate/query merged catalogue sources",
+    )
+    catalogue_subparsers = catalogue_parser.add_subparsers(
+        dest="catalogue_command", required=True
+    )
+    catalogue_validate_parser = catalogue_subparsers.add_parser("validate")
+    catalogue_validate_parser.set_defaults(func=_cmd_catalogue_validate)
+
+    catalogue_sources_parser = catalogue_subparsers.add_parser("sources")
+    catalogue_sources_parser.set_defaults(func=_cmd_catalogue_sources)
+
+    catalogue_get_parser = catalogue_subparsers.add_parser("get")
+    catalogue_get_parser.add_argument("--key", required=True)
+    catalogue_get_parser.set_defaults(func=_cmd_catalogue_get)
+
+    catalogue_list_parser = catalogue_subparsers.add_parser("list")
+    catalogue_list_parser.add_argument(
+        "--tier", choices=["all", "smoke", "moe"], default="all"
+    )
+    catalogue_list_parser.set_defaults(func=_cmd_catalogue_list)
+
+    catalogue_init_parser = catalogue_subparsers.add_parser("init")
+    catalogue_init_parser.add_argument("--output", default="skulk-vindex.yaml")
+    catalogue_init_parser.add_argument("--force", action="store_true")
+    catalogue_init_parser.set_defaults(func=_cmd_catalogue_init)
+
     manifest_parser = subparsers.add_parser(
         "manifest",
-        help="Validate/query models.yaml",
+        help="Compatibility alias for catalogue commands",
     )
     manifest_subparsers = manifest_parser.add_subparsers(
         dest="manifest_command", required=True
@@ -99,11 +187,13 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("--tier", choices=["all", "smoke", "moe"], default="all")
     list_parser.set_defaults(func=_cmd_manifest_list)
 
-    publish_parser = subparsers.add_parser("publish", help="Publish one manifest entry")
+    publish_parser = subparsers.add_parser(
+        "publish", help="Publish one catalogue entry"
+    )
     publish_parser.add_argument(
         "--model",
         required=True,
-        help="Manifest key to publish.",
+        help="Catalogue key to publish.",
     )
     publish_parser.add_argument("--dry-run", action="store_true")
     publish_parser.add_argument("--force", action="store_true")

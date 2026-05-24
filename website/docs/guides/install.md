@@ -31,13 +31,19 @@ product CLI.
 
 ```bash
 skulk-vindex doctor
-skulk-vindex manifest validate
+skulk-vindex catalogue validate
 ```
 
 Then run one dry-run:
 
 ```bash
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+```
+
+To add your own operator catalogue, initialize a config after install:
+
+```bash
+skulk-vindex catalogue init
 ```
 
 ## Compatibility Wrappers
@@ -48,7 +54,7 @@ the package CLI yet:
 ```bash
 scripts/doctor.sh
 scripts/manifest.py validate
-scripts/publish-vindex.sh --model gemma-3-4b-full-q4-k --dry-run
+scripts/publish-vindex.sh --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 New documentation and new automation should use `skulk-vindex`.

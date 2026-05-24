@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from skulk_vindex_publisher.catalogue import load_catalogue_view
 from skulk_vindex_publisher.manifest import ManifestError, validate_manifest
 from skulk_vindex_publisher.publisher import default_scratch_root
 
@@ -38,7 +39,8 @@ class DoctorReport:
 def run_doctor(
     *,
     publish: bool = False,
-    manifest_path: Path = Path("models.yaml"),
+    config_path: Path | None = None,
+    manifest_path: Path | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> DoctorReport:
     """Run local preflight checks and return structured results."""
@@ -97,15 +99,18 @@ def run_doctor(
     )
 
     try:
-        entry_count = len(validate_manifest(manifest_path))
-        checks.append(
-            DoctorCheck(
-                name="manifest",
-                ok=True,
-                message=f"{manifest_path} valid: {entry_count} entries",
+        if manifest_path is not None:
+            entry_count = len(validate_manifest(manifest_path))
+            message = f"{manifest_path} valid: {entry_count} entries"
+        else:
+            view = load_catalogue_view(config_path=config_path)
+            entry_count = len(view.entries)
+            message = (
+                f"catalogue valid: {entry_count} entries from "
+                f"{len(view.sources)} sources"
             )
-        )
+        checks.append(DoctorCheck(name="catalogue", ok=True, message=message))
     except ManifestError as exc:
-        checks.append(DoctorCheck(name="manifest", ok=False, message=str(exc)))
+        checks.append(DoctorCheck(name="catalogue", ok=False, message=str(exc)))
 
     return DoctorReport(checks=tuple(checks))

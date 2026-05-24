@@ -2,9 +2,15 @@
 title: Manifest Reference
 ---
 
-`models.yaml` contains a top-level `models` list. Each item describes one
-publishable vindex and the slice shape Skulk can later place on runtime
+A manifest source file contains a top-level `models` list. Each item describes
+one publishable vindex and the slice shape Skulk can later place on runtime
 hardware.
+
+Manifests are source files. The catalogue is the merged view built from the
+packaged Foxlight manifest plus any operator manifests listed in
+`skulk-vindex.yaml`.
+
+## Example Source Entry
 
 ```yaml
 models:
@@ -18,11 +24,24 @@ models:
     hf_repo: skulk/gemma-3-4b-it-full-q4-k-vindex
 ```
 
+If that source is loaded under the `foxlight` namespace, the effective
+catalogue key is:
+
+```text
+foxlight/gemma-3-4b-full-q4-k
+```
+
+If an operator source is loaded under `my-org`, the same short key becomes:
+
+```text
+my-org/gemma-3-4b-full-q4-k
+```
+
 ## Field Reference
 
 | Field | Meaning |
 |---|---|
-| `key` | Stable CLI and workflow selector for this vindex |
+| `key` | Stable short selector before the catalogue namespace is added |
 | `source_model` | Hugging Face model ID passed to `larql extract` |
 | `quant` | Quantization passed to LARQL |
 | `tier` | Publication group, currently `smoke` or `moe` |
@@ -32,14 +51,16 @@ models:
 
 ## Validation Rules
 
-- `key` must be lowercase kebab-case and unique
+- `key` must be lowercase kebab-case and unique within its source
+- effective catalogue keys must be unique after namespaces are applied
 - `source_model` must look like `owner/name`
 - `quant` currently supports `q4k`
 - `tier` must be `smoke` or `moe`
 - `slices` must be non-empty
 - `full` cannot be combined with other slices
-- `output_name` must be a `.vindex` basename
-- `hf_repo` must look like `owner/name` and be unique
+- `output_name` must be a `.vindex` basename and unique in the merged catalogue
+- `hf_repo` must look like `owner/name` and be unique in the merged catalogue
+- operator `hf_repo` owners must match the source `hf_owner` in `skulk-vindex.yaml`
 
 ## Generated Commands
 

@@ -11,9 +11,9 @@ Hugging Face write access.
 
 These commands inspect local files and print plans:
 
-- `skulk-vindex manifest validate`
-- `skulk-vindex manifest list`
-- `skulk-vindex manifest get`
+- `skulk-vindex catalogue validate`
+- `skulk-vindex catalogue list`
+- `skulk-vindex catalogue get`
 - `skulk-vindex doctor`
 - `skulk-vindex publish --dry-run`
 
@@ -34,7 +34,7 @@ A real publish runs LARQL and writes to Hugging Face. It needs:
 Every new catalogue entry should pass a dry-run before a real publish:
 
 ```bash
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 The dry-run prints the exact `larql extract` and `larql publish` commands. It
@@ -51,5 +51,5 @@ Use `--force` only when the previous local extraction output is disposable.
 ## Secret Handling
 
 `HF_TOKEN` should be provided by the publishing runner environment or GitHub
-Actions secrets. Do not store it in `models.yaml`, shell history, repository
-files, or Docusaurus docs.
+Actions secrets. Do not store it in `skulk-vindex.yaml`, manifest source files,
+shell history, repository files, or Docusaurus docs.

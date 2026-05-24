@@ -17,14 +17,21 @@ This repository is the controlled publication workflow. It keeps the catalogue
 of publishable vindexes, validates that catalogue, prints the exact LARQL
 commands, and runs publication from a configured runner.
 
+The Foxlight catalogue is included automatically. Operators can add their own
+catalogue files with `skulk-vindex.yaml`; the merged catalogue uses namespaced
+keys such as `foxlight/gemma-3-4b-full-q4-k` and
+`my-org/my-model-full-q4-k` so shared Foxlight entries and local operator
+entries can coexist safely.
+
 ## Why This Exists
 
 Vindex publication is expensive and easy to get wrong. A bad command can write a
 large vindex to the wrong scratch path or publish it under the wrong Hugging
 Face repository. This project makes publication repeatable:
 
-- `models.yaml` describes every vindex
-- `skulk-vindex manifest validate` checks the catalogue
+- packaged Foxlight catalogue entries describe shared Skulk vindexes
+- `skulk-vindex.yaml` can add operator-owned catalogue source files
+- `skulk-vindex catalogue validate` checks the merged catalogue
 - `skulk-vindex publish --dry-run` prints the LARQL plan
 - GitHub Actions validates every catalogue entry
 - the self-hosted runner performs real LARQL publication
@@ -33,15 +40,15 @@ Face repository. This project makes publication repeatable:
 
 | Key | Source model | Quant | Slices |
 |---|---|---|---|
-| `gemma-3-4b-full-q4-k` | `google/gemma-3-4b-it` | `q4k` | `full` |
-| `llama-3-2-3b-full-q4-k` | `meta-llama/Llama-3.2-3B-Instruct` | `q4k` | `full` |
-| `qwen-2-5-7b-full-q4-k` | `Qwen/Qwen2.5-7B-Instruct` | `q4k` | `full` |
-| `gemma-4-26b-a4b-full-q4-k` | `google/gemma-4-26b-a4b-it` | `q4k` | `full` |
-| `gemma-4-26b-a4b-expert-server-q4-k` | `google/gemma-4-26b-a4b-it` | `q4k` | `expert-server` |
-| `mixtral-8x7b-full-q4-k` | `mistralai/Mixtral-8x7B-Instruct-v0.1` | `q4k` | `full` |
-| `mixtral-8x7b-expert-server-q4-k` | `mistralai/Mixtral-8x7B-Instruct-v0.1` | `q4k` | `expert-server` |
-| `mixtral-8x22b-full-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `full` |
-| `mixtral-8x22b-expert-server-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `expert-server` |
+| `foxlight/gemma-3-4b-full-q4-k` | `google/gemma-3-4b-it` | `q4k` | `full` |
+| `foxlight/llama-3-2-3b-full-q4-k` | `meta-llama/Llama-3.2-3B-Instruct` | `q4k` | `full` |
+| `foxlight/qwen-2-5-7b-full-q4-k` | `Qwen/Qwen2.5-7B-Instruct` | `q4k` | `full` |
+| `foxlight/gemma-4-26b-a4b-full-q4-k` | `google/gemma-4-26b-a4b-it` | `q4k` | `full` |
+| `foxlight/gemma-4-26b-a4b-expert-server-q4-k` | `google/gemma-4-26b-a4b-it` | `q4k` | `expert-server` |
+| `foxlight/mixtral-8x7b-full-q4-k` | `mistralai/Mixtral-8x7B-Instruct-v0.1` | `q4k` | `full` |
+| `foxlight/mixtral-8x7b-expert-server-q4-k` | `mistralai/Mixtral-8x7B-Instruct-v0.1` | `q4k` | `expert-server` |
+| `foxlight/mixtral-8x22b-full-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `full` |
+| `foxlight/mixtral-8x22b-expert-server-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `expert-server` |
 
 ## Required Operator Setup
 
@@ -69,8 +76,8 @@ the product interface:
 
 ```bash
 skulk-vindex doctor
-skulk-vindex manifest validate
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex catalogue validate
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 The dry run prints the LARQL commands that would execute without extracting or
@@ -83,7 +90,7 @@ Run this on the self-hosted runner before a real publish:
 ```bash
 python -m pip install -e .
 skulk-vindex doctor --publish
-skulk-vindex publish --model gemma-3-4b-full-q4-k --dry-run
+skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Real publication refuses to overwrite an existing scratch output path. Remove
@@ -96,9 +103,10 @@ want to replace the local extraction output.
 
 - pull request and main-branch validation on GitHub-hosted runners
 - weekly cron for the smoke tier
-- manual dispatch for one manifest key
+- manual dispatch for one catalogue key
 - manual dispatch for all entries in the `smoke`, `moe`, or `all` tiers
 - manual dry-run dispatch
+- optional `catalogue_config` dispatch input for operator catalogue sources
 
 The workflow validates catalogue changes on hosted runners and reserves real
 publication for the labelled self-hosted runner.
