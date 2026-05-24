@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Workflow Reference | Skulk Vindex Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-vindex-publisher/reference/workflows"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Workflow Reference | Skulk Vindex Publisher"><meta data-rh="true" name="description" content="The repository has two GitHub Actions workflows: one for vindex publication and"><meta data-rh="true" property="og:description" content="The repository has two GitHub Actions workflows: one for vindex publication and"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/reference/workflows"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/reference/workflows" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-vindex-publisher/reference/workflows" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Workflow Reference","item":"https://foxlight-foundation.github.io/skulk-vindex-publisher/reference/workflows"}]}</script><link rel="stylesheet" href="/skulk-vindex-publisher/assets/css/styles.2c920404.css">
-<script src="/skulk-vindex-publisher/assets/js/runtime~main.f3ed5227.js" defer="defer"></script>
-<script src="/skulk-vindex-publisher/assets/js/main.e90fdc74.js" defer="defer"></script>
+<script src="/skulk-vindex-publisher/assets/js/runtime~main.4100de24.js" defer="defer"></script>
+<script src="/skulk-vindex-publisher/assets/js/main.4c8c8255.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -21,19 +21,19 @@ one for documentation.</p>
 </ul>
 <p>Manual dispatch inputs:</p>
 <ul>
-<li class=""><code>model</code>: one catalogue key or <code>all</code></li>
-<li class=""><code>catalogue_config</code>: optional <code>skulk-vindex.yaml</code> path for operator sources</li>
+<li class=""><code>model</code>: one catalog key or <code>all</code></li>
+<li class=""><code>catalog_config</code>: optional <code>skulk-vindex.yaml</code> path for operator sources</li>
 <li class=""><code>tier</code>: used when <code>model</code> is <code>all</code></li>
 <li class=""><code>dry_run</code>: prints commands without publishing</li>
 </ul>
 <p>The validate job installs the package, lints the code, type-checks it, runs unit
-tests, validates the effective catalogue, and dry-runs every catalogue entry.</p>
+tests, validates the effective catalog, and dry-runs every catalog entry.</p>
 <p>The publish job uses the <code>self-hosted</code>, <code>linux</code>, <code>larql</code>, and <code>vindex</code> runner
-labels. It resolves the requested catalogue keys and runs the same CLI operators
+labels. It resolves the requested catalog keys and runs the same CLI operators
 use locally. After each successful LARQL publish, the CLI adds the published
 model repo to the entry&#x27;s configured Hugging Face collection.</p>
-<p>By default, the workflow uses the built-in Foxlight catalogue. Pass
-<code>catalogue_config</code> when dispatching the workflow to include operator sources
+<p>By default, the workflow uses the built-in Foxlight catalog. Pass
+<code>catalog_config</code> when dispatching the workflow to include operator sources
 from a checked-in <code>skulk-vindex.yaml</code>; Foxlight entries remain included.
 Set the repository variable <code>SKULK_VINDEX_COLLECTION</code> only when you need to
 override the collection target for the selected run.</p>
