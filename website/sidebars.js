@@ -8,7 +8,7 @@ module.exports = {
       items: [
         "concepts/how-skulk-works",
         "concepts/vindexes",
-        "concepts/catalogue",
+        "concepts/catalog",
         "concepts/publishing-lifecycle",
         "concepts/safety-model",
       ],
@@ -18,7 +18,7 @@ module.exports = {
       label: "Guides",
       items: [
         "guides/install",
-        "guides/add-catalogue-entry",
+        "guides/add-catalog-entry",
         "guides/first-publish",
         "guides/runner-setup",
         "guides/development",

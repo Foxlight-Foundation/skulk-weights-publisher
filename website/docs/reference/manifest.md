@@ -6,7 +6,7 @@ A manifest source file contains a top-level `models` list. Each item describes
 one publishable vindex and the slice shape Skulk can later place on runtime
 hardware.
 
-Manifests are source files. The catalogue is the merged view built from the
+Manifests are source files. The catalog is the merged view built from the
 packaged Foxlight manifest plus any operator manifests listed in
 `skulk-vindex.yaml`.
 
@@ -26,7 +26,7 @@ models:
 ```
 
 If that source is loaded under the `foxlight` namespace, the effective
-catalogue key is:
+catalog key is:
 
 ```text
 foxlight/gemma-3-4b-full-q4-k
@@ -42,7 +42,7 @@ my-org/gemma-3-4b-full-q4-k
 
 | Field | Meaning |
 |---|---|
-| `key` | Stable short selector before the catalogue namespace is added |
+| `key` | Stable short selector before the catalog namespace is added |
 | `source_model` | Hugging Face model ID passed to `larql extract` |
 | `quant` | Quantization passed to LARQL |
 | `tier` | Publication group, currently `smoke` or `moe` |
@@ -54,14 +54,14 @@ my-org/gemma-3-4b-full-q4-k
 ## Validation Rules
 
 - `key` must be lowercase kebab-case and unique within its source
-- effective catalogue keys must be unique after namespaces are applied
+- effective catalog keys must be unique after namespaces are applied
 - `source_model` must look like `owner/name`
 - `quant` currently supports `q4k`
 - `tier` must be `smoke` or `moe`
 - `slices` must be non-empty
 - `full` cannot be combined with other slices
-- `output_name` must be a `.vindex` basename and unique in the merged catalogue
-- `hf_repo` must look like `owner/name` and be unique in the merged catalogue
+- `output_name` must be a `.vindex` basename and unique in the merged catalog
+- `hf_repo` must look like `owner/name` and be unique in the merged catalog
 - operator `hf_repo` owners must match the source `hf_owner` in `skulk-vindex.yaml`
 - `hf_collection` must look like `owner/slug`
 - operator `hf_collection` owners must match the source `hf_owner` in `skulk-vindex.yaml`

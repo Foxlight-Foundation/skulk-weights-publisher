@@ -36,7 +36,7 @@ def _catalogue_view_from_args(args: argparse.Namespace) -> CatalogueView:
 def _cmd_catalogue_validate(args: argparse.Namespace) -> int:
     view = _catalogue_view_from_args(args)
     print(
-        f"catalogue valid: {len(view.entries)} entries from {len(view.sources)} sources"
+        f"catalog valid: {len(view.entries)} entries from {len(view.sources)} sources"
     )
     return 0
 
@@ -139,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--config",
         help=(
             "Path to skulk-vindex.yaml. If omitted, skulk-vindex.yaml is used "
-            "when present; otherwise the built-in Foxlight catalogue is used."
+            "when present; otherwise the built-in Foxlight catalog is used."
         ),
     )
     source_group.add_argument(
@@ -149,8 +149,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     catalogue_parser = subparsers.add_parser(
-        "catalogue",
-        help="Validate/query merged catalogue sources",
+        "catalog",
+        help="Validate/query merged catalog sources",
     )
     catalogue_subparsers = catalogue_parser.add_subparsers(
         dest="catalogue_command", required=True
@@ -178,7 +178,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     manifest_parser = subparsers.add_parser(
         "manifest",
-        help="Compatibility alias for catalogue commands",
+        help="Compatibility alias for catalog commands",
     )
     manifest_subparsers = manifest_parser.add_subparsers(
         dest="manifest_command", required=True
@@ -194,13 +194,11 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("--tier", choices=["all", "smoke", "moe"], default="all")
     list_parser.set_defaults(func=_cmd_manifest_list)
 
-    publish_parser = subparsers.add_parser(
-        "publish", help="Publish one catalogue entry"
-    )
+    publish_parser = subparsers.add_parser("publish", help="Publish one catalog entry")
     publish_parser.add_argument(
         "--model",
         required=True,
-        help="Catalogue key to publish.",
+        help="Catalog key to publish.",
     )
     publish_parser.add_argument("--dry-run", action="store_true")
     publish_parser.add_argument("--force", action="store_true")
@@ -214,11 +212,28 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _normalize_legacy_argv(argv: Sequence[str]) -> list[str]:
+    normalized = list(argv)
+    skip_next = False
+    for index, value in enumerate(normalized):
+        if skip_next:
+            skip_next = False
+            continue
+        if value in {"--config", "--manifest"}:
+            skip_next = True
+            continue
+        if value == "catalogue":
+            normalized[index] = "catalog"
+            break
+    return normalized
+
+
 def run(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
     parser = build_parser()
-    args = parser.parse_args(argv)
+    normalized_argv = _normalize_legacy_argv(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(normalized_argv)
     try:
         return int(args.func(args))
     except (ManifestError, PublishError) as exc:

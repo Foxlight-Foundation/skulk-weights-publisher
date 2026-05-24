@@ -2,7 +2,7 @@
 title: Install
 ---
 
-Install the publisher when you want to inspect the catalogue, dry-run a publish,
+Install the publisher when you want to inspect the catalog, dry-run a publish,
 or run the publishing workflow on a configured runner. The CLI exists to make
 vindex publication repeatable before Skulk relies on those vindexes for
 GPU/CPU runtime placement.
@@ -31,7 +31,7 @@ product CLI.
 
 ```bash
 skulk-vindex doctor
-skulk-vindex catalogue validate
+skulk-vindex catalog validate
 ```
 
 Then run one dry-run:
@@ -40,10 +40,10 @@ Then run one dry-run:
 skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
-To add your own operator catalogue, initialize a config after install:
+To add your own operator catalog, initialize a config after install:
 
 ```bash
-skulk-vindex catalogue init
+skulk-vindex catalog init
 ```
 
 ## Compatibility Wrappers

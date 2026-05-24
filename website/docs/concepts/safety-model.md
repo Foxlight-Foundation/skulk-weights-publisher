@@ -11,9 +11,9 @@ Hugging Face write access.
 
 These commands inspect local files and print plans:
 
-- `skulk-vindex catalogue validate`
-- `skulk-vindex catalogue list`
-- `skulk-vindex catalogue get`
+- `skulk-vindex catalog validate`
+- `skulk-vindex catalog list`
+- `skulk-vindex catalog get`
 - `skulk-vindex doctor`
 - `skulk-vindex publish --dry-run`
 
@@ -31,7 +31,7 @@ A real publish runs LARQL and writes to Hugging Face. It needs:
 
 ## Dry-Run First
 
-Every new catalogue entry should pass a dry-run before a real publish:
+Every new catalog entry should pass a dry-run before a real publish:
 
 ```bash
 skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run

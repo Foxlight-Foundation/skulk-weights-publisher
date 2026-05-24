@@ -2,7 +2,7 @@
 title: Development
 ---
 
-Use this workflow when changing the publisher code, catalogue validation,
+Use this workflow when changing the publisher code, catalog validation,
 publishing workflow, or documentation.
 
 The development goal is simple: every change should preserve the ability to
@@ -31,19 +31,19 @@ pytest
 bash -n scripts/doctor.sh scripts/publish-vindex.sh
 ```
 
-Then validate the catalogue and every dry-run path:
+Then validate the catalog and every dry-run path:
 
 ```bash
-skulk-vindex catalogue validate
-skulk-vindex catalogue list --tier all | while IFS= read -r key; do
+skulk-vindex catalog validate
+skulk-vindex catalog list --tier all | while IFS= read -r key; do
   [ -n "$key" ] || continue
   skulk-vindex publish --model "$key" --dry-run >/dev/null
 done
 ```
 
-That loop proves every effective catalogue entry can produce a dry-run plan.
+That loop proves every effective catalog entry can produce a dry-run plan.
 Use `--config skulk-vindex.yaml` in both commands when testing operator
-catalogue sources.
+catalog sources.
 
 ## Documentation Setup
 

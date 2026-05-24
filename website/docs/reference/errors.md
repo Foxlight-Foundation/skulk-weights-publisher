@@ -7,11 +7,11 @@ expected.
 
 ## `skulk-vindex.yaml not found`
 
-The built-in Foxlight catalogue works without a config file. This error means
+The built-in Foxlight catalog works without a config file. This error means
 you passed `--config PATH` and that path does not exist.
 
 ```bash
-skulk-vindex --config skulk-vindex.yaml catalogue validate
+skulk-vindex --config skulk-vindex.yaml catalog validate
 ```
 
 ## `models.yaml not found; run from the repository root`

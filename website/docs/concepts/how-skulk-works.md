@@ -138,7 +138,7 @@ CPU/high-memory LARQL servers. It is published as a separate Hugging Face
 repository from the full vindex so each piece has a stable, unambiguous
 identity and can be placed on the correct hardware independently.
 
-That is why the catalogue has separate entries for `gemma-4-26b-a4b-full-q4-k`
+That is why the catalog has separate entries for `gemma-4-26b-a4b-full-q4-k`
 and `gemma-4-26b-a4b-expert-server-q4-k` — they describe different published
 shapes of the same upstream model, intended for different runtime roles.
 
@@ -151,11 +151,11 @@ leaving the cluster unable to agree on which object to use.
 
 Skulk Vindex Publisher exists to make publication repeatable:
 
-- the catalogue records the exact source model, quantization, slice mode, and
+- the catalog records the exact source model, quantization, slice mode, and
   target repository for each vindex
 - `skulk-vindex publish --dry-run` prints the exact LARQL commands before
   anything is extracted or uploaded
-- the GitHub Actions workflow validates every catalogue entry on every pull
+- the GitHub Actions workflow validates every catalog entry on every pull
   request
 - the self-hosted runner performs real extraction and upload only when the plan
   has been reviewed
@@ -164,6 +164,6 @@ Once a vindex is published, Skulk operators have a stable repository name to
 assign to GPU inference nodes and LARQL servers. That assignment is what
 connects the published vindex to the cluster's runtime placement.
 
-Read [The Catalogue](catalogue.md) next to see how entries are structured and
+Read [The Catalog](catalog.md) next to see how entries are structured and
 how operator-owned vindexes can be added alongside the built-in Foxlight
 entries.

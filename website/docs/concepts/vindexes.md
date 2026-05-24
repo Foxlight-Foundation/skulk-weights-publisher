@@ -33,7 +33,7 @@ larql publish <local-output> --repo <target-repo> --slices <slice-mode>
 ```
 
 `extract` creates the local vindex. `publish` uploads the vindex, or a sliced
-form of it, to the Hugging Face repository listed in the catalogue.
+form of it, to the Hugging Face repository listed in the catalog.
 
 ## Vindex
 
@@ -67,7 +67,7 @@ LARQL extraction levels decide which operations the vindex can support:
 | `inference` | browse operations plus `INFER` | Run inference. This is LARQL's default extraction level. |
 | `all` | inference operations plus `COMPILE` | Bake patch overlays into a new standalone vindex. |
 
-The catalogue records the production contract around that vindex:
+The catalog records the production contract around that vindex:
 
 - source model: which upstream Hugging Face model LARQL reads from
 - quantization: how LARQL stores the extracted weights
@@ -79,7 +79,7 @@ The catalogue records the production contract around that vindex:
 ## The Publisher
 
 Skulk Vindex Publisher is the automation layer around LARQL publication. It
-reads the catalogue, validates that entries are well formed, prints the exact
+reads the catalog, validates that entries are well formed, prints the exact
 command plan, and runs publication from the machine configured for that job.
 
 The publisher matters because this split only works when every machine agrees

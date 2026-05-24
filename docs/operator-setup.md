@@ -7,10 +7,10 @@ latency-sensitive inference path while CPU/high-memory LARQL servers host
 weight-heavy FFN and expert pieces.
 
 Use hosted GitHub runners for safe validation: install the package, validate the
-catalogue, run tests, and dry-run every entry. Use the self-hosted runner when
+catalog, run tests, and dry-run every entry. Use the self-hosted runner when
 you are ready to run `larql extract` and `larql publish`.
 
-The Foxlight catalogue is included by default and publishes to the `FoxlightAI`
+The Foxlight catalog is included by default and publishes to the `FoxlightAI`
 Hugging Face organization. Successful Foxlight publishes are also added to the
 public `Vindexes` collection:
 
@@ -20,7 +20,7 @@ https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
 If you maintain your own vindex library, add a checked-in
 `skulk-vindex.yaml` that points at your operator manifest and pass that path
-through `catalogue_config` when dispatching the workflow.
+through `catalog_config` when dispatching the workflow.
 
 ## GitHub Actions Runner
 
@@ -69,7 +69,7 @@ python3 -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -e .
 skulk-vindex doctor
-skulk-vindex catalogue validate
+skulk-vindex catalog validate
 skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
@@ -86,11 +86,11 @@ publication to more keys.
 ## Workflow Dispatch
 
 - `model=all`, `tier=smoke`, `dry_run=false` publishes the scheduled smoke set.
-- `model=<catalogue-key>` publishes one entry and ignores `tier`.
-- `catalogue_config=skulk-vindex.yaml` includes operator catalogue sources.
+- `model=<catalog-key>` publishes one entry and ignores `tier`.
+- `catalog_config=skulk-vindex.yaml` includes operator catalog sources.
 - `SKULK_VINDEX_COLLECTION` can be set as a repository variable to override
   collection updates for a run; set it to `none` to skip collection updates.
-- `dry_run=true` runs the same catalogue resolution path but only prints LARQL
+- `dry_run=true` runs the same catalog resolution path but only prints LARQL
   commands.
 - `tier=moe` is for explicit large-model and expert-server publication after
   capacity has been verified.

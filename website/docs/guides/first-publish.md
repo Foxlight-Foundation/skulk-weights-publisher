@@ -3,7 +3,7 @@ title: First Publish
 ---
 
 Your first real publish should prove the whole path with one small vindex:
-catalogue entry, runner, LARQL, scratch storage, Hugging Face token, upload,
+catalog entry, runner, LARQL, scratch storage, Hugging Face token, upload,
 and collection update.
 
 Use a `smoke` entry first. It gives you the same workflow shape as larger
@@ -12,13 +12,13 @@ expert-server entries can be published for the real cost goal: keeping
 weight-heavy model state off expensive GPU memory where CPU/high-memory LARQL
 servers can host it.
 
-## 1. Validate The Catalogue
+## 1. Validate The Catalog
 
 ```bash
-skulk-vindex catalogue validate
+skulk-vindex catalog validate
 ```
 
-This proves the effective catalogue is structurally safe before the runner
+This proves the effective catalog is structurally safe before the runner
 starts.
 
 ## 2. Check Publication Prerequisites
@@ -28,7 +28,7 @@ skulk-vindex doctor --publish
 ```
 
 This checks the pieces needed for a real publish: LARQL, `HF_TOKEN`, scratch
-storage, Python dependencies, and the catalogue.
+storage, Python dependencies, and the catalog.
 
 ## 3. Review The Dry-Run
 
@@ -53,7 +53,7 @@ when you intentionally want to replace a local extraction output.
 
 ## 5. Record The Result
 
-After publication, record the catalogue key, source model, target repository,
+After publication, record the catalog key, source model, target repository,
 collection, slice mode, and runner used. That gives Skulk operators a concrete
 vindex to inspect when they start assigning GPU inference nodes and
 CPU/high-memory LARQL servers.

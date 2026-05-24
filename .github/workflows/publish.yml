@@ -8,11 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       model:
-        description: "Catalogue key to publish, or 'all'"
+        description: "Catalog key to publish, or 'all'"
         required: true
         default: all
-      catalogue_config:
-        description: "Optional skulk-vindex.yaml path for operator catalogue sources"
+      catalog_config:
+        description: "Optional skulk-vindex.yaml path for operator catalog sources"
         required: false
         default: ""
       tier:
@@ -37,10 +37,10 @@ permissions:
 
 jobs:
   validate:
-    name: Validate catalogue and dry runs
+    name: Validate catalog and dry runs
     runs-on: ubuntu-latest
     env:
-      CATALOGUE_CONFIG: ${{ github.event.inputs.catalogue_config || '' }}
+      CATALOG_CONFIG: ${{ github.event.inputs.catalog_config || '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -68,27 +68,27 @@ jobs:
       - name: Lint shell wrappers
         run: bash -n scripts/doctor.sh scripts/publish-vindex.sh
 
-      - name: Validate catalogue
+      - name: Validate catalog
         shell: bash
         run: |
           set -euo pipefail
-          catalogue_args=()
-          if [ -n "$CATALOGUE_CONFIG" ]; then
-            catalogue_args=(--config "$CATALOGUE_CONFIG")
+          catalog_args=()
+          if [ -n "$CATALOG_CONFIG" ]; then
+            catalog_args=(--config "$CATALOG_CONFIG")
           fi
-          skulk-vindex "${catalogue_args[@]}" catalogue validate
+          skulk-vindex "${catalog_args[@]}" catalog validate
 
-      - name: Dry-run every catalogue entry
+      - name: Dry-run every catalog entry
         shell: bash
         run: |
           set -euo pipefail
-          catalogue_args=()
-          if [ -n "$CATALOGUE_CONFIG" ]; then
-            catalogue_args=(--config "$CATALOGUE_CONFIG")
+          catalog_args=()
+          if [ -n "$CATALOG_CONFIG" ]; then
+            catalog_args=(--config "$CATALOG_CONFIG")
           fi
-          skulk-vindex "${catalogue_args[@]}" catalogue list --tier all | while IFS= read -r key; do
+          skulk-vindex "${catalog_args[@]}" catalog list --tier all | while IFS= read -r key; do
             [ -n "$key" ] || continue
-            scripts/publish-vindex.sh "${catalogue_args[@]}" --model "$key" --dry-run
+            scripts/publish-vindex.sh "${catalog_args[@]}" --model "$key" --dry-run
           done
 
   publish:
@@ -100,7 +100,7 @@ jobs:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       SKULK_VINDEX_SCRATCH: ${{ vars.SKULK_VINDEX_SCRATCH || format('{0}/.scratch', github.workspace) }}
       SKULK_VINDEX_COLLECTION: ${{ vars.SKULK_VINDEX_COLLECTION || '' }}
-      CATALOGUE_CONFIG: ${{ github.event.inputs.catalogue_config || '' }}
+      CATALOG_CONFIG: ${{ github.event.inputs.catalog_config || '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -120,14 +120,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          catalogue_args=()
-          if [ -n "$CATALOGUE_CONFIG" ]; then
-            catalogue_args=(--config "$CATALOGUE_CONFIG")
+          catalog_args=()
+          if [ -n "$CATALOG_CONFIG" ]; then
+            catalog_args=(--config "$CATALOG_CONFIG")
           fi
           if [ "${{ github.event.inputs.dry_run || 'false' }}" = "true" ]; then
-            scripts/doctor.sh "${catalogue_args[@]}"
+            scripts/doctor.sh "${catalog_args[@]}"
           else
-            scripts/doctor.sh "${catalogue_args[@]}" --publish
+            scripts/doctor.sh "${catalog_args[@]}" --publish
           fi
 
       - name: Resolve publish list
@@ -135,20 +135,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          catalogue_args=()
-          if [ -n "$CATALOGUE_CONFIG" ]; then
-            catalogue_args=(--config "$CATALOGUE_CONFIG")
+          catalog_args=()
+          if [ -n "$CATALOG_CONFIG" ]; then
+            catalog_args=(--config "$CATALOG_CONFIG")
           fi
           requested="${{ github.event.inputs.model || 'all' }}"
           tier="${{ github.event.inputs.tier || 'smoke' }}"
           if [ "$requested" = "all" ]; then
             {
               echo "keys<<EOF"
-              skulk-vindex "${catalogue_args[@]}" catalogue list --tier "$tier"
+              skulk-vindex "${catalog_args[@]}" catalog list --tier "$tier"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
-            skulk-vindex "${catalogue_args[@]}" catalogue get --key "$requested" >/dev/null
+            skulk-vindex "${catalog_args[@]}" catalog get --key "$requested" >/dev/null
             {
               echo "keys<<EOF"
               echo "$requested"
@@ -163,9 +163,9 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           set -euo pipefail
-          catalogue_args=()
-          if [ -n "$CATALOGUE_CONFIG" ]; then
-            catalogue_args=(--config "$CATALOGUE_CONFIG")
+          catalog_args=()
+          if [ -n "$CATALOG_CONFIG" ]; then
+            catalog_args=(--config "$CATALOG_CONFIG")
           fi
           printf '%s\n' "$MODEL_KEYS" | while IFS= read -r key; do
             [ -n "$key" ] || continue
@@ -173,5 +173,5 @@ jobs:
             if [ "$DRY_RUN" = "true" ]; then
               args+=(--dry-run)
             fi
-            scripts/publish-vindex.sh "${catalogue_args[@]}" "${args[@]}"
+            scripts/publish-vindex.sh "${catalog_args[@]}" "${args[@]}"
           done

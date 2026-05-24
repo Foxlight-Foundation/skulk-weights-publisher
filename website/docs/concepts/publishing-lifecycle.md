@@ -9,7 +9,7 @@ node can agree on before runtime placement begins.
 
 ## 1. Describe The Vindex
 
-The vindex starts as a catalogue source entry. The built-in Foxlight entries
+The vindex starts as a catalog source entry. The built-in Foxlight entries
 are packaged with the CLI, and operator entries can be added through
 `skulk-vindex.yaml`. Each entry names the source model, quantization, slice
 mode, local `.vindex` directory, and target Hugging Face repository. The slice
@@ -17,10 +17,10 @@ mode is part of the runtime contract: it tells operators whether they are
 publishing a complete vindex or a specialized expert-server shape for weight
 serving.
 
-## 2. Validate The Catalogue
+## 2. Validate The Catalog
 
 ```bash
-skulk-vindex catalogue validate
+skulk-vindex catalog validate
 ```
 
 Validation catches duplicate keys, unsupported slice names, bad repository
@@ -56,7 +56,7 @@ uploaded.
 ## 6. Publish The Vindex
 
 After extraction, the publisher runs `larql publish` and uploads the vindex to
-the Hugging Face repository in the catalogue entry.
+the Hugging Face repository in the catalog entry.
 
 ## 7. Use The Published Vindex
 

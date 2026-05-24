@@ -3,14 +3,14 @@ title: Environment Reference
 ---
 
 The publisher reads a small set of environment values. These values are about
-publication, not ordinary catalogue validation.
+publication, not ordinary catalog validation.
 
 ## `HF_TOKEN`
 
 Required for real publication.
 
 The token must have write access to every target Hugging Face repository used by
-the selected catalogue entries and any configured collection. In GitHub
+the selected catalog entries and any configured collection. In GitHub
 Actions, configure it as a repository secret named `HF_TOKEN`.
 
 ## `SKULK_VINDEX_SCRATCH`
@@ -56,8 +56,8 @@ skulk-vindex doctor --publish
 
 Optional.
 
-Overrides the collection target for a publish command. If unset, each catalogue
-entry uses its own `hf_collection` value. The built-in Foxlight catalogue uses:
+Overrides the collection target for a publish command. If unset, each catalog
+entry uses its own `hf_collection` value. The built-in Foxlight catalog uses:
 
 ```text
 FoxlightAI/vindexes-6a124406dd5fb439c431b051

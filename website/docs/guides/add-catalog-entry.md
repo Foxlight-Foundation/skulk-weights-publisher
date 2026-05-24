@@ -1,23 +1,23 @@
 ---
-title: Add A Catalogue Entry
+title: Add A Catalog Entry
 ---
 
 Use this guide when you want to add an operator-owned vindex to the merged
-catalogue. The Foxlight catalogue is already included; your job is to describe
+catalog. The Foxlight catalog is already included; your job is to describe
 the additional vindex library your organization wants to publish.
 
-## 1. Create The Catalogue Config
+## 1. Create The Catalog Config
 
 Start with a config file:
 
 ```bash
-skulk-vindex catalogue init
+skulk-vindex catalog init
 ```
 
 Edit `skulk-vindex.yaml` so it points at your operator source:
 
 ```yaml
-catalogues:
+catalogs:
   - path: ./operator-vindexes.yaml
     namespace: my-org
     hf_owner: my-org
@@ -112,8 +112,8 @@ single manifest entry when one entry needs a different collection.
 After editing the operator source, run:
 
 ```bash
-skulk-vindex --config skulk-vindex.yaml catalogue validate
-skulk-vindex --config skulk-vindex.yaml catalogue get \
+skulk-vindex --config skulk-vindex.yaml catalog validate
+skulk-vindex --config skulk-vindex.yaml catalog get \
   --key my-org/llama-3-8b-full-q4-k
 skulk-vindex --config skulk-vindex.yaml publish \
   --model my-org/llama-3-8b-full-q4-k \

@@ -7,7 +7,7 @@ vindex directories, and upload to Hugging Face. In GitHub Actions, that machine
 is a self-hosted runner.
 
 The runner is separate from ordinary PR validation. PR validation can build docs,
-validate the merged catalogue, and dry-run commands on hosted runners. Real
+validate the merged catalog, and dry-run commands on hosted runners. Real
 publication uses the self-hosted runner because extraction is disk-heavy and
 credentialed. The runner is also separate from the eventual Skulk runtime
 placement: it creates the published vindex that later lets CPU/high-memory

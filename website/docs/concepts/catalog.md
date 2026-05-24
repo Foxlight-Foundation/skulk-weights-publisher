@@ -1,29 +1,29 @@
 ---
-title: The Catalogue
+title: The Catalog
 ---
 
-The catalogue is the library of vindexes the publisher knows how to build for
+The catalog is the library of vindexes the publisher knows how to build for
 Skulk. Each entry answers one operational question: if an operator selects this
 key, exactly which Hugging Face model should LARQL extract, which vindex shape
 should be published, what local output should be written, and which Hugging
 Face repository should receive it?
 
-## Built-In Foxlight Catalogue
+## Built-In Foxlight Catalog
 
-The Foxlight catalogue is packaged with the CLI and loaded automatically. Those
+The Foxlight catalog is packaged with the CLI and loaded automatically. Those
 entries publish to the `FoxlightAI` Hugging Face organization and are added to
 the public
 [`Vindexes`](https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051)
 collection. You do not need a local config file to inspect or dry-run them:
 
 ```bash
-skulk-vindex catalogue validate
-skulk-vindex catalogue list --tier smoke
+skulk-vindex catalog validate
+skulk-vindex catalog list --tier smoke
 skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
-Foxlight entries use the `foxlight/` namespace in the merged catalogue. The
-source file stores the short key, and the catalogue layer exposes the effective
+Foxlight entries use the `foxlight/` namespace in the merged catalog. The
+source file stores the short key, and the catalog layer exposes the effective
 key:
 
 ```yaml
@@ -45,19 +45,19 @@ Effective CLI key:
 foxlight/gemma-3-4b-full-q4-k
 ```
 
-## Operator Catalogues
+## Operator Catalogs
 
-Operators can add their own catalogue sources without forking the Foxlight
-catalogue. Create `skulk-vindex.yaml`:
+Operators can add their own catalog sources without forking the Foxlight
+catalog. Create `skulk-vindex.yaml`:
 
 ```bash
-skulk-vindex catalogue init
+skulk-vindex catalog init
 ```
 
 Then point it at an operator-owned manifest file:
 
 ```yaml
-catalogues:
+catalogs:
   - path: ./operator-vindexes.yaml
     namespace: my-org
     hf_owner: my-org
@@ -74,7 +74,7 @@ a source entry with `key: llama-3-8b-full-q4-k` becomes:
 my-org/llama-3-8b-full-q4-k
 ```
 
-The Foxlight catalogue is still included automatically when you pass the config.
+The Foxlight catalog is still included automatically when you pass the config.
 
 ## Fields In Plain Language
 
@@ -103,15 +103,15 @@ GPU memory. They need more disk, more network time, and more operator attention.
 representation should be available under one repository.
 
 `expert-server` is a specialized slice used for MoE expert-server publication.
-It gets its own catalogue entry so the published repository name, output
+It gets its own catalog entry so the published repository name, output
 directory, and workflow selection stay explicit for CPU/high-memory expert
 serving.
 
-The CLI validates the merged catalogue before any publish command is planned:
+The CLI validates the merged catalog before any publish command is planned:
 
 ```bash
-skulk-vindex --config skulk-vindex.yaml catalogue validate
-skulk-vindex --config skulk-vindex.yaml catalogue get --key my-org/llama-3-8b-full-q4-k
+skulk-vindex --config skulk-vindex.yaml catalog validate
+skulk-vindex --config skulk-vindex.yaml catalog get --key my-org/llama-3-8b-full-q4-k
 ```
 
 When you change a source file, run a dry-run before you commit:
@@ -122,5 +122,5 @@ skulk-vindex --config skulk-vindex.yaml publish \
   --dry-run
 ```
 
-The dry-run is how you confirm that the catalogue entry produces the LARQL
+The dry-run is how you confirm that the catalog entry produces the LARQL
 commands and runtime shape you intended.

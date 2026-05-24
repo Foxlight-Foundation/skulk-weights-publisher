@@ -6,21 +6,31 @@ from skulk_vindex_publisher.cli import run
 from skulk_vindex_publisher.defaults import DEFAULT_FOXLIGHT_VINDEX_COLLECTION
 
 
-def test_cli_catalogue_validate(capsys: CaptureFixture[str]) -> None:
-    exit_code = run(["catalogue", "validate"])
+def test_cli_catalog_validate(capsys: CaptureFixture[str]) -> None:
+    exit_code = run(["catalog", "validate"])
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "catalogue valid: 9 entries from 1 sources" in captured.out
+    assert "catalog valid: 9 entries from 1 sources" in captured.out
 
 
-def test_cli_catalogue_sources(capsys: CaptureFixture[str]) -> None:
-    exit_code = run(["catalogue", "sources"])
+def test_cli_catalog_sources(capsys: CaptureFixture[str]) -> None:
+    exit_code = run(["catalog", "sources"])
 
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "builtin foxlight namespace=foxlight hf_owner=FoxlightAI" in captured.out
     assert f"hf_collection={DEFAULT_FOXLIGHT_VINDEX_COLLECTION}" in captured.out
+
+
+def test_cli_legacy_catalogue_alias_still_works(
+    capsys: CaptureFixture[str],
+) -> None:
+    exit_code = run(["catalogue", "validate"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "catalog valid: 9 entries from 1 sources" in captured.out
 
 
 def test_cli_publish_dry_run(capsys: CaptureFixture[str]) -> None:

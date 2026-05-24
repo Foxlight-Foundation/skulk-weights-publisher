@@ -1,4 +1,4 @@
-"""Catalogue source loading and merged catalogue validation."""
+"""Catalog source loading and merged catalog validation."""
 
 from __future__ import annotations
 
@@ -26,11 +26,11 @@ from skulk_vindex_publisher.manifest import (
 DEFAULT_CONFIG_PATH = Path("skulk-vindex.yaml")
 BUILTIN_FOXLIGHT = "foxlight"
 DEFAULT_CONFIG_TEXT = """# Foxlight entries are included automatically.
-# Replace the empty list with your own catalogue sources when you are ready.
-catalogues: []
+# Replace the empty list with your own catalog sources when you are ready.
+catalogs: []
 
 # Example operator source:
-# catalogues:
+# catalogs:
 #   - path: ./operator-vindexes.yaml
 #     namespace: my-org
 #     hf_owner: my-org
@@ -42,7 +42,7 @@ CatalogueSourceKind = Literal["builtin", "path", "manifest"]
 
 @dataclass(frozen=True)
 class CatalogueSource:
-    """One source that contributes entries to the merged catalogue."""
+    """One source that contributes entries to the merged catalog."""
 
     name: str
     kind: CatalogueSourceKind
@@ -55,7 +55,7 @@ class CatalogueSource:
 
 @dataclass(frozen=True)
 class CatalogueView:
-    """A merged view of catalogue entries from one or more sources."""
+    """A merged view of catalog entries from one or more sources."""
 
     sources: tuple[CatalogueSource, ...]
     entries: tuple[ManifestEntry, ...]
@@ -66,7 +66,7 @@ def load_catalogue_view(
     config_path: Path | None = None,
     manifest_path: Path | None = None,
 ) -> CatalogueView:
-    """Load the effective catalogue view from config, manifest, or built-ins."""
+    """Load the effective catalog view from config, manifest, or built-ins."""
 
     if config_path is not None and manifest_path is not None:
         raise ManifestError("--config and --manifest cannot be used together")
@@ -80,12 +80,12 @@ def load_catalogue_view(
 
 
 def find_catalogue_entry(key: str, view: CatalogueView) -> ManifestEntry:
-    """Return the entry matching an effective catalogue key."""
+    """Return the entry matching an effective catalog key."""
 
     for entry in view.entries:
         if entry.key == key:
             return entry
-    raise ManifestError(f"catalogue key not found: {key}")
+    raise ManifestError(f"catalog key not found: {key}")
 
 
 def filter_catalogue_entries(
@@ -101,7 +101,7 @@ def filter_catalogue_entries(
 
 
 def write_default_config(path: Path, *, force: bool = False) -> None:
-    """Write a starter catalogue config file."""
+    """Write a starter catalog config file."""
 
     if path.exists() and not force:
         raise ManifestError(f"{path} already exists; rerun with --force to replace it")
@@ -124,7 +124,7 @@ def _load_legacy_manifest_view(path: Path) -> CatalogueView:
 
 def _load_builtin_source(name: str) -> CatalogueSource:
     if name != BUILTIN_FOXLIGHT:
-        raise ManifestError(f"unsupported builtin catalogue: {name}")
+        raise ManifestError(f"unsupported builtin catalog: {name}")
     payload = _load_builtin_payload(name)
     entries = validate_manifest_payload(
         payload,
@@ -156,13 +156,17 @@ def _load_builtin_payload(name: str) -> dict[str, Any]:
 
 def _load_config_view(path: Path) -> CatalogueView:
     payload = _load_config_payload(path)
-    raw_sources = payload.get("catalogues", [])
+    has_catalogs = "catalogs" in payload
+    has_legacy_catalogues = "catalogues" in payload
+    if has_catalogs and has_legacy_catalogues:
+        raise ManifestError(f"{path}: set only one of catalogs or the legacy key")
+    raw_sources = payload.get("catalogs", payload.get("catalogues", []))
     if not isinstance(raw_sources, list):
-        raise ManifestError(f"{path}: catalogues must be a list")
+        raise ManifestError(f"{path}: catalogs must be a list")
     sources: list[CatalogueSource] = []
     for index, raw_source in enumerate(raw_sources):
         if not isinstance(raw_source, dict):
-            raise ManifestError(f"{path}: catalogues[{index}] must be a mapping")
+            raise ManifestError(f"{path}: catalogs[{index}] must be a mapping")
         source = cast(dict[str, Any], raw_source)
         sources.append(_load_config_source(path, index, source))
     if not any(
@@ -191,14 +195,13 @@ def _load_config_source(
     has_path = "path" in source
     if has_builtin == has_path:
         raise ManifestError(
-            f"{config_path}: catalogues[{index}] must set exactly one of "
-            "builtin or path"
+            f"{config_path}: catalogs[{index}] must set exactly one of builtin or path"
         )
     if has_builtin:
         builtin = _require_source_string(config_path, index, source, "builtin")
         if set(source) != {"builtin"}:
             raise ManifestError(
-                f"{config_path}: catalogues[{index}] builtin sources do not "
+                f"{config_path}: catalogs[{index}] builtin sources do not "
                 "accept overrides"
             )
         return _load_builtin_source(builtin)
@@ -206,7 +209,7 @@ def _load_config_source(
     extra_fields = set(source) - {"path", "namespace", "hf_owner", "hf_collection"}
     if extra_fields:
         raise ManifestError(
-            f"{config_path}: catalogues[{index}] unsupported fields "
+            f"{config_path}: catalogs[{index}] unsupported fields "
             f"{sorted(extra_fields)}"
         )
     source_path = _resolve_source_path(
@@ -223,18 +226,18 @@ def _load_config_source(
     )
     if not NAMESPACE_PATTERN.fullmatch(namespace):
         raise ManifestError(
-            f"{config_path}: catalogues[{index}] namespace must be lowercase "
+            f"{config_path}: catalogs[{index}] namespace must be lowercase "
             "kebab/dot-case"
         )
     if hf_collection is not None:
         if not HF_COLLECTION_PATTERN.fullmatch(hf_collection):
             raise ManifestError(
-                f"{config_path}: catalogues[{index}].hf_collection must look "
+                f"{config_path}: catalogs[{index}].hf_collection must look "
                 "like owner/slug"
             )
         if hf_collection.split("/", maxsplit=1)[0] != hf_owner:
             raise ManifestError(
-                f"{config_path}: catalogues[{index}].hf_collection owner must "
+                f"{config_path}: catalogs[{index}].hf_collection owner must "
                 f"be {hf_owner!r}"
             )
     entries = validate_manifest(
@@ -263,7 +266,7 @@ def _require_source_string(
     value = source.get(field)
     if not isinstance(value, str) or not value.strip():
         raise ManifestError(
-            f"{config_path}: catalogues[{index}].{field} must be a non-empty string"
+            f"{config_path}: catalogs[{index}].{field} must be a non-empty string"
         )
     return value
 
@@ -279,7 +282,7 @@ def _optional_source_string(
         return None
     if not isinstance(value, str) or not value.strip():
         raise ManifestError(
-            f"{config_path}: catalogues[{index}].{field} must be a non-empty string"
+            f"{config_path}: catalogs[{index}].{field} must be a non-empty string"
         )
     return value
 
@@ -299,7 +302,7 @@ def _merge_sources(sources: tuple[CatalogueSource, ...]) -> CatalogueView:
     for source in sources:
         for entry in source.entries:
             if entry.key in seen_keys:
-                raise ManifestError(f"{entry.key}: duplicate catalogue key")
+                raise ManifestError(f"{entry.key}: duplicate catalog key")
             seen_keys.add(entry.key)
             if entry.output_name in seen_outputs:
                 raise ManifestError(

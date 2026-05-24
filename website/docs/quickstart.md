@@ -43,22 +43,22 @@ python -m pip install -e ".[dev]"
 
 This installs the `skulk-vindex` command from the current checkout.
 
-## 2. Validate The Catalogue
+## 2. Validate The Catalog
 
 ```bash
-skulk-vindex catalogue validate
-skulk-vindex catalogue sources
-skulk-vindex catalogue list --tier smoke
+skulk-vindex catalog validate
+skulk-vindex catalog sources
+skulk-vindex catalog list --tier smoke
 ```
 
-The Foxlight catalogue is included automatically. The `smoke` tier contains the
+The Foxlight catalog is included automatically. The `smoke` tier contains the
 smaller entries that are safest for first publication tests. Keys are
 namespaced, so Foxlight entries begin with `foxlight/`.
 
-To add your own catalogue later, create a starter config:
+To add your own catalog later, create a starter config:
 
 ```bash
-skulk-vindex catalogue init
+skulk-vindex catalog init
 ```
 
 Then add a source file under your own namespace and run commands with
@@ -71,7 +71,7 @@ skulk-vindex doctor
 ```
 
 The doctor command checks the local Python environment, scratch directory, and
-catalogue. Use the stricter publishing checks on the machine that will actually
+catalog. Use the stricter publishing checks on the machine that will actually
 run LARQL:
 
 ```bash
@@ -97,12 +97,12 @@ publish command: larql publish ...
 ```
 
 That output is the contract. If the source model, output path, slice mode,
-target repository, or collection is wrong, fix the catalogue source before
+target repository, or collection is wrong, fix the catalog source before
 publishing.
 
 One thing that looks surprising: entries with `slices: [full]` show
 `--slices none` in the generated `larql publish` command. That is correct —
-LARQL uses `none` to mean "publish the complete vindex." The catalogue field
+LARQL uses `none` to mean "publish the complete vindex." The catalog field
 is `full`; the LARQL flag is `none`. They refer to the same thing.
 
 ## 5. Go Deeper

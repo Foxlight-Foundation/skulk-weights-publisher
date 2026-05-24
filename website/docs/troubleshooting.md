@@ -11,12 +11,12 @@ Most publisher errors fall into one of three groups:
 
 ## `skulk-vindex.yaml not found`
 
-The built-in Foxlight catalogue does not need a config file. You only need
-`--config PATH` when you are adding operator catalogue sources. If you pass
+The built-in Foxlight catalog does not need a config file. You only need
+`--config PATH` when you are adding operator catalog sources. If you pass
 `--config`, make sure the path exists:
 
 ```bash
-skulk-vindex --config skulk-vindex.yaml catalogue validate
+skulk-vindex --config skulk-vindex.yaml catalog validate
 ```
 
 ## `models.yaml not found`

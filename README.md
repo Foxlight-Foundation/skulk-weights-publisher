@@ -13,15 +13,15 @@ to keep every weight resident in expensive GPU memory: CPU/high-memory LARQL
 servers can host feed-forward weights while GPU nodes handle the
 latency-sensitive inference path.
 
-This repository is the controlled publication workflow. It keeps the catalogue
-of publishable vindexes, validates that catalogue, prints the exact LARQL
+This repository is the controlled publication workflow. It keeps the catalog
+of publishable vindexes, validates that catalog, prints the exact LARQL
 commands, and runs publication from a configured runner.
 
-The Foxlight catalogue is included automatically and publishes to the
+The Foxlight catalog is included automatically and publishes to the
 `FoxlightAI` Hugging Face organization and the public
 [`Vindexes`](https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051)
-collection. Operators can add their own catalogue files with
-`skulk-vindex.yaml`; the merged catalogue uses namespaced keys such as
+collection. Operators can add their own catalog files with
+`skulk-vindex.yaml`; the merged catalog uses namespaced keys such as
 `foxlight/gemma-3-4b-full-q4-k` and `my-org/my-model-full-q4-k` so shared
 Foxlight entries and local operator entries can coexist safely.
 
@@ -31,15 +31,15 @@ Vindex publication is expensive and easy to get wrong. A bad command can write a
 large vindex to the wrong scratch path or publish it under the wrong Hugging
 Face repository. This project makes publication repeatable:
 
-- packaged Foxlight catalogue entries describe shared Skulk vindexes published
+- packaged Foxlight catalog entries describe shared Skulk vindexes published
   under `FoxlightAI`
-- `skulk-vindex.yaml` can add operator-owned catalogue source files
-- `skulk-vindex catalogue validate` checks the merged catalogue
+- `skulk-vindex.yaml` can add operator-owned catalog source files
+- `skulk-vindex catalog validate` checks the merged catalog
 - `skulk-vindex publish --dry-run` prints the LARQL plan
-- GitHub Actions validates every catalogue entry
+- GitHub Actions validates every catalog entry
 - the self-hosted runner performs real LARQL publication
 
-## Catalogue
+## Catalog
 
 | Key | Source model | Quant | Slices |
 |---|---|---|---|
@@ -79,7 +79,7 @@ the product interface:
 
 ```bash
 skulk-vindex doctor
-skulk-vindex catalogue validate
+skulk-vindex catalog validate
 skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
@@ -113,12 +113,12 @@ https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051
 
 - pull request and main-branch validation on GitHub-hosted runners
 - weekly cron for the smoke tier
-- manual dispatch for one catalogue key
+- manual dispatch for one catalog key
 - manual dispatch for all entries in the `smoke`, `moe`, or `all` tiers
 - manual dry-run dispatch
-- optional `catalogue_config` dispatch input for operator catalogue sources
+- optional `catalog_config` dispatch input for operator catalog sources
 
-The workflow validates catalogue changes on hosted runners and reserves real
+The workflow validates catalog changes on hosted runners and reserves real
 publication for the labelled self-hosted runner.
 
 ## Documentation Site
