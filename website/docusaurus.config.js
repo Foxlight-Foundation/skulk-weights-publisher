@@ -1,6 +1,7 @@
 const config = {
   title: "SVP: Skulk Vindex Publisher",
   tagline: "Prepare and publish model artifacts for Skulk.",
+  favicon: "img/skulk-logo.svg",
 
   url: "https://foxlight-foundation.github.io",
   baseUrl: process.env.DOCUSAURUS_BASE_URL || "/skulk-vindex-publisher/",
@@ -38,6 +39,10 @@ const config = {
   themeConfig: {
     navbar: {
       title: "SVP",
+      logo: {
+        alt: "Skulk Logo",
+        src: "img/skulk-logo.svg",
+      },
       items: [
         {
           type: "docSidebar",
