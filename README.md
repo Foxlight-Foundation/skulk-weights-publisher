@@ -81,10 +81,16 @@ the product interface:
 skulk-weights doctor
 skulk-weights catalog validate
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact vindex --dry-run
 ```
 
+The `--artifact` flag selects which artifact to publish (`vindex`, `mtp`, or
+`vision`). Omit it to publish all declared artifacts. Non-dry-run execution is
+currently implemented for `vindex` only; `mtp` and `vision` raise an error
+outside of `--dry-run` until their extraction pipelines are complete.
+
 The dry run prints the LARQL commands that would execute without extracting or
-publishing vindexes.
+publishing weight artifacts.
 
 ## Publication Preflight
 

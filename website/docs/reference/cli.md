@@ -110,14 +110,17 @@ Adds publication-specific checks for `larql`, `HF_TOKEN`, and the
 ## `skulk-weights publish --model KEY`
 
 Builds the publish plan for one catalog entry. With `--dry-run`, it only
-prints the plan. Without `--dry-run`, it runs extraction and publication for
-the selected artifact(s), then adds the published repository to the configured
-Hugging Face collection.
+prints the plan. Without `--dry-run`, it runs LARQL extraction and publication
+for `vindex` artifacts, then adds the published repository to the configured
+Hugging Face collection. Non-dry-run publishing for `mtp` and `vision` is not
+yet implemented; passing those artifact types without `--dry-run` raises an
+error.
 
 Options:
 
 - `--artifact vindex|mtp|vision`: publish only the named artifact. Omit to
-  publish all artifacts declared for the entry (default behaviour).
+  publish all declared artifacts (currently only `vindex` executes; `mtp` and
+  `vision` are plan-only until implemented).
 - `--dry-run`: print commands without running LARQL
 - `--force`: replace an existing local output path
 - `--scratch PATH`: override `SKULK_WEIGHTS_SCRATCH`
