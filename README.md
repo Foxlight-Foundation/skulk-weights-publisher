@@ -1,8 +1,8 @@
-# SVP: Skulk Vindex Publisher
+# SWP: Skulk Weights Publisher
 
 Build and publish LARQL vindexes for Skulk.
 
-Documentation: <https://foxlight-foundation.github.io/skulk-vindex-publisher/>
+Documentation: <https://foxlight-foundation.github.io/skulk-weights-publisher/>
 
 Skulk is a distributed LLM inference system. LARQL treats model weights as a
 database: it decompiles transformer weights into a queryable vindex and exposes
@@ -21,7 +21,7 @@ The Foxlight catalog is included automatically and publishes to the
 `FoxlightAI` Hugging Face organization and the public
 [`Vindexes`](https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051)
 collection. Operators can add their own catalog files with
-`skulk-vindex.yaml`; the merged catalog uses namespaced keys such as
+`skulk-weights.yaml`; the merged catalog uses namespaced keys such as
 `foxlight/gemma-3-4b-full-q4-k` and `my-org/my-model-full-q4-k` so shared
 Foxlight entries and local operator entries can coexist safely.
 
@@ -33,9 +33,9 @@ Face repository. This project makes publication repeatable:
 
 - packaged Foxlight catalog entries describe shared Skulk vindexes published
   under `FoxlightAI`
-- `skulk-vindex.yaml` can add operator-owned catalog source files
-- `skulk-vindex catalog validate` checks the merged catalog
-- `skulk-vindex publish --dry-run` prints the LARQL plan
+- `skulk-weights.yaml` can add operator-owned catalog source files
+- `skulk-weights catalog validate` checks the merged catalog
+- `skulk-weights publish --dry-run` prints the LARQL plan
 - GitHub Actions validates every catalog entry
 - the self-hosted runner performs real LARQL publication
 
@@ -74,17 +74,23 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-The legacy script names remain as compatibility wrappers, but `skulk-vindex` is
+The legacy script names remain as compatibility wrappers, but `skulk-weights` is
 the product interface:
 
 ```bash
-skulk-vindex doctor
-skulk-vindex catalog validate
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights doctor
+skulk-weights catalog validate
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact vindex --dry-run
 ```
 
+The `--artifact` flag selects which artifact to publish (`vindex`, `mtp`, or
+`vision`). Omit it to publish all declared artifacts. Non-dry-run execution is
+currently implemented for `vindex` only; `mtp` and `vision` raise an error
+outside of `--dry-run` until their extraction pipelines are complete.
+
 The dry run prints the LARQL commands that would execute without extracting or
-publishing vindexes.
+publishing weight artifacts.
 
 ## Publication Preflight
 
@@ -92,8 +98,8 @@ Run this on the self-hosted runner before a real publish:
 
 ```bash
 python -m pip install -e .
-skulk-vindex doctor --publish
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights doctor --publish
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Real publication refuses to overwrite an existing scratch output path. Remove
@@ -126,7 +132,7 @@ publication for the labelled self-hosted runner.
 Published documentation is available at:
 
 ```text
-https://foxlight-foundation.github.io/skulk-vindex-publisher/
+https://foxlight-foundation.github.io/skulk-weights-publisher/
 ```
 
 The novice-facing documentation lives in `website/docs/` and builds with

@@ -5,13 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from skulk_vindex_publisher import publisher
-from skulk_vindex_publisher.defaults import (
+from skulk_weights_publisher import publisher
+from skulk_weights_publisher.defaults import (
     COLLECTION_ENV_VAR,
     DEFAULT_FOXLIGHT_VINDEX_COLLECTION,
 )
-from skulk_vindex_publisher.manifest import find_entry
-from skulk_vindex_publisher.publisher import (
+from skulk_weights_publisher.manifest import find_entry
+from skulk_weights_publisher.publisher import (
     PublishError,
     build_publish_plan,
     default_scratch_root,
@@ -180,6 +180,6 @@ def test_execute_publish_plan_does_not_publish_after_extract_failure(
 def test_default_scratch_root_honors_injected_empty_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("SKULK_VINDEX_SCRATCH", "/tmp/host-scratch")
+    monkeypatch.setenv("SKULK_WEIGHTS_SCRATCH", "/tmp/host-scratch")
 
     assert default_scratch_root(environ={}) == Path.cwd() / ".scratch"

@@ -13,7 +13,7 @@ The token must have write access to every target Hugging Face repository used by
 the selected catalog entries and any configured collection. In GitHub
 Actions, configure it as a repository secret named `HF_TOKEN`.
 
-## `SKULK_VINDEX_SCRATCH`
+## `SKULK_WEIGHTS_SCRATCH`
 
 Optional.
 
@@ -29,15 +29,15 @@ publisher still needs local scratch space before anything reaches Hugging Face.
 Example:
 
 ```bash
-export SKULK_VINDEX_SCRATCH=/fast/scratch/skulk-vindexes
+export SKULK_WEIGHTS_SCRATCH=/fast/scratch/skulk-weights
 ```
 
 You can override this for one command with `--scratch`:
 
 ```bash
-skulk-vindex publish \
+skulk-weights publish \
   --model foxlight/gemma-3-4b-full-q4-k \
-  --scratch /fast/scratch/skulk-vindexes
+  --scratch /fast/scratch/skulk-weights
 ```
 
 ## `PATH`
@@ -49,10 +49,10 @@ Dry-runs do not require `larql`, because they only print the command plan.
 Check the publishing runner with:
 
 ```bash
-skulk-vindex doctor --publish
+skulk-weights doctor --publish
 ```
 
-## `SKULK_VINDEX_COLLECTION`
+## `SKULK_WEIGHTS_COLLECTION`
 
 Optional.
 

@@ -12,7 +12,7 @@ on:
         required: true
         default: all
       catalog_config:
-        description: "Optional skulk-vindex.yaml path for operator catalog sources"
+        description: "Optional skulk-weights.yaml path for operator catalog sources"
         required: false
         default: ""
       tier:
@@ -66,7 +66,7 @@ jobs:
         run: pytest
 
       - name: Lint shell wrappers
-        run: bash -n scripts/doctor.sh scripts/publish-vindex.sh
+        run: bash -n scripts/doctor.sh scripts/publish-weights.sh scripts/publish-vindex.sh
 
       - name: Validate catalog
         shell: bash
@@ -76,7 +76,7 @@ jobs:
           if [ -n "$CATALOG_CONFIG" ]; then
             catalog_args=(--config "$CATALOG_CONFIG")
           fi
-          skulk-vindex "${catalog_args[@]}" catalog validate
+          skulk-weights "${catalog_args[@]}" catalog validate
 
       - name: Dry-run every catalog entry
         shell: bash
@@ -86,9 +86,9 @@ jobs:
           if [ -n "$CATALOG_CONFIG" ]; then
             catalog_args=(--config "$CATALOG_CONFIG")
           fi
-          skulk-vindex "${catalog_args[@]}" catalog list --tier all | while IFS= read -r key; do
+          skulk-weights "${catalog_args[@]}" catalog list --tier all | while IFS= read -r key; do
             [ -n "$key" ] || continue
-            scripts/publish-vindex.sh "${catalog_args[@]}" --model "$key" --dry-run
+            scripts/publish-weights.sh "${catalog_args[@]}" --model "$key" --dry-run
           done
 
   publish:
@@ -98,8 +98,8 @@ jobs:
     runs-on: [self-hosted, linux, larql, vindex]
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      SKULK_VINDEX_SCRATCH: ${{ vars.SKULK_VINDEX_SCRATCH || format('{0}/.scratch', github.workspace) }}
-      SKULK_VINDEX_COLLECTION: ${{ vars.SKULK_VINDEX_COLLECTION || '' }}
+      SKULK_WEIGHTS_SCRATCH: ${{ vars.SKULK_WEIGHTS_SCRATCH || format('{0}/.scratch', github.workspace) }}
+      SKULK_WEIGHTS_COLLECTION: ${{ vars.SKULK_WEIGHTS_COLLECTION || '' }}
       CATALOG_CONFIG: ${{ github.event.inputs.catalog_config || '' }}
     steps:
       - name: Check out repository
@@ -144,11 +144,11 @@ jobs:
           if [ "$requested" = "all" ]; then
             {
               echo "keys<<EOF"
-              skulk-vindex "${catalog_args[@]}" catalog list --tier "$tier"
+              skulk-weights "${catalog_args[@]}" catalog list --tier "$tier"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
-            skulk-vindex "${catalog_args[@]}" catalog get --key "$requested" >/dev/null
+            skulk-weights "${catalog_args[@]}" catalog show "$requested" >/dev/null
             {
               echo "keys<<EOF"
               echo "$requested"
@@ -173,5 +173,5 @@ jobs:
             if [ "$DRY_RUN" = "true" ]; then
               args+=(--dry-run)
             fi
-            scripts/publish-vindex.sh "${catalog_args[@]}" "${args[@]}"
+            scripts/publish-weights.sh "${catalog_args[@]}" "${args[@]}"
           done

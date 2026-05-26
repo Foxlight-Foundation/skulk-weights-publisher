@@ -17,9 +17,9 @@ the public
 collection. You do not need a local config file to inspect or dry-run them:
 
 ```bash
-skulk-vindex catalog validate
-skulk-vindex catalog list --tier smoke
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights catalog validate
+skulk-weights catalog list --tier smoke
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Foxlight entries use the `foxlight/` namespace in the merged catalog. The
@@ -48,10 +48,10 @@ foxlight/gemma-3-4b-full-q4-k
 ## Operator Catalogs
 
 Operators can add their own catalog sources without forking the Foxlight
-catalog. Create `skulk-vindex.yaml`:
+catalog. Create `skulk-weights.yaml`:
 
 ```bash
-skulk-vindex catalog init
+skulk-weights catalog init
 ```
 
 Then point it at an operator-owned manifest file:
@@ -110,14 +110,14 @@ serving.
 The CLI validates the merged catalog before any publish command is planned:
 
 ```bash
-skulk-vindex --config skulk-vindex.yaml catalog validate
-skulk-vindex --config skulk-vindex.yaml catalog get --key my-org/llama-3-8b-full-q4-k
+skulk-weights --config skulk-weights.yaml catalog validate
+skulk-weights --config skulk-weights.yaml catalog show my-org/llama-3-8b-full-q4-k
 ```
 
 When you change a source file, run a dry-run before you commit:
 
 ```bash
-skulk-vindex --config skulk-vindex.yaml publish \
+skulk-weights --config skulk-weights.yaml publish \
   --model my-org/llama-3-8b-full-q4-k \
   --dry-run
 ```

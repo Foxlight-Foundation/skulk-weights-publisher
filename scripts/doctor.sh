@@ -26,7 +26,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ "${#global_args[@]}" -gt 0 ]; then
-  exec python3 -m skulk_vindex_publisher.cli "${global_args[@]}" doctor "$@"
+  exec python3 -m skulk_weights_publisher.cli "${global_args[@]}" doctor "$@"
 fi
 
-exec python3 -m skulk_vindex_publisher.cli doctor "$@"
+exec python3 -m skulk_weights_publisher.cli doctor "$@"

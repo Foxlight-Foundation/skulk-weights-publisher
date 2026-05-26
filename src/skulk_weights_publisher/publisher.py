@@ -9,8 +9,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from skulk_vindex_publisher.defaults import COLLECTION_ENV_VAR
-from skulk_vindex_publisher.manifest import HF_COLLECTION_PATTERN, ManifestEntry
+from skulk_weights_publisher.defaults import COLLECTION_ENV_VAR
+from skulk_weights_publisher.manifest import HF_COLLECTION_PATTERN, ManifestEntry
 
 
 class PublishError(RuntimeError):
@@ -28,7 +28,7 @@ class PublishPlan:
     publish_command: tuple[str, ...]
     collection_slug: str | None
 
-    def summary_lines(self, *, force: bool) -> tuple[str, ...]:
+    def summary_lines(self, *, force: bool, artifact: str = "all") -> tuple[str, ...]:
         """Return the human-readable command summary printed before execution."""
 
         collection_line = (
@@ -36,18 +36,27 @@ class PublishPlan:
             if self.collection_slug
             else "collection: disabled"
         )
-        return (
+        lines: list[str] = [
             f"model key: {self.entry.key}",
             f"tier: {self.entry.tier}",
+            f"artifact: {artifact}",
             f"source model: {self.entry.source_model}",
             f"output path: {self.output_path}",
             f"target repo: hf://{self.entry.hf_repo}",
             collection_line,
             f"publish slices: {self.entry.publish_slices}",
             f"force overwrite: {int(force)}",
-            f"extract command:{format_command(self.extract_command)}",
-            f"publish command:{format_command(self.publish_command)}",
-        )
+        ]
+        if artifact in ("all", "vindex"):
+            lines += [
+                f"extract command:{format_command(self.extract_command)}",
+                f"publish command:{format_command(self.publish_command)}",
+            ]
+        if artifact in ("all", "mtp"):
+            lines.append("mtp step: not yet implemented")
+        if artifact in ("all", "vision"):
+            lines.append("vision step: not yet implemented")
+        return tuple(lines)
 
 
 def format_command(command: Sequence[str]) -> str:
@@ -127,7 +136,7 @@ def default_scratch_root(environ: Mapping[str, str] | None = None) -> Path:
     """Resolve the scratch root from environment or the current checkout."""
 
     env = os.environ if environ is None else environ
-    configured = env.get("SKULK_VINDEX_SCRATCH")
+    configured = env.get("SKULK_WEIGHTS_SCRATCH")
     if configured:
         return Path(configured).expanduser()
     return Path.cwd() / ".scratch"
@@ -138,6 +147,7 @@ def execute_publish_plan(
     *,
     dry_run: bool,
     force: bool,
+    artifact: str = "all",
     environ: Mapping[str, str] | None = None,
 ) -> None:
     """Execute or dry-run the extraction and publication plan."""
@@ -150,23 +160,29 @@ def execute_publish_plan(
     if not env.get("HF_TOKEN"):
         raise PublishError("HF_TOKEN is required for non-dry-run publishing")
 
-    plan.scratch_root.mkdir(parents=True, exist_ok=True)
-    if plan.output_path.exists():
-        if not force:
-            raise PublishError(
-                f"output path already exists: {plan.output_path}\n"
-                "remove it manually or rerun with --force to replace it"
-            )
-        shutil.rmtree(plan.output_path)
-
-    subprocess.run(plan.extract_command, check=True)
-    subprocess.run(plan.publish_command, check=True)
-    if plan.collection_slug is not None:
-        add_vindex_to_collection(
-            plan.collection_slug,
-            plan.entry.hf_repo,
-            token=env.get("HF_TOKEN"),
+    if artifact not in ("all", "vindex"):
+        raise PublishError(
+            f"artifact '{artifact}' is not yet implemented for non-dry-run publishing; "
+            "use --dry-run to preview the plan"
         )
+
+    if artifact in ("all", "vindex"):
+        plan.scratch_root.mkdir(parents=True, exist_ok=True)
+        if plan.output_path.exists():
+            if not force:
+                raise PublishError(
+                    f"output path already exists: {plan.output_path}\n"
+                    "remove it manually or rerun with --force to replace it"
+                )
+            shutil.rmtree(plan.output_path)
+        subprocess.run(plan.extract_command, check=True)
+        subprocess.run(plan.publish_command, check=True)
+        if plan.collection_slug is not None:
+            add_vindex_to_collection(
+                plan.collection_slug,
+                plan.entry.hf_repo,
+                token=env.get("HF_TOKEN"),
+            )
 
 
 def add_vindex_to_collection(

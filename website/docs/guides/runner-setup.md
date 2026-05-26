@@ -34,7 +34,7 @@ Runner requirements:
 GPU hardware is not a runner requirement for publication. The important
 capacity is disk for extraction and network for upload.
 
-Set `SKULK_VINDEX_SCRATCH` if the scratch directory should live outside the
+Set `SKULK_WEIGHTS_SCRATCH` if the scratch directory should live outside the
 checkout.
 
 ## Minimum First Target
@@ -51,6 +51,6 @@ Run this on the runner before dispatching a real publish:
 
 ```bash
 python3 -m pip install -e .
-skulk-vindex doctor --publish
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights doctor --publish
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```

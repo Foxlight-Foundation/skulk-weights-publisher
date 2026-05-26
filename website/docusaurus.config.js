@@ -1,12 +1,12 @@
 const config = {
-  title: "SVP: Skulk Vindex Publisher",
-  tagline: "Prepare and publish model artifacts for Skulk.",
+  title: "SWP: Skulk Weights Publisher",
+  tagline: "Prepare and publish weight artifacts for Skulk.",
   favicon: "img/skulk-logo.svg",
 
   url: "https://foxlight-foundation.github.io",
-  baseUrl: process.env.DOCUSAURUS_BASE_URL || "/skulk-vindex-publisher/",
+  baseUrl: process.env.DOCUSAURUS_BASE_URL || "/skulk-weights-publisher/",
   organizationName: "Foxlight-Foundation",
-  projectName: "skulk-vindex-publisher",
+  projectName: "skulk-weights-publisher",
 
   onBrokenLinks: "throw",
   markdown: {
@@ -38,7 +38,7 @@ const config = {
 
   themeConfig: {
     navbar: {
-      title: "SVP",
+      title: "SWP",
       logo: {
         alt: "Skulk Logo",
         src: "img/skulk-logo.svg",
@@ -51,7 +51,7 @@ const config = {
           label: "Docs",
         },
         {
-          href: "https://github.com/Foxlight-Foundation/skulk-vindex-publisher",
+          href: "https://github.com/Foxlight-Foundation/skulk-weights-publisher",
           label: "GitHub",
           position: "right",
         },
@@ -72,7 +72,7 @@ const config = {
           items: [
             {
               label: "GitHub",
-              href: "https://github.com/Foxlight-Foundation/skulk-vindex-publisher",
+              href: "https://github.com/Foxlight-Foundation/skulk-weights-publisher",
             },
           ],
         },

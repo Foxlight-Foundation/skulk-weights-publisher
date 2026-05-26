@@ -8,7 +8,7 @@ hardware.
 
 Manifests are source files. The catalog is the merged view built from the
 packaged Foxlight manifest plus any operator manifests listed in
-`skulk-vindex.yaml`.
+`skulk-weights.yaml`.
 
 ## Example Source Entry
 
@@ -62,9 +62,9 @@ my-org/gemma-3-4b-full-q4-k
 - `full` cannot be combined with other slices
 - `output_name` must be a `.vindex` basename and unique in the merged catalog
 - `hf_repo` must look like `owner/name` and be unique in the merged catalog
-- operator `hf_repo` owners must match the source `hf_owner` in `skulk-vindex.yaml`
+- operator `hf_repo` owners must match the source `hf_owner` in `skulk-weights.yaml`
 - `hf_collection` must look like `owner/slug`
-- operator `hf_collection` owners must match the source `hf_owner` in `skulk-vindex.yaml`
+- operator `hf_collection` owners must match the source `hf_owner` in `skulk-weights.yaml`
 
 ## Generated Commands
 

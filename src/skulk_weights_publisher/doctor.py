@@ -9,9 +9,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from skulk_vindex_publisher.catalogue import load_catalogue_view
-from skulk_vindex_publisher.manifest import ManifestError, validate_manifest
-from skulk_vindex_publisher.publisher import default_scratch_root
+from skulk_weights_publisher.catalogue import load_catalogue_view
+from skulk_weights_publisher.manifest import ManifestError, validate_manifest
+from skulk_weights_publisher.publisher import default_scratch_root
 
 
 @dataclass(frozen=True)

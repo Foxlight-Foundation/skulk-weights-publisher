@@ -9,11 +9,11 @@ from typing import Any, Literal, cast
 
 import yaml
 
-from skulk_vindex_publisher.defaults import (
+from skulk_weights_publisher.defaults import (
     DEFAULT_FOXLIGHT_HF_OWNER,
     DEFAULT_FOXLIGHT_VINDEX_COLLECTION,
 )
-from skulk_vindex_publisher.manifest import (
+from skulk_weights_publisher.manifest import (
     HF_COLLECTION_PATTERN,
     NAMESPACE_PATTERN,
     ManifestEntry,
@@ -23,7 +23,8 @@ from skulk_vindex_publisher.manifest import (
     validate_manifest_payload,
 )
 
-DEFAULT_CONFIG_PATH = Path("skulk-vindex.yaml")
+DEFAULT_CONFIG_PATH = Path("skulk-weights.yaml")
+_LEGACY_CONFIG_PATH = Path("skulk-vindex.yaml")
 BUILTIN_FOXLIGHT = "foxlight"
 DEFAULT_CONFIG_TEXT = """# Foxlight entries are included automatically.
 # Replace the empty list with your own catalog sources when you are ready.
@@ -76,6 +77,14 @@ def load_catalogue_view(
         return _load_config_view(config_path)
     if DEFAULT_CONFIG_PATH.is_file():
         return _load_config_view(DEFAULT_CONFIG_PATH)
+    if _LEGACY_CONFIG_PATH.is_file():
+        import sys
+        print(
+            f"warning: found {_LEGACY_CONFIG_PATH} but not {DEFAULT_CONFIG_PATH}; "
+            f"rename it to {DEFAULT_CONFIG_PATH} to silence this warning.",
+            file=sys.stderr,
+        )
+        return _load_config_view(_LEGACY_CONFIG_PATH)
     return _merge_sources((_load_builtin_source(BUILTIN_FOXLIGHT),))
 
 
@@ -145,7 +154,7 @@ def _load_builtin_source(name: str) -> CatalogueSource:
 
 
 def _load_builtin_payload(name: str) -> dict[str, Any]:
-    resource = resources.files("skulk_vindex_publisher").joinpath(
+    resource = resources.files("skulk_weights_publisher").joinpath(
         "catalogues", f"{name}.yaml"
     )
     payload = yaml.safe_load(resource.read_text(encoding="utf-8"))

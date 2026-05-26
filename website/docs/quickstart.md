@@ -41,14 +41,14 @@ source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
 
-This installs the `skulk-vindex` command from the current checkout.
+This installs the `skulk-weights` command from the current checkout.
 
 ## 2. Validate The Catalog
 
 ```bash
-skulk-vindex catalog validate
-skulk-vindex catalog sources
-skulk-vindex catalog list --tier smoke
+skulk-weights catalog validate
+skulk-weights catalog sources
+skulk-weights catalog list --tier smoke
 ```
 
 The Foxlight catalog is included automatically. The `smoke` tier contains the
@@ -58,16 +58,16 @@ namespaced, so Foxlight entries begin with `foxlight/`.
 To add your own catalog later, create a starter config:
 
 ```bash
-skulk-vindex catalog init
+skulk-weights catalog init
 ```
 
 Then add a source file under your own namespace and run commands with
-`--config skulk-vindex.yaml`. The built-in Foxlight entries are still included.
+`--config skulk-weights.yaml`. The built-in Foxlight entries are still included.
 
 ## 3. Check Your Machine
 
 ```bash
-skulk-vindex doctor
+skulk-weights doctor
 ```
 
 The doctor command checks the local Python environment, scratch directory, and
@@ -75,13 +75,13 @@ catalog. Use the stricter publishing checks on the machine that will actually
 run LARQL:
 
 ```bash
-skulk-vindex doctor --publish
+skulk-weights doctor --publish
 ```
 
 ## 4. Dry-Run One Vindex
 
 ```bash
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 You should see a summary like:

@@ -4,17 +4,17 @@ from pathlib import Path
 
 import pytest
 
-from skulk_vindex_publisher.catalog import (
+from skulk_weights_publisher.catalog import (
     filter_catalog_entries,
     find_catalog_entry,
     load_catalog_view,
     write_default_config,
 )
-from skulk_vindex_publisher.defaults import (
+from skulk_weights_publisher.defaults import (
     DEFAULT_FOXLIGHT_HF_OWNER,
     DEFAULT_FOXLIGHT_VINDEX_COLLECTION,
 )
-from skulk_vindex_publisher.manifest import ManifestError
+from skulk_weights_publisher.manifest import ManifestError
 
 
 def _write_operator_manifest(
@@ -69,7 +69,7 @@ def test_config_adds_operator_catalog_without_listing_builtin(
 ) -> None:
     operator_manifest = tmp_path / "operator-vindexes.yaml"
     _write_operator_manifest(operator_manifest)
-    config = tmp_path / "skulk-vindex.yaml"
+    config = tmp_path / "skulk-weights.yaml"
     config.write_text(
         """
 catalogs:
@@ -92,7 +92,7 @@ catalogs:
 def test_legacy_config_catalogues_key_still_loads(tmp_path: Path) -> None:
     operator_manifest = tmp_path / "operator-vindexes.yaml"
     _write_operator_manifest(operator_manifest)
-    config = tmp_path / "skulk-vindex.yaml"
+    config = tmp_path / "skulk-weights.yaml"
     config.write_text(
         """
 catalogues:
@@ -113,7 +113,7 @@ catalogues:
 def test_operator_catalog_can_configure_collection(tmp_path: Path) -> None:
     operator_manifest = tmp_path / "operator-vindexes.yaml"
     _write_operator_manifest(operator_manifest)
-    config = tmp_path / "skulk-vindex.yaml"
+    config = tmp_path / "skulk-weights.yaml"
     config.write_text(
         """
 catalogs:
@@ -134,7 +134,7 @@ catalogs:
 def test_empty_config_is_valid_because_foxlight_is_automatic(
     tmp_path: Path,
 ) -> None:
-    config = tmp_path / "skulk-vindex.yaml"
+    config = tmp_path / "skulk-weights.yaml"
     write_default_config(config)
 
     view = load_catalog_view(config_path=config)
@@ -153,7 +153,7 @@ def test_duplicate_effective_key_across_sources_is_rejected(tmp_path: Path) -> N
         output_name="operator-gemma-3-4b-full-q4-k.vindex",
         hf_repo="acme/operator-gemma-3-4b-full-q4-k-vindex",
     )
-    config = tmp_path / "skulk-vindex.yaml"
+    config = tmp_path / "skulk-weights.yaml"
     config.write_text(
         """
 catalogs:
@@ -174,7 +174,7 @@ def test_duplicate_output_across_sources_is_rejected(tmp_path: Path) -> None:
         operator_manifest,
         output_name="gemma-3-4b-it-full-q4-k.vindex",
     )
-    config = tmp_path / "skulk-vindex.yaml"
+    config = tmp_path / "skulk-weights.yaml"
     config.write_text(
         """
 catalogs:
@@ -198,7 +198,7 @@ def test_duplicate_hugging_face_repo_across_sources_is_rejected(
         output_name="operator-gemma-3-4b-full-q4-k.vindex",
         hf_repo="FoxlightAI/gemma-3-4b-it-full-q4-k-vindex",
     )
-    config = tmp_path / "skulk-vindex.yaml"
+    config = tmp_path / "skulk-weights.yaml"
     config.write_text(
         """
 catalogs:
@@ -219,7 +219,7 @@ def test_operator_hugging_face_owner_must_match_config(tmp_path: Path) -> None:
         operator_manifest,
         hf_repo="other/local-7b-full-q4-k-vindex",
     )
-    config = tmp_path / "skulk-vindex.yaml"
+    config = tmp_path / "skulk-weights.yaml"
     config.write_text(
         """
 catalogs:
@@ -237,7 +237,7 @@ catalogs:
 def test_operator_collection_owner_must_match_config(tmp_path: Path) -> None:
     operator_manifest = tmp_path / "operator-vindexes.yaml"
     _write_operator_manifest(operator_manifest)
-    config = tmp_path / "skulk-vindex.yaml"
+    config = tmp_path / "skulk-weights.yaml"
     config.write_text(
         """
 catalogs:

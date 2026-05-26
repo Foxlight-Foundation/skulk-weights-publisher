@@ -10,7 +10,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from skulk_vindex_publisher.cli import run  # noqa: E402
+from skulk_weights_publisher.cli import run  # noqa: E402
 
 
 if __name__ == "__main__":
@@ -22,4 +22,16 @@ if __name__ == "__main__":
             raise SystemExit(2)
         global_args.extend(args[:2])
         args = args[2:]
-    raise SystemExit(run([*global_args, "manifest", *args]))
+    # translate legacy "get --key VALUE" → "show VALUE"
+    if args and args[0] == "get":
+        translated: list[str] = ["show"]
+        i = 1
+        while i < len(args):
+            if args[i] == "--key" and i + 1 < len(args):
+                translated.append(args[i + 1])
+                i += 2
+            else:
+                translated.append(args[i])
+                i += 1
+        args = translated
+    raise SystemExit(run([*global_args, "catalog", *args]))

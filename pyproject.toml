@@ -3,9 +3,9 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "skulk-vindex-publisher"
+name = "skulk-weights-publisher"
 version = "0.1.0"
-description = "Build, validate, and publish LARQL vindexes for Skulk."
+description = "Build and publish weight artifacts for Skulk."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -22,13 +22,13 @@ dev = [
 ]
 
 [project.scripts]
-skulk-vindex = "skulk_vindex_publisher.cli:main"
+skulk-weights = "skulk_weights_publisher.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-skulk_vindex_publisher = ["catalogues/*.yaml"]
+skulk_weights_publisher = ["catalogues/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

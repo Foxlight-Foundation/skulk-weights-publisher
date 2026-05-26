@@ -34,15 +34,15 @@ bash -n scripts/doctor.sh scripts/publish-vindex.sh
 Then validate the catalog and every dry-run path:
 
 ```bash
-skulk-vindex catalog validate
-skulk-vindex catalog list --tier all | while IFS= read -r key; do
+skulk-weights catalog validate
+skulk-weights catalog list --tier all | while IFS= read -r key; do
   [ -n "$key" ] || continue
-  skulk-vindex publish --model "$key" --dry-run >/dev/null
+  skulk-weights publish --model "$key" --dry-run >/dev/null
 done
 ```
 
 That loop proves every effective catalog entry can produce a dry-run plan.
-Use `--config skulk-vindex.yaml` in both commands when testing operator
+Use `--config skulk-weights.yaml` in both commands when testing operator
 catalog sources.
 
 ## Documentation Setup
@@ -58,7 +58,7 @@ Use `npm run start` when editing docs locally.
 Pushes to feature branches publish preview docs under:
 
 ```text
-https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/<branch>/
+https://foxlight-foundation.github.io/skulk-weights-publisher/previews/<branch>/
 ```
 
 Pushes to `main` publish the production docs root.
@@ -66,6 +66,6 @@ Pushes to `main` publish the production docs root.
 ## Compatibility Wrappers
 
 The `scripts/` commands are retained for existing automation. They call the
-same Python package used by `skulk-vindex`, so behavior should be tested through
+same Python package used by `skulk-weights`, so behavior should be tested through
 both the package CLI and at least one wrapper dry-run before changing release
 automation.

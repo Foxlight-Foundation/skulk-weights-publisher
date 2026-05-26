@@ -1,9 +1,9 @@
 ---
 slug: /
-title: "SVP: Skulk Vindex Publisher"
+title: "SWP: Skulk Weights Publisher"
 ---
 
-SVP: Skulk Vindex Publisher publishes LARQL vindexes for Skulk so model weights
+SWP: Skulk Weights Publisher publishes LARQL vindexes for Skulk so model weights
 do not have to live entirely inside expensive GPU memory. It keeps the list of
 upstream Hugging Face models Skulk wants, validates how each one should be
 extracted and sliced, shows the exact LARQL commands that will run, and runs the
@@ -11,7 +11,7 @@ publish workflow so CPU/high-memory LARQL servers can host feed-forward weights
 while GPU nodes handle the latency-sensitive inference work.
 
 The Foxlight catalog is built in. You can use it immediately, or add your own
-operator catalog with `skulk-vindex.yaml`. The merged catalog uses
+operator catalog with `skulk-weights.yaml`. The merged catalog uses
 namespaced keys such as `foxlight/gemma-3-4b-full-q4-k` and
 `my-org/my-model-full-q4-k` so shared Foxlight vindexes and local operator
 vindexes remain distinct.

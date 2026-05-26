@@ -37,10 +37,10 @@ jobs:
             if [ -z "${safe_ref}" ]; then
               safe_ref="branch"
             fi
-            echo "base_url=/skulk-vindex-publisher/previews/${safe_ref}/" >> "$GITHUB_OUTPUT"
+            echo "base_url=/skulk-weights-publisher/previews/${safe_ref}/" >> "$GITHUB_OUTPUT"
             echo "target_dir=previews/${safe_ref}" >> "$GITHUB_OUTPUT"
           else
-            echo "base_url=/skulk-vindex-publisher/" >> "$GITHUB_OUTPUT"
+            echo "base_url=/skulk-weights-publisher/" >> "$GITHUB_OUTPUT"
             echo "target_dir=." >> "$GITHUB_OUTPUT"
           fi
 
@@ -65,7 +65,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: skulk-vindex-publisher-docs
+          name: skulk-weights-publisher-docs
           path: website/build
 
       - name: Publish documentation to GitHub Pages branch
