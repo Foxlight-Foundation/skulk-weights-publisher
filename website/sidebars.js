@@ -20,6 +20,7 @@ module.exports = {
         "guides/install",
         "guides/add-catalog-entry",
         "guides/first-publish",
+        "guides/mtp-sidecar",
         "guides/runner-setup",
         "guides/development",
       ],
