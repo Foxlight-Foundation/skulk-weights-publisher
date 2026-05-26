@@ -182,8 +182,6 @@ def execute_publish_plan(
     env = os.environ if environ is None else environ
     if dry_run:
         return
-    if shutil.which("larql") is None:
-        raise PublishError("larql is required for non-dry-run publishing")
     if not env.get("HF_TOKEN"):
         raise PublishError("HF_TOKEN is required for non-dry-run publishing")
 
@@ -194,6 +192,8 @@ def execute_publish_plan(
         )
 
     if artifact in ("all", "vindex"):
+        if shutil.which("larql") is None:
+            raise PublishError("larql is required for vindex publishing")
         plan.scratch_root.mkdir(parents=True, exist_ok=True)
         if plan.output_path.exists():
             if not force:

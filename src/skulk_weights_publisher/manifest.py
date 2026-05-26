@@ -12,6 +12,7 @@ import yaml
 
 DEFAULT_MANIFEST_PATH = Path("models.yaml")
 ALLOWED_QUANTS = {"q4k"}
+ALLOWED_MTP_QUANTS = {"q4k", "q8k"}
 ALLOWED_SLICES = {"full", "expert-server"}
 ALLOWED_TIERS = {"smoke", "moe"}
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -217,7 +218,7 @@ def validate_manifest_payload(
                 raise ManifestError(
                     f"{effective_key}: mtp_sidecar_repo must look like owner/name"
                 )
-            if mtp_quant_raw not in ALLOWED_QUANTS:
+            if mtp_quant_raw not in ALLOWED_MTP_QUANTS:
                 raise ManifestError(
                     f"{effective_key}: unsupported mtp_quant {mtp_quant_raw!r}"
                 )

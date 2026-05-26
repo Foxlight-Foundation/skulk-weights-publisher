@@ -167,6 +167,30 @@ models:
         validate_manifest(manifest)
 
 
+def test_mtp_q8k_accepted(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: owner/model-a-bf16
+    mtp_sidecar_repo: acme/model-a-mtp-q8k
+    mtp_quant: q8k
+""",
+        encoding="utf-8",
+    )
+
+    entries = validate_manifest(manifest)
+
+    assert entries[0].mtp_quant == "q8k"
+
+
 def test_mtp_bad_quant_rejected(tmp_path: Path) -> None:
     manifest = tmp_path / "models.yaml"
     manifest.write_text(
