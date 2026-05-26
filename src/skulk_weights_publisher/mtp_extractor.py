@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 
 class MtpExtractionError(RuntimeError):
@@ -37,14 +38,14 @@ def extract_mtp(
 
     try:
         from huggingface_hub import hf_hub_download, upload_file
-        from safetensors import safe_open
+        from safetensors import safe_open  # type: ignore[import-not-found]
     except ImportError as exc:
         raise MtpExtractionError(
             "huggingface_hub and safetensors are required for MTP extraction"
         ) from exc
 
     try:
-        import mlx.core as mx
+        import mlx.core as mx  # type: ignore[import-not-found]
     except ImportError as exc:
         raise MtpExtractionError(
             "mlx is required for MTP weight quantization"
@@ -76,7 +77,7 @@ def extract_mtp(
         print(f"mtp: downloaded {shard}", file=sys.stderr)
 
     # Extract mtp.* tensors as mlx arrays.
-    mtp_tensors: dict[str, object] = {}
+    mtp_tensors: dict[str, Any] = {}
     for shard_path in local_shards:
         with safe_open(str(shard_path), framework="numpy") as f:
             for key in f.keys():  # noqa: SIM118
@@ -144,7 +145,7 @@ def _find_mtp_shards(
         pass
 
     # Fall back to single-file layout — check if model.safetensors has mtp.* keys.
-    from safetensors import safe_open
+    from safetensors import safe_open  # type: ignore[import-not-found]
 
     try:
         single_path = hf_hub_download(
@@ -162,19 +163,19 @@ def _find_mtp_shards(
 
 
 def _quantize(
-    tensors: dict[str, object],
+    tensors: dict[str, Any],
     *,
     bits: int,
-    mx: object,
-) -> dict[str, object]:
+    mx: Any,
+) -> dict[str, Any]:
     """Quantize a dict of mlx arrays to the given bit width.
 
     Linear (weight-only) tensors are group-quantized; small tensors (biases,
     norms, embeddings) are kept in float16 to preserve accuracy.
     """
-    import mlx.core as _mx
+    import mlx.core as _mx  # type: ignore[import-not-found]
 
-    result: dict[str, object] = {}
+    result: dict[str, Any] = {}
     group_size = 64
 
     for name, arr in tensors.items():
