@@ -29,7 +29,7 @@ publisher still needs local scratch space before anything reaches Hugging Face.
 Example:
 
 ```bash
-export SKULK_WEIGHTS_SCRATCH=/fast/scratch/skulk-weightses
+export SKULK_WEIGHTS_SCRATCH=/fast/scratch/skulk-weights
 ```
 
 You can override this for one command with `--scratch`:
@@ -37,7 +37,7 @@ You can override this for one command with `--scratch`:
 ```bash
 skulk-weights publish \
   --model foxlight/gemma-3-4b-full-q4-k \
-  --scratch /fast/scratch/skulk-weightses
+  --scratch /fast/scratch/skulk-weights
 ```
 
 ## `PATH`

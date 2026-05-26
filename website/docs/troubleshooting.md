@@ -80,5 +80,5 @@ Use a different scratch root when you want to keep the old output:
 ```bash
 skulk-weights publish \
   --model foxlight/gemma-3-4b-full-q4-k \
-  --scratch /fast/scratch/skulk-weightses-2
+  --scratch /fast/scratch/skulk-weights-2
 ```

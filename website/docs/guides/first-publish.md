@@ -44,7 +44,7 @@ role it is supposed to support.
 
 ```bash
 export HF_TOKEN=...
-export SKULK_WEIGHTS_SCRATCH=/fast/scratch/skulk-weightses
+export SKULK_WEIGHTS_SCRATCH=/fast/scratch/skulk-weights
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k
 ```
 

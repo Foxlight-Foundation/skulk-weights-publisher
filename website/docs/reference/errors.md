@@ -21,7 +21,7 @@ points at a missing manifest file. Run the command from the repository root or
 pass the correct path:
 
 ```bash
-skulk-weights --manifest /path/to/models.yaml manifest validate
+skulk-weights --manifest /path/to/models.yaml catalog validate
 ```
 
 ## `hf_repo owner must be '...'`

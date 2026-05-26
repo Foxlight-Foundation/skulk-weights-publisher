@@ -74,7 +74,7 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-The legacy script names remain as compatibility wrappers, but `skulk-vindex` is
+The legacy script names remain as compatibility wrappers, but `skulk-weights` is
 the product interface:
 
 ```bash
