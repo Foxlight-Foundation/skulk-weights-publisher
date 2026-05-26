@@ -216,7 +216,8 @@ def execute_publish_plan(
             if artifact == "mtp":
                 raise PublishError(
                     f"no MTP sidecar configured for {plan.entry.key}; "
-                    "add mtp_source_repo, mtp_sidecar_repo, and mtp_quant to the catalog entry"
+                    "add mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
+                    " to the catalog entry"
                 )
         else:
             from skulk_weights_publisher.mtp_extractor import extract_mtp

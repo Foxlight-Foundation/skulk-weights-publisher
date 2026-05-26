@@ -163,7 +163,9 @@ models:
         encoding="utf-8",
     )
 
-    with pytest.raises(ManifestError, match="mtp_source_repo, mtp_sidecar_repo, and mtp_quant"):
+    with pytest.raises(
+        ManifestError, match="mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
+    ):
         validate_manifest(manifest)
 
 
@@ -233,7 +235,9 @@ models:
         encoding="utf-8",
     )
 
-    with pytest.raises(ManifestError, match="mtp_source_repo must look like owner/name"):
+    with pytest.raises(
+        ManifestError, match="mtp_source_repo must look like owner/name"
+    ):
         validate_manifest(manifest)
 
 

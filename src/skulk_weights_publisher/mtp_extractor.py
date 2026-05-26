@@ -36,7 +36,7 @@ def extract_mtp(
         return
 
     try:
-        from huggingface_hub import HfApi, hf_hub_download, upload_file
+        from huggingface_hub import hf_hub_download, upload_file
         from safetensors import safe_open
     except ImportError as exc:
         raise MtpExtractionError(
@@ -50,10 +50,8 @@ def extract_mtp(
             "mlx is required for MTP weight quantization"
         ) from exc
 
-    api = HfApi(token=token)
-
     # Identify which shards contain mtp.* keys.
-    shard_files = _find_mtp_shards(source_repo, token=token, api=api)
+    shard_files = _find_mtp_shards(source_repo, token=token)
     if not shard_files:
         raise MtpExtractionError(
             f"no mtp.* keys found in {source_repo}; "
@@ -81,14 +79,15 @@ def extract_mtp(
     mtp_tensors: dict[str, object] = {}
     for shard_path in local_shards:
         with safe_open(str(shard_path), framework="numpy") as f:
-            for key in f.keys():
+            for key in f.keys():  # noqa: SIM118
                 if key.startswith("mtp.") or ".mtp." in key:
                     arr = mx.array(f.get_tensor(key))
                     mtp_tensors[key] = arr
 
     if not mtp_tensors:
         raise MtpExtractionError(
-            f"shards were downloaded but no mtp.* tensors could be read from {source_repo}"
+            f"shards were downloaded but no mtp.* tensors could be read"
+            f" from {source_repo}"
         )
 
     print(f"mtp: extracted {len(mtp_tensors)} tensor(s)", file=sys.stderr)
@@ -118,7 +117,6 @@ def _find_mtp_shards(
     source_repo: str,
     *,
     token: str | None,
-    api: object,
 ) -> list[str]:
     """Return the shard filenames in source_repo that contain mtp.* keys.
 
@@ -158,7 +156,7 @@ def _find_mtp_shards(
         return []
 
     with safe_open(single_path, framework="numpy") as f:
-        if any(k.startswith("mtp.") or ".mtp." in k for k in f.keys()):
+        if any(k.startswith("mtp.") or ".mtp." in k for k in f.keys()):  # noqa: SIM118
             return ["model.safetensors"]
     return []
 
@@ -183,7 +181,12 @@ def _quantize(
         a = _mx.array(arr) if not isinstance(arr, _mx.array) else arr
         # Only quantize 2-D weight matrices whose last dim is divisible by group_size;
         # keep everything else in fp16 to avoid MLX quantize shape errors.
-        if a.ndim == 2 and a.shape[0] >= group_size and a.shape[1] >= group_size and a.shape[1] % group_size == 0:
+        if (
+            a.ndim == 2
+            and a.shape[0] >= group_size
+            and a.shape[1] >= group_size
+            and a.shape[1] % group_size == 0
+        ):
             q, scales, biases = _mx.quantize(a, bits=bits, group_size=group_size)
             result[name] = q
             result[f"{name}_scales"] = scales

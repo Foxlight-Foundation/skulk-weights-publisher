@@ -269,7 +269,11 @@ def test_execute_publish_plan_mtp_calls_extractor(
     )
 
     assert len(extract_calls) == 1
-    assert extract_calls[0][:3] == ("Qwen/Qwen3-6-7B", "acme/qwen3-6-7b-mtp-int4", "q4k")
+    assert extract_calls[0][:3] == (
+        "Qwen/Qwen3-6-7B",
+        "acme/qwen3-6-7b-mtp-int4",
+        "q4k",
+    )
 
 
 def test_execute_publish_plan_mtp_artifact_without_step_raises(
