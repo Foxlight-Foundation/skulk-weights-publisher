@@ -24,6 +24,7 @@ from skulk_weights_publisher.manifest import (
 )
 
 DEFAULT_CONFIG_PATH = Path("skulk-weights.yaml")
+_LEGACY_CONFIG_PATH = Path("skulk-vindex.yaml")
 BUILTIN_FOXLIGHT = "foxlight"
 DEFAULT_CONFIG_TEXT = """# Foxlight entries are included automatically.
 # Replace the empty list with your own catalog sources when you are ready.
@@ -76,6 +77,14 @@ def load_catalogue_view(
         return _load_config_view(config_path)
     if DEFAULT_CONFIG_PATH.is_file():
         return _load_config_view(DEFAULT_CONFIG_PATH)
+    if _LEGACY_CONFIG_PATH.is_file():
+        import sys
+        print(
+            f"warning: found {_LEGACY_CONFIG_PATH} but not {DEFAULT_CONFIG_PATH}; "
+            f"rename it to {DEFAULT_CONFIG_PATH} to silence this warning.",
+            file=sys.stderr,
+        )
+        return _load_config_view(_LEGACY_CONFIG_PATH)
     return _merge_sources((_load_builtin_source(BUILTIN_FOXLIGHT),))
 
 
