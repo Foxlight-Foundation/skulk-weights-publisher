@@ -125,9 +125,9 @@ def _find_mtp_shards(
     Checks for a sharded index first; falls back to the single-file layout.
     """
     from huggingface_hub import hf_hub_download
-    import tempfile, os
+    from huggingface_hub.errors import EntryNotFoundError
 
-    # Try sharded index first.
+    # Try sharded index first; only swallow 404 (no index file = single-file layout).
     try:
         index_path = hf_hub_download(
             repo_id=source_repo,
@@ -142,24 +142,25 @@ def _find_mtp_shards(
             if tensor_key.startswith("mtp.") or ".mtp." in tensor_key:
                 shards.add(shard_file)
         return sorted(shards)
-    except Exception:
+    except EntryNotFoundError:
         pass
 
     # Fall back to single-file layout — check if model.safetensors has mtp.* keys.
-    try:
-        from safetensors import safe_open
+    from safetensors import safe_open
 
+    try:
         single_path = hf_hub_download(
             repo_id=source_repo,
             filename="model.safetensors",
             token=token,
         )
-        with safe_open(single_path, framework="numpy") as f:
-            if any(k.startswith("mtp.") or ".mtp." in k for k in f.keys()):
-                return ["model.safetensors"]
+    except EntryNotFoundError:
         return []
-    except Exception:
-        return []
+
+    with safe_open(single_path, framework="numpy") as f:
+        if any(k.startswith("mtp.") or ".mtp." in k for k in f.keys()):
+            return ["model.safetensors"]
+    return []
 
 
 def _quantize(
@@ -180,8 +181,9 @@ def _quantize(
 
     for name, arr in tensors.items():
         a = _mx.array(arr) if not isinstance(arr, _mx.array) else arr
-        # Only quantize 2-D weight matrices; keep everything else in fp16.
-        if a.ndim == 2 and a.shape[0] >= group_size and a.shape[1] >= group_size:
+        # Only quantize 2-D weight matrices whose last dim is divisible by group_size;
+        # keep everything else in fp16 to avoid MLX quantize shape errors.
+        if a.ndim == 2 and a.shape[0] >= group_size and a.shape[1] >= group_size and a.shape[1] % group_size == 0:
             q, scales, biases = _mx.quantize(a, bits=bits, group_size=group_size)
             result[name] = q
             result[f"{name}_scales"] = scales
