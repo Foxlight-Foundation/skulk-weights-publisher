@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pytest import CaptureFixture
 
-from skulk_vindex_publisher.cli import run
-from skulk_vindex_publisher.defaults import DEFAULT_FOXLIGHT_VINDEX_COLLECTION
+from skulk_weights_publisher.cli import run
+from skulk_weights_publisher.defaults import DEFAULT_FOXLIGHT_VINDEX_COLLECTION
 
 
 def test_cli_catalog_validate(capsys: CaptureFixture[str]) -> None:

@@ -76,9 +76,9 @@ The catalog records the production contract around that vindex:
 - output name: the local `.vindex` directory produced under scratch storage
 - target repository: where the vindex is published
 
-## SVP: Skulk Vindex Publisher
+## SWP: Skulk Weights Publisher
 
-SVP is the automation layer around LARQL publication. It reads the catalog,
+SWP is the automation layer around LARQL publication. It reads the catalog,
 validates that entries are well formed, prints the exact command plan, and runs
 publication from the machine configured for that job.
 

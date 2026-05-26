@@ -1,4 +1,4 @@
-"""Command line interface for the Skulk vindex publisher."""
+"""Command line interface for the Skulk Weights Publisher."""
 
 from __future__ import annotations
 
@@ -7,24 +7,26 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from skulk_vindex_publisher.catalogue import (
+from skulk_weights_publisher.catalogue import (
     CatalogueView,
     filter_catalogue_entries,
     find_catalogue_entry,
     load_catalogue_view,
     write_default_config,
 )
-from skulk_vindex_publisher.doctor import run_doctor
-from skulk_vindex_publisher.manifest import (
+from skulk_weights_publisher.doctor import run_doctor
+from skulk_weights_publisher.manifest import (
     ManifestError,
 )
-from skulk_vindex_publisher.publisher import (
+from skulk_weights_publisher.publisher import (
     PublishError,
     build_publish_plan,
     default_scratch_root,
     execute_publish_plan,
     resolve_publish_collection,
 )
+
+ARTIFACT_CHOICES = ["vindex", "mtp", "vision"]
 
 
 def _catalogue_view_from_args(args: argparse.Namespace) -> CatalogueView:
@@ -55,7 +57,7 @@ def _cmd_catalogue_sources(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_catalogue_get(args: argparse.Namespace) -> int:
+def _cmd_catalogue_show(args: argparse.Namespace) -> int:
     view = _catalogue_view_from_args(args)
     entry = find_catalogue_entry(args.key, view)
     print(entry.to_json())
@@ -77,19 +79,8 @@ def _cmd_catalogue_init(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_manifest_validate(args: argparse.Namespace) -> int:
-    return _cmd_catalogue_validate(args)
-
-
-def _cmd_manifest_get(args: argparse.Namespace) -> int:
-    return _cmd_catalogue_get(args)
-
-
-def _cmd_manifest_list(args: argparse.Namespace) -> int:
-    return _cmd_catalogue_list(args)
-
-
 def _cmd_publish(args: argparse.Namespace) -> int:
+    artifact = getattr(args, "artifact", None) or "all"
     entry = find_catalogue_entry(args.model, _catalogue_view_from_args(args))
     scratch_root = (
         Path(args.scratch).expanduser() if args.scratch else default_scratch_root()
@@ -101,12 +92,12 @@ def _cmd_publish(args: argparse.Namespace) -> int:
         collection_slug=collection_slug,
         use_entry_collection=False,
     )
-    for line in plan.summary_lines(force=args.force):
+    for line in plan.summary_lines(force=args.force, artifact=artifact):
         print(line)
     if args.dry_run:
         print("dry run complete")
         return 0
-    execute_publish_plan(plan, dry_run=False, force=args.force)
+    execute_publish_plan(plan, dry_run=False, force=args.force, artifact=artifact)
     return 0
 
 
@@ -131,82 +122,111 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the top-level command parser."""
 
     parser = argparse.ArgumentParser(
-        prog="skulk-vindex",
-        description="Build, validate, and publish Skulk LARQL vindexes.",
+        prog="skulk-weights",
+        description="Build and publish weight artifacts for Skulk.",
     )
     source_group = parser.add_mutually_exclusive_group()
     source_group.add_argument(
         "--config",
         help=(
-            "Path to skulk-vindex.yaml. If omitted, skulk-vindex.yaml is used "
+            "Path to skulk-weights.yaml. If omitted, skulk-weights.yaml is used "
             "when present; otherwise the built-in Foxlight catalog is used."
         ),
     )
     source_group.add_argument(
         "--manifest",
-        help="Legacy path to one vindex manifest.",
+        help="Legacy path to one manifest file.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    # catalog subcommand
     catalogue_parser = subparsers.add_parser(
         "catalog",
-        help="Validate/query merged catalog sources",
+        help="Validate and query merged catalog sources.",
     )
     catalogue_subparsers = catalogue_parser.add_subparsers(
         dest="catalogue_command", required=True
     )
-    catalogue_validate_parser = catalogue_subparsers.add_parser("validate")
+
+    catalogue_validate_parser = catalogue_subparsers.add_parser(
+        "validate", help="Validate all catalog sources."
+    )
     catalogue_validate_parser.set_defaults(func=_cmd_catalogue_validate)
 
-    catalogue_sources_parser = catalogue_subparsers.add_parser("sources")
+    catalogue_sources_parser = catalogue_subparsers.add_parser(
+        "sources", help="List catalog sources."
+    )
     catalogue_sources_parser.set_defaults(func=_cmd_catalogue_sources)
 
-    catalogue_get_parser = catalogue_subparsers.add_parser("get")
-    catalogue_get_parser.add_argument("--key", required=True)
-    catalogue_get_parser.set_defaults(func=_cmd_catalogue_get)
+    catalogue_show_parser = catalogue_subparsers.add_parser(
+        "show", help="Print a single resolved catalog entry as JSON."
+    )
+    catalogue_show_parser.add_argument("key", help="Fully-qualified catalog key.")
+    catalogue_show_parser.set_defaults(func=_cmd_catalogue_show)
 
-    catalogue_list_parser = catalogue_subparsers.add_parser("list")
+    catalogue_list_parser = catalogue_subparsers.add_parser(
+        "list", help="List catalog keys, optionally filtered by tier."
+    )
     catalogue_list_parser.add_argument(
         "--tier", choices=["all", "smoke", "moe"], default="all"
     )
     catalogue_list_parser.set_defaults(func=_cmd_catalogue_list)
 
-    catalogue_init_parser = catalogue_subparsers.add_parser("init")
-    catalogue_init_parser.add_argument("--output", default="skulk-vindex.yaml")
+    catalogue_init_parser = catalogue_subparsers.add_parser(
+        "init", help="Write a starter skulk-weights.yaml operator config."
+    )
+    catalogue_init_parser.add_argument(
+        "--output",
+        default="skulk-weights.yaml",
+        help="Output path (default: skulk-weights.yaml).",
+    )
     catalogue_init_parser.add_argument("--force", action="store_true")
     catalogue_init_parser.set_defaults(func=_cmd_catalogue_init)
 
-    manifest_parser = subparsers.add_parser(
-        "manifest",
-        help="Compatibility alias for catalog commands",
+    # publish subcommand
+    publish_parser = subparsers.add_parser(
+        "publish",
+        help="Publish weight artifacts for one catalog entry.",
     )
-    manifest_subparsers = manifest_parser.add_subparsers(
-        dest="manifest_command", required=True
-    )
-    validate_parser = manifest_subparsers.add_parser("validate")
-    validate_parser.set_defaults(func=_cmd_manifest_validate)
-
-    get_parser = manifest_subparsers.add_parser("get")
-    get_parser.add_argument("--key", required=True)
-    get_parser.set_defaults(func=_cmd_manifest_get)
-
-    list_parser = manifest_subparsers.add_parser("list")
-    list_parser.add_argument("--tier", choices=["all", "smoke", "moe"], default="all")
-    list_parser.set_defaults(func=_cmd_manifest_list)
-
-    publish_parser = subparsers.add_parser("publish", help="Publish one catalog entry")
     publish_parser.add_argument(
         "--model",
         required=True,
-        help="Catalog key to publish.",
+        help="Fully-qualified catalog key to publish.",
     )
-    publish_parser.add_argument("--dry-run", action="store_true")
-    publish_parser.add_argument("--force", action="store_true")
-    publish_parser.add_argument("--scratch", help="Override SKULK_VINDEX_SCRATCH.")
+    publish_parser.add_argument(
+        "--artifact",
+        choices=ARTIFACT_CHOICES,
+        default=None,
+        help=(
+            "Artifact type to publish. Omit to publish all declared artifacts "
+            "for this entry. Choices: vindex, mtp, vision."
+        ),
+    )
+    publish_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the publish plan without executing anything.",
+    )
+    publish_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing output path.",
+    )
+    publish_parser.add_argument(
+        "--scratch",
+        help="Override SKULK_WEIGHTS_SCRATCH scratch directory.",
+    )
     publish_parser.set_defaults(func=_cmd_publish)
 
-    doctor_parser = subparsers.add_parser("doctor", help="Check local prerequisites")
-    doctor_parser.add_argument("--publish", action="store_true")
+    # doctor subcommand
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="Check local prerequisites."
+    )
+    doctor_parser.add_argument(
+        "--publish",
+        action="store_true",
+        help="Also check prerequisites required for non-dry-run publishing.",
+    )
     doctor_parser.set_defaults(func=_cmd_doctor)
 
     return parser

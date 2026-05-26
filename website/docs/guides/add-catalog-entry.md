@@ -11,10 +11,10 @@ the additional vindex library your organization wants to publish.
 Start with a config file:
 
 ```bash
-skulk-vindex catalog init
+skulk-weights catalog init
 ```
 
-Edit `skulk-vindex.yaml` so it points at your operator source:
+Edit `skulk-weights.yaml` so it points at your operator source:
 
 ```yaml
 catalogs:
@@ -96,7 +96,7 @@ most relevant to keeping expert weights out of expensive GPU memory.
 end in `.vindex` and must not include a slash.
 
 `hf_repo` is the target Hugging Face repository, and its owner must match
-`hf_owner` from `skulk-vindex.yaml`:
+`hf_owner` from `skulk-weights.yaml`:
 
 ```yaml
 output_name: llama-3-1-8b-instruct-full-q4-k.vindex
@@ -112,10 +112,10 @@ single manifest entry when one entry needs a different collection.
 After editing the operator source, run:
 
 ```bash
-skulk-vindex --config skulk-vindex.yaml catalog validate
-skulk-vindex --config skulk-vindex.yaml catalog get \
-  --key my-org/llama-3-8b-full-q4-k
-skulk-vindex --config skulk-vindex.yaml publish \
+skulk-weights --config skulk-weights.yaml catalog validate
+skulk-weights --config skulk-weights.yaml catalog show \
+  my-org/llama-3-8b-full-q4-k
+skulk-weights --config skulk-weights.yaml publish \
   --model my-org/llama-3-8b-full-q4-k \
   --dry-run
 ```

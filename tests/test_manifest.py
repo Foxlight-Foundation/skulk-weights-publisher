@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from skulk_vindex_publisher.manifest import (
+from skulk_weights_publisher.manifest import (
     ManifestError,
     find_entry,
     list_entries,

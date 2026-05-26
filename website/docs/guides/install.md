@@ -30,20 +30,20 @@ product CLI.
 ## Check The Install
 
 ```bash
-skulk-vindex doctor
-skulk-vindex catalog validate
+skulk-weights doctor
+skulk-weights catalog validate
 ```
 
 Then run one dry-run:
 
 ```bash
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 To add your own operator catalog, initialize a config after install:
 
 ```bash
-skulk-vindex catalog init
+skulk-weights catalog init
 ```
 
 ## Compatibility Wrappers
@@ -57,4 +57,4 @@ scripts/manifest.py validate
 scripts/publish-vindex.sh --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
-New documentation and new automation should use `skulk-vindex`.
+New documentation and new automation should use `skulk-weights`.

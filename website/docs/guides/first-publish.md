@@ -15,7 +15,7 @@ servers can host it.
 ## 1. Validate The Catalog
 
 ```bash
-skulk-vindex catalog validate
+skulk-weights catalog validate
 ```
 
 This proves the effective catalog is structurally safe before the runner
@@ -24,7 +24,7 @@ starts.
 ## 2. Check Publication Prerequisites
 
 ```bash
-skulk-vindex doctor --publish
+skulk-weights doctor --publish
 ```
 
 This checks the pieces needed for a real publish: LARQL, `HF_TOKEN`, scratch
@@ -33,7 +33,7 @@ storage, Python dependencies, and the catalog.
 ## 3. Review The Dry-Run
 
 ```bash
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Read the source model, output path, target repository, collection, and slice
@@ -44,8 +44,8 @@ role it is supposed to support.
 
 ```bash
 export HF_TOKEN=...
-export SKULK_VINDEX_SCRATCH=/fast/scratch/skulk-vindexes
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k
+export SKULK_WEIGHTS_SCRATCH=/fast/scratch/skulk-weightses
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k
 ```
 
 The command refuses to overwrite an existing output path. Use `--force` only

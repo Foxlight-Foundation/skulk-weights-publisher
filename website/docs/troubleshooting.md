@@ -9,20 +9,20 @@ Most publisher errors fall into one of three groups:
 - the scratch output path already exists
 - Hugging Face accepted the publish but rejected the collection update
 
-## `skulk-vindex.yaml not found`
+## `skulk-weights.yaml not found`
 
 The built-in Foxlight catalog does not need a config file. You only need
 `--config PATH` when you are adding operator catalog sources. If you pass
 `--config`, make sure the path exists:
 
 ```bash
-skulk-vindex --config skulk-vindex.yaml catalog validate
+skulk-weights --config skulk-weights.yaml catalog validate
 ```
 
 ## `models.yaml not found`
 
 This error comes from legacy single-manifest mode or from an operator source
-listed in `skulk-vindex.yaml`. Run commands from the repository root, fix the
+listed in `skulk-weights.yaml`. Run commands from the repository root, fix the
 source path, or pass `--manifest PATH` when you intentionally want legacy mode.
 
 ## `missing command: larql`
@@ -33,13 +33,13 @@ publication, not for normal validation or dry-runs.
 Run the safe command first:
 
 ```bash
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Then run the publishing preflight on the runner:
 
 ```bash
-skulk-vindex doctor --publish
+skulk-weights doctor --publish
 ```
 
 ## `HF_TOKEN is not set`
@@ -78,7 +78,7 @@ servers.
 Use a different scratch root when you want to keep the old output:
 
 ```bash
-skulk-vindex publish \
+skulk-weights publish \
   --model foxlight/gemma-3-4b-full-q4-k \
-  --scratch /fast/scratch/skulk-vindexes-2
+  --scratch /fast/scratch/skulk-weightses-2
 ```

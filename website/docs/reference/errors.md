@@ -5,13 +5,13 @@ title: Error Reference
 Use this page when a publisher command exits before running the publish you
 expected.
 
-## `skulk-vindex.yaml not found`
+## `skulk-weights.yaml not found`
 
 The built-in Foxlight catalog works without a config file. This error means
 you passed `--config PATH` and that path does not exist.
 
 ```bash
-skulk-vindex --config skulk-vindex.yaml catalog validate
+skulk-weights --config skulk-weights.yaml catalog validate
 ```
 
 ## `models.yaml not found; run from the repository root`
@@ -21,12 +21,12 @@ points at a missing manifest file. Run the command from the repository root or
 pass the correct path:
 
 ```bash
-skulk-vindex --manifest /path/to/models.yaml manifest validate
+skulk-weights --manifest /path/to/models.yaml manifest validate
 ```
 
 ## `hf_repo owner must be '...'`
 
-An operator source in `skulk-vindex.yaml` declares `hf_owner`, and one entry is
+An operator source in `skulk-weights.yaml` declares `hf_owner`, and one entry is
 trying to publish to a different Hugging Face owner. Fix `hf_repo` or use a
 different source block with the correct owner.
 
@@ -71,5 +71,5 @@ intentional.
 Use `--force` only when replacing the local extraction output is expected:
 
 ```bash
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --force
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --force
 ```

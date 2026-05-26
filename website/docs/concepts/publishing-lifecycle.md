@@ -11,7 +11,7 @@ node can agree on before runtime placement begins.
 
 The vindex starts as a catalog source entry. The built-in Foxlight entries
 are packaged with the CLI, and operator entries can be added through
-`skulk-vindex.yaml`. Each entry names the source model, quantization, slice
+`skulk-weights.yaml`. Each entry names the source model, quantization, slice
 mode, local `.vindex` directory, and target Hugging Face repository. The slice
 mode is part of the runtime contract: it tells operators whether they are
 publishing a complete vindex or a specialized expert-server shape for weight
@@ -20,7 +20,7 @@ serving.
 ## 2. Validate The Catalog
 
 ```bash
-skulk-vindex catalog validate
+skulk-weights catalog validate
 ```
 
 Validation catches duplicate keys, unsupported slice names, bad repository
@@ -29,7 +29,7 @@ names, and output names that would not be safe to write.
 ## 3. Check The Runner
 
 ```bash
-skulk-vindex doctor --publish
+skulk-weights doctor --publish
 ```
 
 The publishing runner needs Python, LARQL, writable scratch storage, network
@@ -40,7 +40,7 @@ upload.
 ## 4. Review The Plan
 
 ```bash
-skulk-vindex publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 The dry-run prints the exact `larql extract` and `larql publish` commands. This

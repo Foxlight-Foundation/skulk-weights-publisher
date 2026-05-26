@@ -142,18 +142,18 @@ That is why the catalog has separate entries for `gemma-4-26b-a4b-full-q4-k`
 and `gemma-4-26b-a4b-expert-server-q4-k` — they describe different published
 shapes of the same upstream model, intended for different runtime roles.
 
-## Where SVP Fits
+## Where SWP Fits
 
 Publishing a vindex is expensive and easy to get wrong. A bad `larql extract`
 command can write hundreds of gigabytes to the wrong path. A bad `larql publish`
 command can upload a vindex under the wrong Hugging Face repository name,
 leaving the cluster unable to agree on which object to use.
 
-SVP: Skulk Vindex Publisher exists to make publication repeatable:
+SWP: Skulk Weights Publisher exists to make publication repeatable:
 
 - the catalog records the exact source model, quantization, slice mode, and
   target repository for each vindex
-- `skulk-vindex publish --dry-run` prints the exact LARQL commands before
+- `skulk-weights publish --dry-run` prints the exact LARQL commands before
   anything is extracted or uploaded
 - the GitHub Actions workflow validates every catalog entry on every pull
   request

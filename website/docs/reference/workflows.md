@@ -15,7 +15,7 @@ one for documentation.
 Manual dispatch inputs:
 
 - `model`: one catalog key or `all`
-- `catalog_config`: optional `skulk-vindex.yaml` path for operator sources
+- `catalog_config`: optional `skulk-weights.yaml` path for operator sources
 - `tier`: used when `model` is `all`
 - `dry_run`: prints commands without publishing
 
@@ -29,8 +29,8 @@ model repo to the entry's configured Hugging Face collection.
 
 By default, the workflow uses the built-in Foxlight catalog. Pass
 `catalog_config` when dispatching the workflow to include operator sources
-from a checked-in `skulk-vindex.yaml`; Foxlight entries remain included.
-Set the repository variable `SKULK_VINDEX_COLLECTION` only when you need to
+from a checked-in `skulk-weights.yaml`; Foxlight entries remain included.
+Set the repository variable `SKULK_WEIGHTS_COLLECTION` only when you need to
 override the collection target for the selected run.
 
 This job publishes the vindexes Skulk will later place across runtime hardware.
@@ -48,13 +48,13 @@ generated static site.
 Pushes to `main` publish the production site from the `gh-pages` branch root:
 
 ```text
-https://foxlight-foundation.github.io/skulk-vindex-publisher/
+https://foxlight-foundation.github.io/skulk-weights-publisher/
 ```
 
 Pushes to other branches publish branch previews under `previews/<branch>`:
 
 ```text
-https://foxlight-foundation.github.io/skulk-vindex-publisher/previews/feature-publisher-production-foundation/
+https://foxlight-foundation.github.io/skulk-weights-publisher/previews/feature-publisher-production-foundation/
 ```
 
 The workflow sets Docusaurus `baseUrl` per branch so links and static assets use
