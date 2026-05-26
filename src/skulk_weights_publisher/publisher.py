@@ -160,6 +160,12 @@ def execute_publish_plan(
     if not env.get("HF_TOKEN"):
         raise PublishError("HF_TOKEN is required for non-dry-run publishing")
 
+    if artifact not in ("all", "vindex"):
+        raise PublishError(
+            f"artifact '{artifact}' is not yet implemented for non-dry-run publishing; "
+            "use --dry-run to preview the plan"
+        )
+
     if artifact in ("all", "vindex"):
         plan.scratch_root.mkdir(parents=True, exist_ok=True)
         if plan.output_path.exists():

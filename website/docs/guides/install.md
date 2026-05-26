@@ -54,7 +54,7 @@ the package CLI yet:
 ```bash
 scripts/doctor.sh
 scripts/manifest.py validate
-scripts/publish-vindex.sh --model foxlight/gemma-3-4b-full-q4-k --dry-run
+scripts/publish-weights.sh --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 New documentation and new automation should use `skulk-weights`.

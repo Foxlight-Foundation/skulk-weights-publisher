@@ -22,4 +22,4 @@ if __name__ == "__main__":
             raise SystemExit(2)
         global_args.extend(args[:2])
         args = args[2:]
-    raise SystemExit(run([*global_args, "manifest", *args]))
+    raise SystemExit(run([*global_args, "catalog", *args]))
