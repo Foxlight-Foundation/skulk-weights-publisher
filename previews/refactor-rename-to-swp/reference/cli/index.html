@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">CLI Reference | SWP: Skulk Weights Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-weights-publisher/previews/refactor-rename-to-swp/reference/cli"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="CLI Reference | SWP: Skulk Weights Publisher"><meta data-rh="true" name="description" content="The skulk-weights CLI has three jobs:"><meta data-rh="true" property="og:description" content="The skulk-weights CLI has three jobs:"><link data-rh="true" rel="icon" href="/skulk-weights-publisher/previews/refactor-rename-to-swp/img/skulk-logo.svg"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-weights-publisher/previews/refactor-rename-to-swp/reference/cli"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/previews/refactor-rename-to-swp/reference/cli" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/previews/refactor-rename-to-swp/reference/cli" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"CLI Reference","item":"https://foxlight-foundation.github.io/skulk-weights-publisher/previews/refactor-rename-to-swp/reference/cli"}]}</script><link rel="stylesheet" href="/skulk-weights-publisher/previews/refactor-rename-to-swp/assets/css/styles.289aaf1c.css">
-<script src="/skulk-weights-publisher/previews/refactor-rename-to-swp/assets/js/runtime~main.843cf9e1.js" defer="defer"></script>
-<script src="/skulk-weights-publisher/previews/refactor-rename-to-swp/assets/js/main.ba18c37c.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/previews/refactor-rename-to-swp/assets/js/runtime~main.136add71.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/previews/refactor-rename-to-swp/assets/js/main.fbaf0705.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -72,13 +72,16 @@ scratch directory access, and catalog validity.</p>
 <code>huggingface_hub</code> package used for collection updates.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="skulk-weights-publish---model-key"><code>skulk-weights publish --model KEY</code><a href="#skulk-weights-publish---model-key" class="hash-link" aria-label="Direct link to skulk-weights-publish---model-key" title="Direct link to skulk-weights-publish---model-key" translate="no">​</a></h2>
 <p>Builds the publish plan for one catalog entry. With <code>--dry-run</code>, it only
-prints the plan. Without <code>--dry-run</code>, it runs extraction and publication for
-the selected artifact(s), then adds the published repository to the configured
-Hugging Face collection.</p>
+prints the plan. Without <code>--dry-run</code>, it runs LARQL extraction and publication
+for <code>vindex</code> artifacts, then adds the published repository to the configured
+Hugging Face collection. Non-dry-run publishing for <code>mtp</code> and <code>vision</code> is not
+yet implemented; passing those artifact types without <code>--dry-run</code> raises an
+error.</p>
 <p>Options:</p>
 <ul>
 <li class=""><code>--artifact vindex|mtp|vision</code>: publish only the named artifact. Omit to
-publish all artifacts declared for the entry (default behaviour).</li>
+publish all declared artifacts (currently only <code>vindex</code> executes; <code>mtp</code> and
+<code>vision</code> are plan-only until implemented).</li>
 <li class=""><code>--dry-run</code>: print commands without running LARQL</li>
 <li class=""><code>--force</code>: replace an existing local output path</li>
 <li class=""><code>--scratch PATH</code>: override <code>SKULK_WEIGHTS_SCRATCH</code></li>
