@@ -26,7 +26,7 @@ from skulk_weights_publisher.publisher import (
     resolve_publish_collection,
 )
 
-ARTIFACT_CHOICES = ["vindex", "mtp", "vision"]
+ARTIFACT_CHOICES = ["vindex", "mtp", "vision", "all"]
 
 
 def _catalogue_view_from_args(args: argparse.Namespace) -> CatalogueView:
@@ -198,8 +198,8 @@ def build_parser() -> argparse.ArgumentParser:
         choices=ARTIFACT_CHOICES,
         default=None,
         help=(
-            "Artifact type to publish. Omit to publish all declared artifacts "
-            "for this entry. Choices: vindex, mtp, vision."
+            "Artifact type to publish. Omit or pass 'all' to publish all "
+            "declared artifacts for this entry. Choices: vindex, mtp, vision, all."
         ),
     )
     publish_parser.add_argument(
