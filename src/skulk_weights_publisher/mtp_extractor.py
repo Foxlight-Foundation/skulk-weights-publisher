@@ -52,7 +52,8 @@ def extract_mtp(
         ) from exc
 
     # Identify which shards contain mtp.* keys.
-    shard_files = _find_mtp_shards(source_repo, token=token)
+    cache_dir = str(scratch_root / "_hf_cache")
+    shard_files = _find_mtp_shards(source_repo, token=token, cache_dir=cache_dir)
     if not shard_files:
         raise MtpExtractionError(
             f"no mtp.* keys found in {source_repo}; "
@@ -70,7 +71,7 @@ def extract_mtp(
                 repo_id=source_repo,
                 filename=shard,
                 token=token,
-                cache_dir=str(scratch_root / "_hf_cache"),
+                cache_dir=cache_dir,
             )
         )
         local_shards.append(local)
@@ -118,10 +119,13 @@ def _find_mtp_shards(
     source_repo: str,
     *,
     token: str | None,
+    cache_dir: str | None = None,
 ) -> list[str]:
     """Return the shard filenames in source_repo that contain mtp.* keys.
 
     Checks for a sharded index first; falls back to the single-file layout.
+    Pass cache_dir so any single-file download lands in the same location that
+    the caller will use for the full extraction, avoiding a double download.
     """
     from huggingface_hub import hf_hub_download
     from huggingface_hub.errors import EntryNotFoundError
@@ -132,6 +136,7 @@ def _find_mtp_shards(
             repo_id=source_repo,
             filename="model.safetensors.index.json",
             token=token,
+            cache_dir=cache_dir,
         )
         with open(index_path, encoding="utf-8") as fh:
             index = json.load(fh)
@@ -152,6 +157,7 @@ def _find_mtp_shards(
             repo_id=source_repo,
             filename="model.safetensors",
             token=token,
+            cache_dir=cache_dir,
         )
     except EntryNotFoundError:
         return []
