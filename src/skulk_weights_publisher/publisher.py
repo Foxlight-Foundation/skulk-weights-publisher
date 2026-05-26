@@ -8,6 +8,7 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from skulk_weights_publisher.defaults import COLLECTION_ENV_VAR
 from skulk_weights_publisher.manifest import HF_COLLECTION_PATTERN, ManifestEntry
@@ -121,8 +122,8 @@ def build_publish_plan(
     mtp_step = (
         MtpSidecarStep(
             source_repo=entry.mtp_source_repo,
-            sidecar_repo=entry.mtp_sidecar_repo,
-            mtp_quant=entry.mtp_quant,
+            sidecar_repo=cast(str, entry.mtp_sidecar_repo),
+            mtp_quant=cast(str, entry.mtp_quant),
         )
         if entry.mtp_source_repo is not None
         else None
