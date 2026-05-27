@@ -241,6 +241,78 @@ models:
         validate_manifest(manifest)
 
 
+def test_mtp_sidecar_owner_must_match_hf_repo_owner(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: owner/model-a-bf16
+    mtp_sidecar_repo: other/model-a-mtp-int4
+    mtp_quant: q4k
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError, match="mtp_sidecar_repo owner must be 'acme'"):
+        validate_manifest(manifest)
+
+
+def test_mtp_partial_fields_two_set_rejected(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: acme/model-a-bf16
+    mtp_sidecar_repo: acme/model-a-mtp-int4
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ManifestError, match="mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
+    ):
+        validate_manifest(manifest)
+
+
+def test_mtp_same_source_and_sidecar_still_requires_all_three(tmp_path: Path) -> None:
+    """Set deduplication must not mask partial config when source == sidecar."""
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: acme/model-a
+    mtp_sidecar_repo: acme/model-a
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ManifestError, match="mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
+    ):
+        validate_manifest(manifest)
+
+
 def test_hugging_face_collection_owner_must_match_config(tmp_path: Path) -> None:
     manifest = tmp_path / "models.yaml"
     manifest.write_text(

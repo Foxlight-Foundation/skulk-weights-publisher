@@ -65,10 +65,14 @@ class PublishPlan:
             ]
         if artifact in ("all", "mtp"):
             if self.mtp_step is not None:
+                mtp_output = self.scratch_root / (
+                    self.mtp_step.sidecar_repo.replace("/", "--") + "-mtp.safetensors"
+                )
                 lines += [
                     f"mtp source repo:  hf://{self.mtp_step.source_repo}",
                     f"mtp sidecar repo: hf://{self.mtp_step.sidecar_repo}/mtp.safetensors",
                     f"mtp quant:        {self.mtp_step.mtp_quant}",
+                    f"mtp output path:  {mtp_output}",
                 ]
             else:
                 lines.append("mtp step: not configured for this entry")
