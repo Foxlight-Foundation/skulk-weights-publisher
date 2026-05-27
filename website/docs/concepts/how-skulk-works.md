@@ -4,7 +4,7 @@ title: How Skulk Works
 
 This page gives you a working picture of Skulk before you touch anything in
 this repository. It assumes you understand LLM inference at a conceptual level
-but have not encountered LARQL or vindexes before.
+but have not encountered LARQL, vindexes, or MTP sidecars before.
 
 ## The problem: GPU memory is the bottleneck
 
@@ -142,28 +142,58 @@ That is why the catalog has separate entries for `gemma-4-26b-a4b-full-q4-k`
 and `gemma-4-26b-a4b-expert-server-q4-k` — they describe different published
 shapes of the same upstream model, intended for different runtime roles.
 
+## Multi-token prediction sidecars
+
+Some models are trained with native multi-token prediction (MTP) heads. Instead
+of predicting one next token at a time, a model with MTP learns to predict
+several future tokens simultaneously. At inference time, Skulk can use these
+heads for speculative decoding: the model drafts multiple tokens in a single
+forward pass, then verifies them cheaply, substantially increasing throughput
+with no accuracy loss.
+
+MTP heads appear as tensors with `mtp.*` keys in the checkpoint. Models that
+expose them include Qwen3 and DeepSeek V3/R1. The problem is that standard
+quantization pipelines — including mlx-lm's `sanitize()` function used by most
+GGUF and MLX workflows — strip MTP tensors to reduce download size. The
+quantized checkpoint you download from Hugging Face typically does not have them.
+
+SWP solves this with a separate extraction pipeline. Given a catalog entry with
+MTP fields configured, SWP:
+
+1. Downloads the original BF16 checkpoint (not the quantized one).
+2. Identifies the `mtp.*` tensor keys.
+3. Quantizes only those tensors at the specified precision.
+4. Uploads the result as `mtp.safetensors` to a dedicated sidecar repo.
+
+The sidecar repo is separate from the vindex repo so each artifact has a stable,
+unambiguous identity and can be updated independently. The Skulk cluster loads
+the sidecar alongside the vindex when speculative decoding is enabled for that
+model.
+
 ## Where SWP Fits
 
-Publishing a vindex is expensive and easy to get wrong. A bad `larql extract`
+Weight publication is expensive and easy to get wrong. A bad `larql extract`
 command can write hundreds of gigabytes to the wrong path. A bad `larql publish`
 command can upload a vindex under the wrong Hugging Face repository name,
-leaving the cluster unable to agree on which object to use.
+leaving the cluster unable to agree on which object to use. An MTP step that
+runs against the wrong source checkpoint silently omits the prediction heads.
 
-SWP: Skulk Weights Publisher exists to make publication repeatable:
+SWP: Skulk Weights Publisher exists to make both kinds of publication repeatable:
 
-- the catalog records the exact source model, quantization, slice mode, and
-  target repository for each vindex
-- `skulk-weights publish --dry-run` prints the exact LARQL commands before
-  anything is extracted or uploaded
+- the catalog records the exact source model, quantization, slice mode, target
+  repository, and — where applicable — MTP source repo, sidecar repo, and
+  quantization for each entry
+- `skulk-weights publish --dry-run` prints the full plan before anything is
+  extracted or uploaded
 - the GitHub Actions workflow validates every catalog entry on every pull
   request
 - the self-hosted runner performs real extraction and upload only when the plan
   has been reviewed
 
-Once a vindex is published, Skulk operators have a stable repository name to
-assign to GPU inference nodes and LARQL servers. That assignment is what
-connects the published vindex to the cluster's runtime placement.
+Once a vindex and MTP sidecar are published, Skulk operators have stable
+repository names to assign to GPU inference nodes, LARQL servers, and the
+speculative decoding pipeline. Those assignments are what connect the published
+artifacts to the cluster's runtime placement.
 
 Read [The Catalog](catalog.md) next to see how entries are structured and
-how operator-owned vindexes can be added alongside the built-in Foxlight
-entries.
+how operator-owned entries can be added alongside the built-in Foxlight ones.

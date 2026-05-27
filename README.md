@@ -1,21 +1,29 @@
 # SWP: Skulk Weights Publisher
 
-Build and publish LARQL vindexes for Skulk.
+Publish Skulk model weights: LARQL vindexes and MTP sidecars.
 
 Documentation: <https://foxlight-foundation.github.io/skulk-weights-publisher/>
 
-Skulk is a distributed LLM inference system. LARQL treats model weights as a
-database: it decompiles transformer weights into a queryable vindex and exposes
-LQL, the Lazarus Query Language, for browsing, editing, running inference
-against, and recompiling model knowledge. A vindex is a vector-index directory
-derived from an upstream Hugging Face model and published so Skulk does not have
+Skulk is a distributed LLM inference system. SWP publishes two kinds of model
+weights that Skulk clusters consume:
+
+**LARQL vindexes** — LARQL treats model weights as a database, decompiling
+transformer weights into a queryable vindex and exposing LQL, the Lazarus Query
+Language. A vindex is a vector-index directory published so Skulk does not have
 to keep every weight resident in expensive GPU memory: CPU/high-memory LARQL
-servers can host feed-forward weights while GPU nodes handle the
-latency-sensitive inference path.
+servers host feed-forward weights while GPU nodes handle the latency-sensitive
+inference path.
+
+**MTP sidecars** — Models with native multi-token prediction heads (`mtp.*`
+tensor keys, such as Qwen3 and DeepSeek V3/R1) require those heads to be
+published separately. Standard quantization pipelines (e.g. mlx-lm's
+`sanitize()`) strip MTP tensors. SWP re-extracts them from the original BF16
+checkpoint, quantizes, and publishes the result as `mtp.safetensors` to a
+dedicated Hugging Face repo so Skulk can use speculative decoding.
 
 This repository is the controlled publication workflow. It keeps the catalog
-of publishable vindexes, validates that catalog, prints the exact LARQL
-commands, and runs publication from a configured runner.
+of publishable model weights, validates that catalog, prints the exact commands,
+and runs publication from a configured runner.
 
 The Foxlight catalog is included automatically and publishes to the
 `FoxlightAI` Hugging Face organization and the public
@@ -27,19 +35,22 @@ Foxlight entries and local operator entries can coexist safely.
 
 ## Why This Exists
 
-Vindex publication is expensive and easy to get wrong. A bad command can write a
-large vindex to the wrong scratch path or publish it under the wrong Hugging
-Face repository. This project makes publication repeatable:
+Weight publication is expensive and easy to get wrong. A bad command can write
+hundreds of gigabytes to the wrong scratch path, publish under the wrong Hugging
+Face repository, or silently omit MTP heads that a model needs. This project
+makes publication repeatable:
 
-- packaged Foxlight catalog entries describe shared Skulk vindexes published
-  under `FoxlightAI`
+- packaged Foxlight catalog entries describe shared vindexes and MTP sidecars
+  published under `FoxlightAI`
 - `skulk-weights.yaml` can add operator-owned catalog source files
 - `skulk-weights catalog validate` checks the merged catalog
-- `skulk-weights publish --dry-run` prints the LARQL plan
+- `skulk-weights publish --dry-run` prints the full publication plan
 - GitHub Actions validates every catalog entry
-- the self-hosted runner performs real LARQL publication
+- the self-hosted runner performs real extraction and publication
 
 ## Catalog
+
+Vindex entries (all entries currently in the Foxlight catalog):
 
 | Key | Source model | Quant | Slices |
 |---|---|---|---|
@@ -53,7 +64,14 @@ Face repository. This project makes publication repeatable:
 | `foxlight/mixtral-8x22b-full-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `full` |
 | `foxlight/mixtral-8x22b-expert-server-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `expert-server` |
 
+Catalog entries can additionally declare MTP fields (`mtp_source_repo`,
+`mtp_sidecar_repo`, `mtp_quant`) to enable sidecar extraction for models with
+native prediction heads. See the [MTP sidecar guide](https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar)
+for catalog entry format and prerequisites.
+
 ## Required Operator Setup
+
+For vindex publication:
 
 1. Install LARQL on the self-hosted runner and make `larql` available on `PATH`.
 2. Configure `HF_TOKEN` as a GitHub Actions secret with write access to the
@@ -62,6 +80,14 @@ Face repository. This project makes publication repeatable:
    `self-hosted`, `linux`, `larql`, `vindex`.
 4. Provision at least 200 GB of fast scratch storage for the first smoke-tier
    publish. MoE entries require substantially more scratch capacity.
+
+For MTP sidecar publication (additional):
+
+5. The runner must be able to download the source BF16 checkpoint from Hugging
+   Face. HF_TOKEN must have read access to the source repo and write access to
+   the sidecar repo.
+6. Provision additional scratch capacity for the BF16 checkpoint download before
+   quantization. Typical BF16 checkpoints run 15–30 GB per model.
 
 ## Install The CLI
 
@@ -82,15 +108,15 @@ skulk-weights doctor
 skulk-weights catalog validate
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact vindex --dry-run
+skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
 ```
 
-The `--artifact` flag selects which artifact to publish (`vindex`, `mtp`, or
-`vision`). Omit it to publish all declared artifacts. Non-dry-run execution is
-currently implemented for `vindex` only; `mtp` and `vision` raise an error
-outside of `--dry-run` until their extraction pipelines are complete.
+The `--artifact` flag selects which artifact to publish: `vindex` (LARQL vindex),
+`mtp` (MTP sidecar), or `all` (both, when the entry has both configured). Omit
+it to publish all declared artifacts for that entry.
 
-The dry run prints the LARQL commands that would execute without extracting or
-publishing weight artifacts.
+The dry run prints the commands and paths that would execute without extracting
+or uploading weight files.
 
 ## Publication Preflight
 

@@ -2,29 +2,24 @@
 title: Quickstart
 ---
 
-This guide gets you from a clean checkout to your first publisher dry-run.
+This guide gets you from a clean checkout to your first publisher dry-runs —
+one for a LARQL vindex, one for an MTP sidecar.
 
 If you are new to Skulk and LARQL, read [How Skulk Works](concepts/how-skulk-works.md)
-first. It explains the cluster architecture, what a vindex is, and why the
-publisher exists before you run any commands.
+first. It explains the cluster architecture, what a vindex is, what MTP sidecars
+are for, and why the publisher exists before you run any commands.
 
 If you already have that context, keep the core model in mind:
 
-- LARQL decompiles transformer weights into queryable vindexes.
-- A vindex is a vector-index directory LARQL can query, run, and publish.
-- Skulk uses published vindexes to place weight-serving work on the right
-  machines: GPU nodes for the attention path, CPU/high-memory LARQL servers
-  for FFN and expert weights.
+- SWP publishes two artifact types: **vindexes** (via LARQL) and **MTP sidecars**.
+- A vindex is a vector-index directory LARQL can query, run, and publish to let
+  Skulk split weight-serving work across GPU nodes and CPU/high-memory servers.
+- An MTP sidecar is a separately quantized file (`mtp.safetensors`) extracted
+  from the BF16 checkpoint for models with native multi-token prediction heads.
 
-A dry-run is the best first command because it answers four practical questions
-before touching any disk or network:
-
-1. Which upstream model will be used?
-2. Where will the local vindex directory be written?
-3. Which Hugging Face repository would receive the published vindex?
-4. Which Hugging Face collection would list the published repo?
-
-It prints the LARQL commands without extracting weights or uploading files.
+A dry-run is the best first command because it prints the full publication plan
+— source model, output path, target repo, commands — without touching disk or
+network.
 
 ## Requirements
 
@@ -81,13 +76,14 @@ skulk-weights doctor --publish
 ## 4. Dry-Run One Vindex
 
 ```bash
-skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact vindex --dry-run
 ```
 
 You should see a summary like:
 
 ```text
 model key: foxlight/gemma-3-4b-full-q4-k
+artifact: vindex
 source model: google/gemma-3-4b-it
 output path: .scratch/gemma-3-4b-it-full-q4-k.vindex
 target repo: hf://FoxlightAI/gemma-3-4b-it-full-q4-k-vindex
@@ -105,9 +101,36 @@ One thing that looks surprising: entries with `slices: [full]` show
 LARQL uses `none` to mean "publish the complete vindex." The catalog field
 is `full`; the LARQL flag is `none`. They refer to the same thing.
 
-## 5. Go Deeper
+## 5. Dry-Run One MTP Sidecar
+
+For catalog entries that have MTP fields configured, dry-run the sidecar step
+separately to verify the source repo, sidecar repo, quantization, and output
+path before any download starts:
+
+```bash
+skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
+```
+
+You should see something like:
+
+```text
+model key: my-org/my-model
+artifact: mtp
+mtp source repo:  hf://Qwen/Qwen3-6-7B
+mtp sidecar repo: hf://my-org/qwen3-6-7b-mtp-int4/mtp.safetensors
+mtp quant:        q4k
+mtp output path:  .scratch/my-org--qwen3-6-7b-mtp-int4-mtp.safetensors
+```
+
+If the built-in Foxlight entries do not have MTP configured yet, the output will
+say `mtp step: not configured for this entry`. Refer to the
+[MTP sidecar guide](guides/mtp-sidecar.md) to add an MTP-capable catalog entry.
+
+## 6. Go Deeper
 
 [How Skulk Works](concepts/how-skulk-works.md) explains the end-to-end cluster
-architecture and why the vindex format exists. [Skulk, LARQL, and
-Vindexes](concepts/vindexes.md) covers the vindex structure and extraction
-levels in more detail.
+architecture, why the vindex format exists, and what MTP sidecars enable.
+[MTP Sidecar](guides/mtp-sidecar.md) covers the full extraction workflow,
+catalog entry format, and troubleshooting for MTP publication.
+[Skulk, LARQL, and Vindexes](concepts/vindexes.md) covers vindex structure and
+extraction levels in more detail.
