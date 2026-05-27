@@ -12,6 +12,7 @@ import yaml
 
 DEFAULT_MANIFEST_PATH = Path("models.yaml")
 ALLOWED_QUANTS = {"q4k"}
+ALLOWED_MTP_QUANTS = {"q4k", "q8k"}
 ALLOWED_SLICES = {"full", "expert-server"}
 ALLOWED_TIERS = {"smoke", "moe"}
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -30,7 +31,7 @@ class ManifestError(ValueError):
 
 @dataclass(frozen=True)
 class ManifestEntry:
-    """One publishable vindex entry from a catalogue source."""
+    """One publishable entry from a catalogue source."""
 
     key: str
     source_model: str
@@ -40,6 +41,9 @@ class ManifestEntry:
     output_name: str
     hf_repo: str
     hf_collection: str | None = None
+    mtp_source_repo: str | None = None
+    mtp_sidecar_repo: str | None = None
+    mtp_quant: str | None = None
 
     @property
     def publish_slices(self) -> str:
@@ -195,6 +199,30 @@ def validate_manifest_payload(
                     f"{effective_key}: hf_collection owner must be {hf_owner!r}"
                 )
 
+        mtp_source_repo = _optional_string(entry, "mtp_source_repo", effective_key)
+        mtp_sidecar_repo = _optional_string(entry, "mtp_sidecar_repo", effective_key)
+        mtp_quant_raw = _optional_string(entry, "mtp_quant", effective_key)
+
+        mtp_set = {f for f in (mtp_source_repo, mtp_sidecar_repo, mtp_quant_raw) if f}
+        if mtp_set and len(mtp_set) != 3:
+            raise ManifestError(
+                f"{effective_key}: mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
+                " must all be set together or not at all"
+            )
+        if mtp_source_repo is not None:
+            if not HF_REPO_PATTERN.fullmatch(mtp_source_repo):
+                raise ManifestError(
+                    f"{effective_key}: mtp_source_repo must look like owner/name"
+                )
+            if not HF_REPO_PATTERN.fullmatch(mtp_sidecar_repo):  # type: ignore[arg-type]
+                raise ManifestError(
+                    f"{effective_key}: mtp_sidecar_repo must look like owner/name"
+                )
+            if mtp_quant_raw not in ALLOWED_MTP_QUANTS:
+                raise ManifestError(
+                    f"{effective_key}: unsupported mtp_quant {mtp_quant_raw!r}"
+                )
+
         entries.append(
             ManifestEntry(
                 key=effective_key,
@@ -205,6 +233,9 @@ def validate_manifest_payload(
                 output_name=output_name,
                 hf_repo=hf_repo,
                 hf_collection=entry_hf_collection,
+                mtp_source_repo=mtp_source_repo,
+                mtp_sidecar_repo=mtp_sidecar_repo,
+                mtp_quant=mtp_quant_raw,
             )
         )
 

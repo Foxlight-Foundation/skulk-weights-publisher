@@ -8,6 +8,7 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from skulk_weights_publisher.defaults import COLLECTION_ENV_VAR
 from skulk_weights_publisher.manifest import HF_COLLECTION_PATTERN, ManifestEntry
@@ -15,6 +16,15 @@ from skulk_weights_publisher.manifest import HF_COLLECTION_PATTERN, ManifestEntr
 
 class PublishError(RuntimeError):
     """Raised when a publish command cannot be executed safely."""
+
+
+@dataclass(frozen=True)
+class MtpSidecarStep:
+    """Parameters for the MTP weight extraction and sidecar publish step."""
+
+    source_repo: str
+    sidecar_repo: str
+    mtp_quant: str
 
 
 @dataclass(frozen=True)
@@ -27,6 +37,7 @@ class PublishPlan:
     extract_command: tuple[str, ...]
     publish_command: tuple[str, ...]
     collection_slug: str | None
+    mtp_step: MtpSidecarStep | None = None
 
     def summary_lines(self, *, force: bool, artifact: str = "all") -> tuple[str, ...]:
         """Return the human-readable command summary printed before execution."""
@@ -53,7 +64,14 @@ class PublishPlan:
                 f"publish command:{format_command(self.publish_command)}",
             ]
         if artifact in ("all", "mtp"):
-            lines.append("mtp step: not yet implemented")
+            if self.mtp_step is not None:
+                lines += [
+                    f"mtp source repo:  hf://{self.mtp_step.source_repo}",
+                    f"mtp sidecar repo: hf://{self.mtp_step.sidecar_repo}/mtp.safetensors",
+                    f"mtp quant:        {self.mtp_step.mtp_quant}",
+                ]
+            else:
+                lines.append("mtp step: not configured for this entry")
         if artifact in ("all", "vision"):
             lines.append("vision step: not yet implemented")
         return tuple(lines)
@@ -101,6 +119,15 @@ def build_publish_plan(
         "--slices",
         entry.publish_slices,
     )
+    mtp_step = (
+        MtpSidecarStep(
+            source_repo=entry.mtp_source_repo,
+            sidecar_repo=cast(str, entry.mtp_sidecar_repo),
+            mtp_quant=cast(str, entry.mtp_quant),
+        )
+        if entry.mtp_source_repo is not None
+        else None
+    )
     return PublishPlan(
         entry=entry,
         scratch_root=resolved_scratch,
@@ -108,6 +135,7 @@ def build_publish_plan(
         extract_command=extract_command,
         publish_command=publish_command,
         collection_slug=resolved_collection,
+        mtp_step=mtp_step,
     )
 
 
@@ -155,18 +183,18 @@ def execute_publish_plan(
     env = os.environ if environ is None else environ
     if dry_run:
         return
-    if shutil.which("larql") is None:
-        raise PublishError("larql is required for non-dry-run publishing")
     if not env.get("HF_TOKEN"):
         raise PublishError("HF_TOKEN is required for non-dry-run publishing")
 
-    if artifact not in ("all", "vindex"):
+    if artifact not in ("all", "vindex", "mtp"):
         raise PublishError(
             f"artifact '{artifact}' is not yet implemented for non-dry-run publishing; "
             "use --dry-run to preview the plan"
         )
 
     if artifact in ("all", "vindex"):
+        if shutil.which("larql") is None:
+            raise PublishError("larql is required for vindex publishing")
         plan.scratch_root.mkdir(parents=True, exist_ok=True)
         if plan.output_path.exists():
             if not force:
@@ -182,6 +210,26 @@ def execute_publish_plan(
                 plan.collection_slug,
                 plan.entry.hf_repo,
                 token=env.get("HF_TOKEN"),
+            )
+
+    if artifact in ("all", "mtp"):
+        if plan.mtp_step is None:
+            if artifact == "mtp":
+                raise PublishError(
+                    f"no MTP sidecar configured for {plan.entry.key}; "
+                    "add mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
+                    " to the catalog entry"
+                )
+        else:
+            from skulk_weights_publisher.mtp_extractor import extract_mtp
+
+            extract_mtp(
+                plan.mtp_step.source_repo,
+                plan.mtp_step.sidecar_repo,
+                plan.mtp_step.mtp_quant,
+                plan.scratch_root,
+                token=env.get("HF_TOKEN"),
+                dry_run=False,
             )
 
 

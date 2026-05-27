@@ -110,18 +110,22 @@ Adds publication-specific checks for `larql`, `HF_TOKEN`, and the
 ## `skulk-weights publish --model KEY`
 
 Builds the publish plan for one catalog entry. With `--dry-run`, it only
-prints the plan. Without `--dry-run`, it runs LARQL extraction and publication
-for `vindex` artifacts, then adds the published repository to the configured
-Hugging Face collection. Non-dry-run publishing for `mtp` and `vision` is not
-yet implemented; passing those artifact types without `--dry-run` raises an
-error.
+prints the plan. Without `--dry-run`, it runs the selected artifact step:
+
+- `vindex`: runs `larql extract`, `larql publish`, and adds the repository to
+  the configured Hugging Face collection.
+- `mtp`: downloads only the shards that contain `mtp.*` tensor keys from the
+  original BF16 checkpoint, quantizes them, and uploads `mtp.safetensors` to
+  the sidecar repository. Requires `mtp_source_repo`, `mtp_sidecar_repo`, and
+  `mtp_quant` on the catalog entry.
+- `vision`: not yet implemented; raises an error if passed without `--dry-run`.
+- `all` (default): runs `vindex`, then `mtp` if configured on the entry.
 
 Options:
 
-- `--artifact vindex|mtp|vision`: publish only the named artifact. Omit to
-  publish all declared artifacts (currently only `vindex` executes; `mtp` and
-  `vision` are plan-only until implemented).
-- `--dry-run`: print commands without running LARQL
+- `--artifact vindex|mtp|vision|all`: publish only the named artifact, or all
+  declared artifacts when omitted.
+- `--dry-run`: print the plan without running any extraction or upload
 - `--force`: replace an existing local output path
 - `--scratch PATH`: override `SKULK_WEIGHTS_SCRATCH`
 
@@ -129,7 +133,9 @@ Examples:
 
 ```bash
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
-skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact mtp --dry-run
+skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k
+skulk-weights publish --model my-org/qwen3-6b-full-q4-k --artifact mtp --dry-run
+skulk-weights publish --model my-org/qwen3-6b-full-q4-k --artifact mtp
 skulk-weights --config skulk-weights.yaml publish \
   --model my-org/llama-3-8b-full-q4-k \
   --scratch /fast/skulk-weights
@@ -146,4 +152,5 @@ Expected dry-run output includes:
 - target Hugging Face collection
 - `larql extract` command (vindex artifact)
 - `larql publish` command (vindex artifact)
-- status note for mtp and vision artifacts when not yet implemented
+- MTP source repo, sidecar repo, quant, and output path (mtp artifact)
+- note when mtp or vision is not configured for the entry

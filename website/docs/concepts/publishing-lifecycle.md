@@ -58,8 +58,38 @@ uploaded.
 After extraction, the publisher runs `larql publish` and uploads the vindex to
 the Hugging Face repository in the catalog entry.
 
-## 7. Use The Published Vindex
+## 7. Extract And Publish The MTP Sidecar (optional)
 
-Once published, the vindex has a stable repository name. Skulk operators can
-use that name when assigning GPU nodes to the latency-sensitive inference path
-and CPU/high-memory LARQL servers to FFN or expert weight serving.
+For models that carry native Multi-Token Prediction heads—Qwen3, DeepSeek V3/R1,
+and similar architectures—a second extraction pass pulls the `mtp.*` tensors from
+the original BF16 checkpoint, quantizes them, and uploads them as `mtp.safetensors`
+to a separate sidecar repository.
+
+This step is separate from vindex publication because the MTP weights must come from
+the original PyTorch checkpoint. mlx-lm's `sanitize()` strips `mtp.*` keys during
+conversion, so the mlx-converted source used for vindex extraction does not contain
+them.
+
+```bash
+skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp --dry-run
+skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp
+```
+
+The dry-run prints the source repo, sidecar repo, quant, and output path before
+any download begins. Real execution downloads only the shards that contain `mtp.*`
+keys (using the model's `model.safetensors.index.json` to identify them), quantizes
+the tensors, saves a local `mtp.safetensors`, and uploads it to the sidecar repo.
+
+If `mtp_source_repo`, `mtp_sidecar_repo`, and `mtp_quant` are not set on the catalog
+entry, `--artifact mtp` raises an error with a clear message rather than silently
+skipping.
+
+See the [MTP Sidecar Guide](../guides/mtp-sidecar.md) for a complete walkthrough.
+
+## 8. Use The Published Weights
+
+Once published, the vindex and any sidecar have stable repository names. Skulk
+operators can use those names when assigning GPU nodes to the latency-sensitive
+inference path and CPU/high-memory LARQL servers to FFN or expert weight serving.
+Skulk loads the MTP sidecar at inference time when MTP is enabled for a given
+deployment.

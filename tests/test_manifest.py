@@ -93,6 +93,154 @@ models:
     assert entries[0].hf_collection == "acme/vindexes-0123456789abcdef01234567"
 
 
+def _mtp_manifest(tmp_path: Path, *, extra: str = "") -> Path:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        f"""
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: owner/model-a-bf16
+    mtp_sidecar_repo: acme/model-a-mtp-int4
+    mtp_quant: q4k
+{extra}
+""",
+        encoding="utf-8",
+    )
+    return manifest
+
+
+def test_mtp_fields_accepted(tmp_path: Path) -> None:
+    entries = validate_manifest(_mtp_manifest(tmp_path))
+
+    assert entries[0].mtp_source_repo == "owner/model-a-bf16"
+    assert entries[0].mtp_sidecar_repo == "acme/model-a-mtp-int4"
+    assert entries[0].mtp_quant == "q4k"
+
+
+def test_mtp_fields_absent_leaves_none(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+""",
+        encoding="utf-8",
+    )
+
+    entries = validate_manifest(manifest)
+
+    assert entries[0].mtp_source_repo is None
+    assert entries[0].mtp_sidecar_repo is None
+    assert entries[0].mtp_quant is None
+
+
+def test_mtp_partial_fields_rejected(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: owner/model-a-bf16
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ManifestError, match="mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
+    ):
+        validate_manifest(manifest)
+
+
+def test_mtp_q8k_accepted(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: owner/model-a-bf16
+    mtp_sidecar_repo: acme/model-a-mtp-q8k
+    mtp_quant: q8k
+""",
+        encoding="utf-8",
+    )
+
+    entries = validate_manifest(manifest)
+
+    assert entries[0].mtp_quant == "q8k"
+
+
+def test_mtp_bad_quant_rejected(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: owner/model-a-bf16
+    mtp_sidecar_repo: acme/model-a-mtp-int4
+    mtp_quant: q99z
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError, match="unsupported mtp_quant"):
+        validate_manifest(manifest)
+
+
+def test_mtp_bad_repo_pattern_rejected(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: not-a-valid-repo
+    mtp_sidecar_repo: acme/model-a-mtp-int4
+    mtp_quant: q4k
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ManifestError, match="mtp_source_repo must look like owner/name"
+    ):
+        validate_manifest(manifest)
+
+
 def test_hugging_face_collection_owner_must_match_config(tmp_path: Path) -> None:
     manifest = tmp_path / "models.yaml"
     manifest.write_text(
