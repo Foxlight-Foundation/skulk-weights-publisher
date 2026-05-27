@@ -88,6 +88,9 @@ For MTP sidecar publication (additional):
    the sidecar repo.
 6. Provision additional scratch capacity for the BF16 checkpoint download before
    quantization. Typical BF16 checkpoints run 15–30 GB per model.
+7. Install the `mtp` optional extras: `pip install -e ".[mtp]"`. This pulls in
+   `safetensors` and `mlx`. `mlx` requires macOS (Apple Silicon) — the standard
+   Linux runner cannot perform real MTP extraction.
 
 ## Install The CLI
 
