@@ -49,6 +49,11 @@ First-publish capacity targets:
   (typically 15–30 GB per model, on top of vindex scratch)
 - `HF_TOKEN` must have read access to the MTP source repo (usually the same
   upstream model as the vindex entry)
+- `safetensors` and `mlx` Python packages are required for real extraction;
+  install with `pip install -e ".[mtp]"` on the runner
+- `mlx` requires macOS (Apple Silicon) — the standard Linux runner
+  (`self-hosted, linux, larql, vindex`) cannot perform real MTP extraction;
+  a macOS runner or separate extraction step is needed for MTP publication
 
 The runner does not need to be the eventual runtime server. It needs enough disk
 and network to extract and upload safely. MoE-tier entries are manual by default
@@ -91,10 +96,18 @@ skulk-weights doctor --publish
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
-For entries with MTP configured, dry-run the MTP step too:
+For entries with MTP configured, dry-run the MTP step too (no extra packages
+needed for dry-run — the download and quantization are skipped):
 
 ```bash
 skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
+```
+
+For real MTP extraction, also install the `mtp` extras on a macOS (Apple Silicon)
+runner:
+
+```bash
+pip install -e ".[mtp]"
 ```
 
 Then use manual workflow dispatch for a single smoke-tier entry before expanding
@@ -104,8 +117,6 @@ publication to more keys.
 
 - `model=all`, `tier=smoke`, `dry_run=false` publishes the scheduled smoke set.
 - `model=<catalog-key>` publishes one entry and ignores `tier`.
-- `artifact=vindex` or `artifact=mtp` restricts which artifact type is published
-  for that run; omit to publish all configured artifacts.
 - `catalog_config=skulk-weights.yaml` includes operator catalog sources.
 - `SKULK_WEIGHTS_COLLECTION` can be set as a repository variable to override
   collection updates for a run; set it to `none` to skip collection updates.

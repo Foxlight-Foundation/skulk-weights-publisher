@@ -14,6 +14,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Required for real MTP sidecar extraction (not needed for dry-run or vindex publication).
+# mlx requires macOS (Apple Silicon); Linux runners cannot perform real MTP extraction.
+mtp = [
+  "safetensors>=0.4",
+  "mlx>=0.22",
+]
 dev = [
   "basedpyright>=1.29.4",
   "pytest>=8.3.5",
