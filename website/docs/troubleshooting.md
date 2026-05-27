@@ -85,9 +85,13 @@ skulk-weights publish \
 
 ## `no MTP sidecar configured for ...`
 
-You ran `--artifact mtp` on an entry that does not have `mtp_source_repo`,
-`mtp_sidecar_repo`, and `mtp_quant` set in the catalog. Either add those fields
-to the entry or use `--artifact vindex` to publish only the vindex.
+This error occurs during real (non-dry-run) publishing. You ran `--artifact mtp`
+on an entry that does not have `mtp_source_repo`, `mtp_sidecar_repo`, and
+`mtp_quant` set in the catalog. In dry-run mode the publisher instead prints
+`mtp step: not configured for this entry` and exits cleanly.
+
+Either add those fields to the entry or use `--artifact vindex` to publish only
+the vindex.
 
 See the [MTP sidecar guide](guides/mtp-sidecar.md) for the required catalog
 fields and how to structure the entry.

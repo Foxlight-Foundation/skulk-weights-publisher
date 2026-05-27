@@ -49,11 +49,12 @@ First-publish capacity targets:
   (typically 15–30 GB per model, on top of vindex scratch)
 - `HF_TOKEN` must have read access to the MTP source repo (usually the same
   upstream model as the vindex entry)
-- `safetensors` and `mlx` Python packages are required for real extraction;
-  install with `pip install -e ".[mtp]"` on the runner
-- `mlx` requires macOS (Apple Silicon) — the standard Linux runner
-  (`self-hosted, linux, larql, vindex`) cannot perform real MTP extraction;
-  a macOS runner or separate extraction step is needed for MTP publication
+- install the `mtp` extras on the extraction runner: `pip install -e ".[mtp]"`;
+  this installs `safetensors` on all platforms and `mlx` on macOS Apple Silicon
+  only (platform-gated in pyproject.toml — Linux runners will not get mlx)
+- real MTP extraction requires macOS (Apple Silicon); the standard Linux runner
+  (`self-hosted, linux, larql, vindex`) cannot run mlx — a separate macOS
+  Apple Silicon runner or step is needed for MTP publication
 
 The runner does not need to be the eventual runtime server. It needs enough disk
 and network to extract and upload safely. MoE-tier entries are manual by default

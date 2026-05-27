@@ -40,8 +40,8 @@ hundreds of gigabytes to the wrong scratch path, publish under the wrong Hugging
 Face repository, or silently omit MTP heads that a model needs. This project
 makes publication repeatable:
 
-- packaged Foxlight catalog entries describe shared vindexes and MTP sidecars
-  published under `FoxlightAI`
+- packaged Foxlight catalog entries describe shared Skulk vindexes published
+  under `FoxlightAI`; MTP sidecar entries can be added by operators
 - `skulk-weights.yaml` can add operator-owned catalog source files
 - `skulk-weights catalog validate` checks the merged catalog
 - `skulk-weights publish --dry-run` prints the full publication plan
@@ -88,9 +88,10 @@ For MTP sidecar publication (additional):
    the sidecar repo.
 6. Provision additional scratch capacity for the BF16 checkpoint download before
    quantization. Typical BF16 checkpoints run 15–30 GB per model.
-7. Install the `mtp` optional extras: `pip install -e ".[mtp]"`. This pulls in
-   `safetensors` and `mlx`. `mlx` requires macOS (Apple Silicon) — the standard
-   Linux runner cannot perform real MTP extraction.
+7. Install the `mtp` optional extras: `pip install -e ".[mtp]"`. This installs
+   `safetensors` on all platforms; `mlx` is only installed on macOS (Apple
+   Silicon) due to a platform marker. The standard Linux runner cannot perform
+   real MTP extraction — a macOS Apple Silicon runner is required.
 
 ## Install The CLI
 
