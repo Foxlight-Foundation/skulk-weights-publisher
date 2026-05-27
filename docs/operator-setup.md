@@ -104,15 +104,18 @@ needed for dry-run — the download and quantization are skipped):
 skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
 ```
 
-For real MTP extraction, also install the `mtp` extras on a macOS (Apple Silicon)
-runner:
+For real MTP extraction, run the publish command directly on a macOS (Apple
+Silicon) machine — the GitHub Actions workflow is pinned to the Linux vindex
+runner and does not install `.[mtp]` or support MTP extraction. MTP publication
+is a CLI-only operation until a separate macOS workflow path is added:
 
 ```bash
 pip install -e ".[mtp]"
+skulk-weights publish --model my-org/my-model --artifact mtp
 ```
 
-Then use manual workflow dispatch for a single smoke-tier entry before expanding
-publication to more keys.
+Then use manual workflow dispatch for a single smoke-tier **vindex** entry
+before expanding vindex publication to more keys.
 
 ## Workflow Dispatch
 
