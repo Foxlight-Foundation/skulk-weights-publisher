@@ -300,3 +300,12 @@ def test_default_scratch_root_honors_injected_empty_environment(
     monkeypatch.setenv("SKULK_WEIGHTS_SCRATCH", "/tmp/host-scratch")
 
     assert default_scratch_root(environ={}) == Path.cwd() / ".scratch"
+
+
+def test_summary_lines_includes_mtp_output_path(tmp_path: Path) -> None:
+    entry = _make_mtp_entry()
+    plan = build_publish_plan(entry, scratch_root=tmp_path)  # type: ignore[arg-type]
+    summary = "\n".join(plan.summary_lines(force=False, artifact="mtp"))
+
+    expected_path = tmp_path / "acme--qwen3-6-7b-mtp-int4-mtp.safetensors"
+    assert str(expected_path) in summary

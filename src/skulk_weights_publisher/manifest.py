@@ -203,8 +203,12 @@ def validate_manifest_payload(
         mtp_sidecar_repo = _optional_string(entry, "mtp_sidecar_repo", effective_key)
         mtp_quant_raw = _optional_string(entry, "mtp_quant", effective_key)
 
-        mtp_set = {f for f in (mtp_source_repo, mtp_sidecar_repo, mtp_quant_raw) if f}
-        if mtp_set and len(mtp_set) != 3:
+        mtp_fields_set = sum(
+            1
+            for f in (mtp_source_repo, mtp_sidecar_repo, mtp_quant_raw)
+            if f is not None
+        )
+        if 0 < mtp_fields_set < 3:
             raise ManifestError(
                 f"{effective_key}: mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
                 " must all be set together or not at all"
@@ -217,6 +221,12 @@ def validate_manifest_payload(
             if not HF_REPO_PATTERN.fullmatch(mtp_sidecar_repo):  # type: ignore[arg-type]
                 raise ManifestError(
                     f"{effective_key}: mtp_sidecar_repo must look like owner/name"
+                )
+            sidecar_owner = mtp_sidecar_repo.split("/", maxsplit=1)[0]  # type: ignore[union-attr]
+            hf_repo_owner = hf_repo.split("/", maxsplit=1)[0]
+            if sidecar_owner != hf_repo_owner:
+                raise ManifestError(
+                    f"{effective_key}: mtp_sidecar_repo owner must be {hf_repo_owner!r}"
                 )
             if mtp_quant_raw not in ALLOWED_MTP_QUANTS:
                 raise ManifestError(

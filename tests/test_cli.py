@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import pytest
 from pytest import CaptureFixture
 
 from skulk_weights_publisher.cli import run
 from skulk_weights_publisher.defaults import DEFAULT_FOXLIGHT_VINDEX_COLLECTION
+from skulk_weights_publisher.mtp_extractor import MtpExtractionError
 
 
 def test_cli_catalog_validate(capsys: CaptureFixture[str]) -> None:
@@ -69,3 +71,23 @@ def test_cli_legacy_manifest_publish_dry_run(capsys: CaptureFixture[str]) -> Non
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "model key: gemma-3-4b-full-q4-k" in captured.out
+
+
+def test_cli_mtp_extraction_error_caught_by_run(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    def _raise(*a: object, **kw: object) -> None:
+        raise MtpExtractionError("no mtp.* keys found in test/repo")
+
+    monkeypatch.setattr(cli_mod, "execute_publish_plan", _raise)
+
+    exit_code = run(
+        ["--manifest", "models.yaml", "publish", "--model", "gemma-3-4b-full-q4-k"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "no mtp.* keys found" in captured.err

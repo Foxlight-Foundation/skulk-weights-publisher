@@ -18,6 +18,7 @@ from skulk_weights_publisher.doctor import run_doctor
 from skulk_weights_publisher.manifest import (
     ManifestError,
 )
+from skulk_weights_publisher.mtp_extractor import MtpExtractionError
 from skulk_weights_publisher.publisher import (
     PublishError,
     build_publish_plan,
@@ -256,7 +257,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(normalized_argv)
     try:
         return int(args.func(args))
-    except (ManifestError, PublishError) as exc:
+    except (ManifestError, MtpExtractionError, PublishError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
 
