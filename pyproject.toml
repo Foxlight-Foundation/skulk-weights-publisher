@@ -18,7 +18,7 @@ dependencies = [
 # mlx requires macOS (Apple Silicon); Linux runners cannot perform real MTP extraction.
 mtp = [
   "safetensors>=0.4",
-  "mlx>=0.22",
+  "mlx>=0.22; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 dev = [
   "basedpyright>=1.29.4",
