@@ -82,3 +82,36 @@ skulk-weights publish \
   --model foxlight/gemma-3-4b-full-q4-k \
   --scratch /fast/scratch/skulk-weights-2
 ```
+
+## `no MTP sidecar configured for ...`
+
+This error occurs during real (non-dry-run) publishing. You ran `--artifact mtp`
+on an entry that does not have `mtp_source_repo`, `mtp_sidecar_repo`, and
+`mtp_quant` set in the catalog. In dry-run mode the publisher instead prints
+`mtp step: not configured for this entry` and exits cleanly.
+
+Either add those fields to the entry or use `--artifact vindex` to publish only
+the vindex.
+
+See the [MTP sidecar guide](guides/mtp-sidecar.md) for the required catalog
+fields and how to structure the entry.
+
+## `unsupported mtp_quant ...`
+
+The `mtp_quant` field in the catalog entry uses a quantization level that SWP
+does not support. Allowed values are `q4k` and `q8k`. Check the catalog entry
+and correct the value.
+
+## `no mtp.* keys found in ...`
+
+SWP downloaded the source checkpoint but found no tensors matching `mtp.*`. This
+means either:
+
+- the `mtp_source_repo` points to a quantized checkpoint rather than the
+  original BF16 weights — MTP tensors are stripped by quantization pipelines,
+  so `mtp_source_repo` must always point to the BF16 source, not a derivative.
+- the model was not trained with native MTP heads at all.
+
+Confirm that the source repo contains the original checkpoint (usually the
+upstream model card on Hugging Face will say so) and update `mtp_source_repo`
+accordingly.

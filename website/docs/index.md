@@ -3,22 +3,33 @@ slug: /
 title: "SWP: Skulk Weights Publisher"
 ---
 
-SWP: Skulk Weights Publisher publishes LARQL vindexes for Skulk so model weights
-do not have to live entirely inside expensive GPU memory. It keeps the list of
-upstream Hugging Face models Skulk wants, validates how each one should be
-extracted and sliced, shows the exact LARQL commands that will run, and runs the
-publish workflow so CPU/high-memory LARQL servers can host feed-forward weights
-while GPU nodes handle the latency-sensitive inference work.
+SWP: Skulk Weights Publisher publishes model weights for Skulk clusters. It
+handles two distinct artifact types:
+
+**LARQL vindexes** — LARQL decompiles transformer weights into a queryable
+vindex format so Skulk does not have to keep every weight resident in expensive
+GPU memory. CPU/high-memory LARQL servers host the feed-forward and expert
+weights while GPU nodes handle the latency-sensitive attention path.
+
+**MTP sidecars** — Models with native multi-token prediction heads (Qwen3,
+DeepSeek V3/R1, and others that expose `mtp.*` tensor keys) need those heads
+published separately. Standard quantization pipelines strip MTP tensors. SWP
+re-extracts them from the original BF16 checkpoint, quantizes, and uploads the
+result as `mtp.safetensors` to a dedicated repo so Skulk can use speculative
+decoding.
+
+SWP keeps the list of models Skulk wants, validates how each one should be
+extracted and sliced or quantized, shows the exact commands that will run, and
+executes the publish workflow from a configured runner.
 
 The Foxlight catalog is built in. You can use it immediately, or add your own
-operator catalog with `skulk-weights.yaml`. The merged catalog uses
-namespaced keys such as `foxlight/gemma-3-4b-full-q4-k` and
-`my-org/my-model-full-q4-k` so shared Foxlight vindexes and local operator
-vindexes remain distinct.
+operator catalog with `skulk-weights.yaml`. The merged catalog uses namespaced
+keys such as `foxlight/gemma-3-4b-full-q4-k` and `my-org/my-model-full-q4-k`
+so shared Foxlight entries and local operator entries remain distinct.
 
 **New to Skulk and LARQL?** Read [How Skulk Works](concepts/how-skulk-works.md)
 before the quickstart. It explains the cluster architecture, what vindexes are,
-and why the publisher exists.
+what MTP sidecars are for, and why the publisher exists.
 
 ## What is LARQL?
 
@@ -39,12 +50,27 @@ Because the weights are in this structured form, LARQL can serve FFN and expert
 weights from CPU/high-memory nodes instead of requiring every weight-serving
 machine to be a GPU inference node.
 
+## What is an MTP sidecar?
+
+Multi-token prediction is a training technique where a model learns to predict
+several future tokens simultaneously rather than one at a time. Models trained
+this way expose native MTP heads as tensors with `mtp.*` keys in their
+checkpoint. At inference time Skulk can use these heads for speculative
+decoding — drafting multiple tokens in one forward pass and verifying them —
+which substantially increases throughput with no accuracy loss.
+
+Standard quantization pipelines strip MTP tensors to reduce download size.
+SWP's MTP pipeline re-extracts those tensors from the original BF16 checkpoint,
+quantizes them independently, and publishes the result as `mtp.safetensors` to a
+separate Hugging Face repo. The vindex and the MTP sidecar are versioned
+independently so each can be updated or replaced without disturbing the other.
+
 ## Why do this?
 
-Large GPUs and systems with high-bandwidth unified memory are expensive. If the
-whole model has to stay resident there, operators pay GPU prices for work that
-is often dominated by weight access and memory capacity rather than GPU-only
-compute. A published vindex gives Skulk a stable way to split that cost: GPU
-nodes handle the latency-sensitive inference path, LARQL servers on
-CPU/high-memory machines host the weight-heavy FFN and expert pieces, and every
-node refers to the same extracted and sliced model representation.
+Weight publication is expensive and easy to get wrong. Bad commands can write
+hundreds of gigabytes to the wrong path, publish under the wrong Hugging Face
+repository name, or silently skip MTP heads that a model needs for speculative
+decoding. SWP makes publication repeatable: the catalog records the exact source,
+quantization, slice mode, and target for each artifact; `--dry-run` shows the
+full plan before anything is extracted or uploaded; and the GitHub Actions
+workflow validates every catalog entry on every pull request.
