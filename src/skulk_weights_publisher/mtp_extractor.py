@@ -51,6 +51,11 @@ def extract_mtp(
             "mlx is required for MTP weight quantization"
         ) from exc
 
+    # Verify/create the sidecar repo before the expensive download+quantize work.
+    create_repo(
+        sidecar_repo, repo_type="model", private=False, exist_ok=True, token=token
+    )
+
     # Identify which shards contain mtp.* keys.
     cache_dir = str(scratch_root / "_hf_cache")
     shard_files = _find_mtp_shards(source_repo, token=token, cache_dir=cache_dir)
@@ -102,11 +107,6 @@ def extract_mtp(
     # Save.
     mx.save_safetensors(str(output_path), quantized)
     print(f"mtp: saved to {output_path}", file=sys.stderr)
-
-    # Ensure the sidecar repo exists (no-op if already present).
-    create_repo(
-        sidecar_repo, repo_type="model", private=False, exist_ok=True, token=token
-    )
 
     # Upload.
     upload_file(
