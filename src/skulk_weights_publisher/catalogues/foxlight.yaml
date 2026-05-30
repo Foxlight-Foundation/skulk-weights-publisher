@@ -94,3 +94,19 @@ models:
     output_name: mixtral-8x22b-instruct-v0-1-expert-server-q4-k.vindex
     hf_repo: FoxlightAI/mixtral-8x22b-instruct-v0-1-expert-server-q4-k-vindex
     hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
+
+  # Qwen3.5-9B — MTP sidecar extracted from Qwen/Qwen3.5-9B BF16 checkpoint.
+  # Vindex entry points to the best available public mlx-community quantization.
+  # The MTP sidecar is published independently at mtp_sidecar_repo.
+  - key: qwen3-5-9b-full-q4-k
+    source_model: mlx-community/Qwen3.5-9B-OptiQ-4bit
+    quant: q4k
+    tier: smoke
+    slices:
+      - full
+    output_name: qwen3-5-9b-full-q4-k.vindex
+    hf_repo: FoxlightAI/qwen3-5-9b-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
+    mtp_source_repo: Qwen/Qwen3.5-9B
+    mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp
+    mtp_quant: q4k

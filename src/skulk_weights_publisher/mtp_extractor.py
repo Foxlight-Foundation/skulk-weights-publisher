@@ -37,7 +37,7 @@ def extract_mtp(
         return
 
     try:
-        from huggingface_hub import hf_hub_download, upload_file
+        from huggingface_hub import create_repo, hf_hub_download, upload_file
         from safetensors import safe_open  # type: ignore[import-not-found]
     except ImportError as exc:
         raise MtpExtractionError(
@@ -50,6 +50,11 @@ def extract_mtp(
         raise MtpExtractionError(
             "mlx is required for MTP weight quantization"
         ) from exc
+
+    # Verify/create the sidecar repo before the expensive download+quantize work.
+    create_repo(
+        sidecar_repo, repo_type="model", private=False, exist_ok=True, token=token
+    )
 
     # Identify which shards contain mtp.* keys.
     cache_dir = str(scratch_root / "_hf_cache")
