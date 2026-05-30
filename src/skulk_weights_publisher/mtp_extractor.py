@@ -37,7 +37,7 @@ def extract_mtp(
         return
 
     try:
-        from huggingface_hub import hf_hub_download, upload_file
+        from huggingface_hub import create_repo, hf_hub_download, upload_file
         from safetensors import safe_open  # type: ignore[import-not-found]
     except ImportError as exc:
         raise MtpExtractionError(
@@ -102,6 +102,9 @@ def extract_mtp(
     # Save.
     mx.save_safetensors(str(output_path), quantized)
     print(f"mtp: saved to {output_path}", file=sys.stderr)
+
+    # Ensure the sidecar repo exists (no-op if already present).
+    create_repo(sidecar_repo, repo_type="model", private=True, exist_ok=True, token=token)
 
     # Upload.
     upload_file(
