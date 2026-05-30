@@ -169,7 +169,10 @@ jobs:
           fi
           printf '%s\n' "$MODEL_KEYS" | while IFS= read -r key; do
             [ -n "$key" ] || continue
-            args=(--model "$key")
+            # Scope to vindex only — MTP extraction requires mlx (macOS) and is
+            # run separately via an explicit --artifact mtp invocation on a
+            # Mac runner with HF_TOKEN and the [mtp] extras installed.
+            args=(--model "$key" --artifact vindex)
             if [ "$DRY_RUN" = "true" ]; then
               args+=(--dry-run)
             fi

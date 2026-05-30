@@ -104,7 +104,7 @@ def extract_mtp(
     print(f"mtp: saved to {output_path}", file=sys.stderr)
 
     # Ensure the sidecar repo exists (no-op if already present).
-    create_repo(sidecar_repo, repo_type="model", private=True, exist_ok=True, token=token)
+    create_repo(sidecar_repo, repo_type="model", private=False, exist_ok=True, token=token)
 
     # Upload.
     upload_file(
