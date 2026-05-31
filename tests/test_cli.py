@@ -171,13 +171,32 @@ def test_scratch_clean_rejects_dangerous_path(
 
 
 def test_scratch_clean_rejects_cwd(
-    tmp_path: Path,
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import skulk_weights_publisher.cli as cli_mod
 
     monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: Path.cwd())
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "refusing to delete" in captured.err
+
+
+def test_scratch_clean_rejects_ancestor_of_cwd(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    # Place cwd inside the scratch root so deleting scratch would delete cwd.
+    nested = tmp_path / "project" / "subdir"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: tmp_path)
 
     exit_code = run(["scratch", "clean", "--yes"])
 

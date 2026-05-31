@@ -114,11 +114,12 @@ def _cmd_scratch_clean(args: argparse.Namespace) -> int:
         or resolved == Path("/")
         or resolved == Path.cwd().resolve()
         or len(resolved.parts) <= 2
+        or Path.cwd().resolve().is_relative_to(resolved)
     )
     if _dangerous:
         print(
             f"refusing to delete {resolved}: "
-            "path is too broad (home, root, cwd, or top-level)",
+            "path is too broad (home, root, cwd, ancestor of cwd, or top-level)",
             file=sys.stderr,
         )
         return 1
