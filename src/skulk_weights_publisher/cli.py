@@ -108,11 +108,22 @@ def _cmd_scratch_clean(args: argparse.Namespace) -> int:
     scratch_root = (
         Path(args.scratch).expanduser() if args.scratch else default_scratch_root()
     )
+    resolved = scratch_root.resolve()
+    if resolved == Path.home().resolve() or resolved == Path("/") or len(resolved.parts) <= 2:
+        print(
+            f"refusing to delete {resolved}: path is too broad (home, root, or top-level)",
+            file=sys.stderr,
+        )
+        return 1
     if not scratch_root.exists():
         print(f"scratch directory does not exist: {scratch_root}")
         return 0
     if not args.yes:
-        answer = input(f"Delete {scratch_root}? [y/N] ").strip().lower()
+        try:
+            answer = input(f"Delete {scratch_root}? [y/N] ").strip().lower()
+        except EOFError:
+            print("aborted")
+            return 0
         if answer != "y":
             print("aborted")
             return 0

@@ -73,6 +73,102 @@ def test_cli_legacy_manifest_publish_dry_run(capsys: CaptureFixture[str]) -> Non
     assert "model key: gemma-3-4b-full-q4-k" in captured.out
 
 
+def test_scratch_clean_deletes_directory(
+    tmp_path: pytest.TempPathFactory,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    scratch = tmp_path / "scratch" / "deep" / "dir"
+    scratch.mkdir(parents=True)
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: scratch)
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "deleted" in captured.out
+    assert not scratch.exists()
+
+
+def test_scratch_clean_missing_dir(
+    tmp_path: pytest.TempPathFactory,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    scratch = tmp_path / "scratch" / "deep" / "dir"
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: scratch)
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "does not exist" in captured.out
+
+
+def test_scratch_clean_aborts_on_no(
+    tmp_path: pytest.TempPathFactory,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    scratch = tmp_path / "scratch" / "deep" / "dir"
+    scratch.mkdir(parents=True)
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: scratch)
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+
+    exit_code = run(["scratch", "clean"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "aborted" in captured.out
+    assert scratch.exists()
+
+
+def test_scratch_clean_aborts_on_eof(
+    tmp_path: pytest.TempPathFactory,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    scratch = tmp_path / "scratch" / "deep" / "dir"
+    scratch.mkdir(parents=True)
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: scratch)
+
+    def _raise(_: str) -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", _raise)
+
+    exit_code = run(["scratch", "clean"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "aborted" in captured.out
+    assert scratch.exists()
+
+
+def test_scratch_clean_rejects_dangerous_path(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+    from pathlib import Path
+
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: Path.home())
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "refusing to delete" in captured.err
+
+
 def test_cli_mtp_extraction_error_caught_by_run(
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
