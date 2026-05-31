@@ -202,6 +202,44 @@ def _cmd_publish(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_scratch_clean(args: argparse.Namespace) -> int:
+    import shutil
+
+    scratch_root = (
+        Path(args.scratch).expanduser() if args.scratch else default_scratch_root()
+    )
+    resolved = scratch_root.resolve()
+    _dangerous = (
+        resolved == Path.home().resolve()
+        or resolved == Path("/")
+        or resolved == Path.cwd().resolve()
+        or len(resolved.parts) <= 2
+        or Path.cwd().resolve().is_relative_to(resolved)
+    )
+    if _dangerous:
+        print(
+            f"refusing to delete {resolved}: "
+            "path is too broad (home, root, cwd, ancestor of cwd, or top-level)",
+            file=sys.stderr,
+        )
+        return 1
+    if not scratch_root.exists():
+        print(f"scratch directory does not exist: {scratch_root}")
+        return 0
+    if not args.yes:
+        try:
+            answer = input(f"Delete {scratch_root}? [y/N] ").strip().lower()
+        except EOFError:
+            print("aborted")
+            return 0
+        if answer != "y":
+            print("aborted")
+            return 0
+    shutil.rmtree(scratch_root)
+    print(f"deleted {scratch_root}")
+    return 0
+
+
 def _cmd_doctor(args: argparse.Namespace) -> int:
     config_path = Path(args.config) if args.config else None
     manifest_path = Path(args.manifest) if args.manifest else None
@@ -334,6 +372,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override SKULK_WEIGHTS_SCRATCH scratch directory.",
     )
     publish_parser.set_defaults(func=_cmd_publish)
+
+    # scratch subcommand
+    scratch_parser = subparsers.add_parser(
+        "scratch", help="Manage the local scratch directory."
+    )
+    scratch_subparsers = scratch_parser.add_subparsers(
+        dest="scratch_command", required=True
+    )
+    scratch_clean_parser = scratch_subparsers.add_parser(
+        "clean", help="Delete the scratch directory and all cached shards."
+    )
+    scratch_clean_parser.add_argument(
+        "--scratch",
+        help="Override SKULK_WEIGHTS_SCRATCH scratch directory.",
+    )
+    scratch_clean_parser.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Skip confirmation prompt.",
+    )
+    scratch_clean_parser.set_defaults(func=_cmd_scratch_clean)
 
     # doctor subcommand
     doctor_parser = subparsers.add_parser(

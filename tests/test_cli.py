@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pytest import CaptureFixture
 
@@ -210,6 +212,136 @@ def test_cli_catalog_add_error_propagates(
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "HF API returned 404" in captured.err
+
+
+def test_scratch_clean_deletes_directory(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    scratch = tmp_path / "scratch" / "deep" / "dir"
+    scratch.mkdir(parents=True)
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: scratch)
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "deleted" in captured.out
+    assert not scratch.exists()
+
+
+def test_scratch_clean_missing_dir(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    scratch = tmp_path / "scratch" / "deep" / "dir"
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: scratch)
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "does not exist" in captured.out
+
+
+def test_scratch_clean_aborts_on_no(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    scratch = tmp_path / "scratch" / "deep" / "dir"
+    scratch.mkdir(parents=True)
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: scratch)
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+
+    exit_code = run(["scratch", "clean"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "aborted" in captured.out
+    assert scratch.exists()
+
+
+def test_scratch_clean_aborts_on_eof(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    scratch = tmp_path / "scratch" / "deep" / "dir"
+    scratch.mkdir(parents=True)
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: scratch)
+
+    def _raise(_: str) -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", _raise)
+
+    exit_code = run(["scratch", "clean"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "aborted" in captured.out
+    assert scratch.exists()
+
+
+def test_scratch_clean_rejects_dangerous_path(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: Path.home())
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "refusing to delete" in captured.err
+
+
+def test_scratch_clean_rejects_cwd(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: Path.cwd())
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "refusing to delete" in captured.err
+
+
+def test_scratch_clean_rejects_ancestor_of_cwd(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+
+    # Place cwd inside the scratch root so deleting scratch would delete cwd.
+    nested = tmp_path / "project" / "subdir"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: tmp_path)
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "refusing to delete" in captured.err
 
 
 def test_cli_mtp_extraction_error_caught_by_run(
