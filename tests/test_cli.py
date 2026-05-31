@@ -169,6 +169,23 @@ def test_scratch_clean_rejects_dangerous_path(
     assert "refusing to delete" in captured.err
 
 
+def test_scratch_clean_rejects_cwd(
+    tmp_path: pytest.TempPathFactory,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+    from pathlib import Path
+
+    monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: Path.cwd())
+
+    exit_code = run(["scratch", "clean", "--yes"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "refusing to delete" in captured.err
+
+
 def test_cli_mtp_extraction_error_caught_by_run(
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
