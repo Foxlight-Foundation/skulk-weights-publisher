@@ -154,7 +154,12 @@ def _find_mtp_shards(
         pass
 
     # Fall back to single-file layout — check if model.safetensors has mtp.* keys.
-    from safetensors import safe_open  # type: ignore[import-not-found]
+    try:
+        from safetensors import safe_open  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise MtpExtractionError(
+            "safetensors is required for single-file model inspection"
+        ) from exc
 
     try:
         single_path = hf_hub_download(
