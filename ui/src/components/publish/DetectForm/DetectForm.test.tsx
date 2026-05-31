@@ -43,8 +43,18 @@ describe('DetectForm', () => {
     const detect = vi.fn();
     usePublishStore.setState({ url: 'mlx-community/test', detect });
     renderWithTheme(<DetectForm />);
+    await user.click(screen.getByLabelText('HuggingFace model URL'));
     await user.keyboard('{Enter}');
-    // detect is wired via store — just verify the button is enabled
-    expect(screen.getByRole('button', { name: 'Detect model' })).toBeEnabled();
+    expect(detect).toHaveBeenCalledOnce();
+  });
+
+  it('does not call detect on Enter when the input is empty', async () => {
+    const user = userEvent.setup();
+    const detect = vi.fn();
+    usePublishStore.setState({ url: '', detect });
+    renderWithTheme(<DetectForm />);
+    await user.click(screen.getByLabelText('HuggingFace model URL'));
+    await user.keyboard('{Enter}');
+    expect(detect).not.toHaveBeenCalled();
   });
 });

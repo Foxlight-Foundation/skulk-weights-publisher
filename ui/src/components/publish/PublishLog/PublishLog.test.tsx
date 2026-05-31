@@ -55,4 +55,21 @@ describe('PublishLog', () => {
     );
     expect(screen.getByText(/found mtp/)).toBeInTheDocument();
   });
+
+  it('shows a Registered-in-catalog completion for the assistant flow', () => {
+    renderWithTheme(
+      <PublishLog
+        phase="done"
+        lines={[
+          'registered foxlight/gemma-4-27b-full-q4-k in catalog',
+          'assistant: google/gemma-4-27b-it-assistant',
+          'written to /pkg/catalogues/foxlight.yaml',
+        ]}
+        errorMessage={null}
+      />,
+    );
+    // Registration completion shown, not the MTP stage list left pending.
+    expect(screen.getByText('Registered in catalog')).toBeInTheDocument();
+    expect(screen.queryByText('Finding MTP shards')).not.toBeInTheDocument();
+  });
 });

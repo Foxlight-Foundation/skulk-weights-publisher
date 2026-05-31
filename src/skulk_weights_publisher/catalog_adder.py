@@ -77,7 +77,12 @@ def resolve_base_model(
     fine-tuned intermediate rather than the original base checkpoint.  This
     function follows the chain — fetching each intermediate's metadata — until
     it reaches a model that is not itself a quantization, then returns that
-    model's ``base_model:`` target (or the model's own ID if it has none).
+    model's ``base_model:`` target.
+
+    Returns ``None`` when the leaf has no ``base_model:`` tag and is the same as
+    the input model (i.e. the input is already a plain base with nothing to
+    resolve). Only after at least one hop does a leaf's own ID become the
+    answer (an intermediate with no further base tag).
     """
     current = info
     for _ in range(max_depth):

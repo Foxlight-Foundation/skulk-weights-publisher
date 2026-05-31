@@ -246,6 +246,21 @@ const ErrorBlock = styled.div`
   border-top: 1px solid ${({ theme }) => theme.colors.errorBg};
 `;
 
+/**
+ * Catalog registration (Gemma 4 assistant path) is synchronous — there are no
+ * MTP extraction stages. Render a single completion item driven by the store's
+ * "registered ..." log line instead of the MTP stage list, so the structured
+ * view reflects completion rather than sitting in "pending".
+ */
+function registrationStages(
+  lines: string[],
+): { stage: Stage; label: string; status: StageStatus; detail?: string }[] {
+  const detail =
+    lines.find((l) => l.startsWith('assistant: ')) ??
+    lines.find((l) => l.startsWith('written to '));
+  return [{ stage: 'done', label: 'Registered in catalog', status: 'done', detail }];
+}
+
 function statusLabel(phase: string): string {
   if (phase === 'publishing') return 'Publishing…';
   if (phase === 'done') return 'Done';
@@ -260,7 +275,11 @@ function statusLabel(phase: string): string {
 export const PublishLog = ({ phase, lines, errorMessage, className }: PublishLogProps) => {
   const rawRef = useRef<HTMLPreElement>(null);
   const isError = phase === 'error';
-  const stages = deriveStages(lines, isError);
+  // The assistant registration flow is synchronous and emits "registered ..."
+  // rather than MTP progress lines; show a registration completion instead of
+  // the (irrelevant) MTP stage list.
+  const isRegistration = lines.some((l) => l.startsWith('registered '));
+  const stages = isRegistration ? registrationStages(lines) : deriveStages(lines, isError);
   const activeStage = stages.find((s) => s.status === 'active');
   const isDownloading = activeStage?.stage === 'downloading';
 

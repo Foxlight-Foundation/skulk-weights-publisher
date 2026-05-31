@@ -55,9 +55,12 @@ _JOB_RETENTION_SECONDS = 600.0
 def _evict_stale_jobs() -> None:
     """Drop finished jobs whose client never reconnected within the grace window."""
     now = time.monotonic()
+    # Snapshot before iterating: a publish worker thread may write
+    # _jobs_finished_at concurrently, which would raise "dictionary changed
+    # size during iteration".
     stale = [
         jid
-        for jid, done_at in _jobs_finished_at.items()
+        for jid, done_at in list(_jobs_finished_at.items())
         if now - done_at > _JOB_RETENTION_SECONDS
     ]
     for jid in stale:
