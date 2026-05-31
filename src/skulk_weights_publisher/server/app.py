@@ -141,10 +141,14 @@ async def detect(body: DetectBody) -> Any:
         sidecar_repo: str | None = None
         if base_model:
             mtp_keys = detect_mtp_keys(base_model, token=token)
-            sidecar_repo = (
-                f"{_FOXLIGHT_HF_OWNER}/{base_model_slug(base_model)}"
-                f"-mtp-{quant_suffix(quant)}"
-            )
+            # Only advertise a sidecar repo when there are actually MTP tensors
+            # to publish — otherwise the response is self-contradictory
+            # (can_publish False but sidecar_repo populated).
+            if mtp_keys:
+                sidecar_repo = (
+                    f"{_FOXLIGHT_HF_OWNER}/{base_model_slug(base_model)}"
+                    f"-mtp-{quant_suffix(quant)}"
+                )
         # If no MTP tensors, check for a Gemma 4-style companion assistant.
         assistant_model_repo: str | None = None
         if not mtp_keys:
@@ -331,13 +335,17 @@ async def stream(job_id: str) -> Any:
         return JSONResponse({"error": "job not found"}, status_code=404)
 
     async def _event_gen() -> AsyncGenerator[str, None]:
-        loop = asyncio.get_event_loop()
-        while True:
-            line = await loop.run_in_executor(None, q.get)
-            if line is None:
-                yield "data: [done]\n\n"
-                break
-            yield f"data: {line}\n\n"
+        loop = asyncio.get_running_loop()
+        try:
+            while True:
+                line = await loop.run_in_executor(None, q.get)
+                if line is None:
+                    yield "data: [done]\n\n"
+                    break
+                yield f"data: {line}\n\n"
+        finally:
+            # Drop the finished job so completed queues don't accumulate.
+            _jobs.pop(job_id, None)
 
     return StreamingResponse(
         _event_gen(),

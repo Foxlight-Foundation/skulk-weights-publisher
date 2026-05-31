@@ -39,6 +39,10 @@ const Mono = styled.span`
   font-size: 12px;
 `;
 
+const NotDetected = styled.span`
+  color: ${({ theme }) => theme.colors.warningOnSurface};
+`;
+
 const Pill = styled.span`
   display: inline-flex;
   align-items: center;
@@ -89,7 +93,7 @@ export const DetectionResult = ({
           {detection.base_model ? (
             <Mono>{detection.base_model}</Mono>
           ) : (
-            <span style={{ color: 'var(--warning)' }}>Not detected</span>
+            <NotDetected>Not detected</NotDetected>
           )}
         </GridValue>
 
