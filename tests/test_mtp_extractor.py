@@ -184,3 +184,57 @@ def test_find_mtp_shards_no_files_at_all(tmp_path: Path) -> None:
         shards = _find_mtp_shards("owner/repo", token=None)
 
     assert shards == []
+
+
+def test_read_mtp_tensors_reads_only_mtp_keys(tmp_path: Path) -> None:
+    """_read_mtp_tensors returns only mtp.* tensors and round-trips bf16."""
+    import struct
+
+    mx = pytest.importorskip("mlx.core")
+    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
+
+    # bf16 encodings: 1,2,3,4 and 5,6,7,8
+    mtp_bytes = struct.pack("<4H", 0x3F80, 0x4000, 0x4040, 0x4080)
+    other_bytes = struct.pack("<4H", 0x40A0, 0x40C0, 0x40E0, 0x4100)
+    header = {
+        "mtp.fc.weight": {"dtype": "BF16", "shape": [2, 2], "data_offsets": [0, 8]},
+        "model.other.weight": {
+            "dtype": "BF16",
+            "shape": [2, 2],
+            "data_offsets": [8, 16],
+        },
+    }
+    hb = json.dumps(header).encode()
+    shard = tmp_path / "shard.safetensors"
+    with open(shard, "wb") as f:
+        f.write(struct.pack("<Q", len(hb)))
+        f.write(hb)
+        f.write(mtp_bytes + other_bytes)
+
+    tensors = _read_mtp_tensors(shard, mx=mx)
+
+    assert list(tensors) == ["mtp.fc.weight"]  # non-mtp skipped
+    assert tensors["mtp.fc.weight"].dtype == mx.bfloat16
+    as_floats = tensors["mtp.fc.weight"].astype(mx.float32).tolist()
+    assert as_floats == [[1.0, 2.0], [3.0, 4.0]]
+
+
+def test_read_mtp_tensors_rejects_unknown_dtype(tmp_path: Path) -> None:
+    import struct
+
+    mx = pytest.importorskip("mlx.core")
+    from skulk_weights_publisher.mtp_extractor import (
+        MtpExtractionError,
+        _read_mtp_tensors,
+    )
+
+    header = {"mtp.x": {"dtype": "I64", "shape": [1], "data_offsets": [0, 8]}}
+    hb = json.dumps(header).encode()
+    shard = tmp_path / "shard.safetensors"
+    with open(shard, "wb") as f:
+        f.write(struct.pack("<Q", len(hb)))
+        f.write(hb)
+        f.write(struct.pack("<q", 1))
+
+    with pytest.raises(MtpExtractionError, match="unsupported MTP tensor dtype"):
+        _read_mtp_tensors(shard, mx=mx)

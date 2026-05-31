@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import os
 import queue
-import sys
 import threading
+import time
 import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -45,6 +45,24 @@ _ENV_FILE = _CONFIG_DIR / ".env"
 
 # Active publish jobs: job_id → line queue (None = sentinel/done)
 _jobs: dict[str, queue.Queue[str | None]] = {}
+# Completion timestamps (monotonic) for finished jobs, used to evict ones whose
+# client never reconnected to /api/stream so _jobs can't grow unbounded.
+_jobs_finished_at: dict[str, float] = {}
+# Keep a finished job around this long so a disconnected client can reconnect.
+_JOB_RETENTION_SECONDS = 600.0
+
+
+def _evict_stale_jobs() -> None:
+    """Drop finished jobs whose client never reconnected within the grace window."""
+    now = time.monotonic()
+    stale = [
+        jid
+        for jid, done_at in _jobs_finished_at.items()
+        if now - done_at > _JOB_RETENTION_SECONDS
+    ]
+    for jid in stale:
+        _jobs.pop(jid, None)
+        _jobs_finished_at.pop(jid, None)
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +201,7 @@ async def detect(body: DetectBody) -> Any:
 @app.post("/api/publish")
 async def publish(body: PublishBody) -> Any:
     """Start an async MTP extraction job and return its job ID."""
+    _evict_stale_jobs()
     token = _get_token()
     job_id = str(uuid.uuid4())
     q: queue.Queue[str | None] = queue.Queue()
@@ -191,17 +210,9 @@ async def publish(body: PublishBody) -> Any:
     scratch = default_scratch_root() / "ui-jobs" / job_id
 
     def _run() -> None:
-        class _QueueWriter:
-            def write(self, text: str) -> None:
-                stripped = text.rstrip()
-                if stripped:
-                    q.put(stripped)
-
-            def flush(self) -> None:
-                pass
-
-        old_stderr = sys.stderr
-        sys.stderr = _QueueWriter()  # type: ignore[assignment]
+        # Route progress through a per-job callback rather than monkeypatching
+        # the process-wide sys.stderr (which would interleave across concurrent
+        # jobs and the server's own stderr).
         try:
             extract_mtp(
                 source_repo=body.base_model,
@@ -209,6 +220,7 @@ async def publish(body: PublishBody) -> Any:
                 mtp_quant=body.quant,
                 scratch_root=scratch,
                 token=token,
+                log=q.put,
             )
             q.put("publish complete")
         except MtpExtractionError as exc:
@@ -216,7 +228,7 @@ async def publish(body: PublishBody) -> Any:
         except Exception as exc:  # noqa: BLE001
             q.put(f"[error]: unexpected error: {exc}")
         finally:
-            sys.stderr = old_stderr
+            _jobs_finished_at[job_id] = time.monotonic()
             q.put(None)
 
     threading.Thread(target=_run, daemon=True).start()
@@ -330,6 +342,7 @@ async def register(body: RegisterBody) -> Any:
 @app.get("/api/stream/{job_id}")
 async def stream(job_id: str) -> Any:
     """SSE stream of live log output for a running publish job."""
+    _evict_stale_jobs()
     q = _jobs.get(job_id)
     if q is None:
         return JSONResponse({"error": "job not found"}, status_code=404)
@@ -350,8 +363,10 @@ async def stream(job_id: str) -> Any:
             # On a transient SSE disconnect the background thread is still using
             # the queue, so we keep the job registered to let the UI reconnect
             # rather than orphaning a running publish (and risking a duplicate).
+            # Jobs whose client never reconnects are reaped by _evict_stale_jobs.
             if completed:
                 _jobs.pop(job_id, None)
+                _jobs_finished_at.pop(job_id, None)
 
     return StreamingResponse(
         _event_gen(),

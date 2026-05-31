@@ -3,13 +3,66 @@
 from __future__ import annotations
 
 import json
+import struct
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 
 class MtpExtractionError(RuntimeError):
     """Raised when MTP extraction or publishing fails."""
+
+
+def _stderr_log(message: str) -> None:
+    """Default log sink — writes a progress line to stderr (CLI behavior)."""
+    print(message, file=sys.stderr)
+
+
+def _is_mtp_key(key: str) -> bool:
+    return key.startswith("mtp.") or ".mtp." in key
+
+
+def _read_mtp_tensors(shard_path: Path, *, mx: Any) -> dict[str, Any]:
+    """Return the mtp.* tensors from a safetensors shard, reading only their bytes.
+
+    Parses the safetensors header and reads each mtp.* tensor's byte range
+    directly, so the (potentially multi-GB) non-MTP weights are never read.
+    bf16/f16 are bitcast through uint16 because numpy — which mlx/safetensors
+    would otherwise route through — has no bfloat16 dtype.
+    """
+    dtype_map = {
+        "BF16": mx.bfloat16,
+        "F16": mx.float16,
+        "F32": mx.float32,
+    }
+    with open(shard_path, "rb") as fh:
+        (header_len,) = struct.unpack("<Q", fh.read(8))
+        header = json.loads(fh.read(header_len).decode("utf-8"))
+        data_base = 8 + header_len
+
+        tensors: dict[str, Any] = {}
+        for key, meta in header.items():
+            if key == "__metadata__" or not _is_mtp_key(key):
+                continue
+            dtype_name = meta["dtype"]
+            if dtype_name not in dtype_map:
+                raise MtpExtractionError(
+                    f"unsupported MTP tensor dtype {dtype_name!r} for {key} "
+                    f"in {shard_path.name}"
+                )
+            start, end = meta["data_offsets"]
+            fh.seek(data_base + start)
+            raw = fh.read(end - start)
+            shape = meta["shape"]
+            if dtype_name in ("BF16", "F16"):
+                # 2 bytes/elt: load as uint16, then bitcast to the float dtype.
+                arr = mx.array(memoryview(raw).cast("H"), dtype=mx.uint16)
+                arr = arr.view(dtype_map[dtype_name])
+            else:  # F32
+                arr = mx.array(memoryview(raw).cast("f"), dtype=mx.float32)
+            tensors[key] = arr.reshape(shape) if shape else arr
+        return tensors
 
 
 def extract_mtp(
@@ -20,15 +73,23 @@ def extract_mtp(
     *,
     token: str | None,
     dry_run: bool = False,
+    log: Callable[[str], None] | None = None,
 ) -> None:
     """Extract MTP weights from source_repo, quantize, and publish to sidecar_repo.
 
-    Downloads only the safetensors shards that contain ``mtp.*`` keys, quantizes
-    them to the specified quant scheme, saves as ``mtp.safetensors``, and uploads
-    to ``sidecar_repo`` on Hugging Face.
+    Downloads only the safetensors shards that contain ``mtp.*`` keys, reads only
+    the ``mtp.*`` tensors out of each shard (never the full shard), quantizes them
+    to the specified quant scheme, saves as ``mtp.safetensors``, and uploads to
+    ``sidecar_repo`` on Hugging Face.
+
+    Progress lines go through the ``log`` callback. It defaults to writing to
+    stderr (the CLI behavior); callers that need per-job routing (e.g. the
+    skulk-ui server) pass their own sink instead of relying on a global stream.
 
     In dry-run mode prints the plan without downloading or uploading anything.
     """
+
+    emit = log if log is not None else _stderr_log
 
     output_path = scratch_root / _sidecar_filename(sidecar_repo)
 
@@ -54,10 +115,6 @@ def extract_mtp(
             "huggingface_hub is required for MTP extraction"
         ) from exc
 
-    # safetensors is still needed by _find_mtp_shards (key-listing only, no
-    # tensor load). Tensor extraction uses mx.load() directly to avoid numpy
-    # bfloat16 conversion issues.
-
     # Verify/create the sidecar repo before the expensive download+quantize work.
     create_repo(
         sidecar_repo, repo_type="model", private=False, exist_ok=True, token=token
@@ -72,16 +129,13 @@ def extract_mtp(
             "confirm this model has native MTP heads"
         )
 
-    print(f"mtp: found mtp.* keys in {len(shard_files)} shard(s)", file=sys.stderr)
+    emit(f"mtp: found mtp.* keys in {len(shard_files)} shard(s)")
 
     # Download the relevant shards into scratch.
     scratch_root.mkdir(parents=True, exist_ok=True)
     local_shards: list[Path] = []
     for index, shard in enumerate(shard_files, 1):
-        print(
-            f"mtp: downloading shard {index}/{len(shard_files)}: {shard}",
-            file=sys.stderr,
-        )
+        emit(f"mtp: downloading shard {index}/{len(shard_files)}: {shard}")
         local = Path(
             hf_hub_download(
                 repo_id=source_repo,
@@ -91,16 +145,15 @@ def extract_mtp(
             )
         )
         local_shards.append(local)
-        print(f"mtp: shard {index}/{len(shard_files)} ready", file=sys.stderr)
+        emit(f"mtp: shard {index}/{len(shard_files)} ready")
 
-    # Extract mtp.* tensors using mx.load() — natively handles bfloat16 without
-    # routing through numpy (which doesn't support that dtype).
+    # Read ONLY the mtp.* tensors out of each shard by parsing the safetensors
+    # header and reading just those byte ranges. Avoids materializing the whole
+    # shard (gigabytes) to recover a handful of small heads, and handles bf16
+    # natively (safe_open(framework="mlx") cannot — it raises on bfloat16).
     mtp_tensors: dict[str, Any] = {}
     for shard_path in local_shards:
-        loaded: dict[str, Any] = mx.load(str(shard_path))  # type: ignore[assignment]
-        for key, tensor in loaded.items():
-            if key.startswith("mtp.") or ".mtp." in key:
-                mtp_tensors[key] = tensor
+        mtp_tensors.update(_read_mtp_tensors(shard_path, mx=mx))
 
     if not mtp_tensors:
         raise MtpExtractionError(
@@ -108,19 +161,19 @@ def extract_mtp(
             f" from {source_repo}"
         )
 
-    print(f"mtp: extracted {len(mtp_tensors)} tensor(s)", file=sys.stderr)
+    emit(f"mtp: extracted {len(mtp_tensors)} tensor(s)")
 
     # Quantize.
     quant_bits = _quant_bits(mtp_quant)
     quantized = _quantize(mtp_tensors, bits=quant_bits, mx=mx)
-    print(f"mtp: quantized to {quant_bits}-bit", file=sys.stderr)
+    emit(f"mtp: quantized to {quant_bits}-bit")
 
     # Save.
     mx.save_safetensors(str(output_path), quantized)
-    print(f"mtp: saved to {output_path}", file=sys.stderr)
+    emit(f"mtp: saved to {output_path}")
 
     # Upload.
-    print(f"mtp: uploading to hf://{sidecar_repo}/mtp.safetensors", file=sys.stderr)
+    emit(f"mtp: uploading to hf://{sidecar_repo}/mtp.safetensors")
     upload_file(
         path_or_fileobj=str(output_path),
         path_in_repo="mtp.safetensors",
@@ -129,7 +182,7 @@ def extract_mtp(
         token=token,
         commit_message=f"Add MTP sidecar from {source_repo} ({mtp_quant})",
     )
-    print(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors", file=sys.stderr)
+    emit(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors")
 
 
 def _find_mtp_shards(
