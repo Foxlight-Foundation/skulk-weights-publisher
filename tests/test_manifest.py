@@ -313,6 +313,94 @@ models:
         validate_manifest(manifest)
 
 
+def _assistant_manifest(
+    tmp_path: Path, *, assistant_repo: str = "google/gemma-4-27b-it-assistant"
+) -> Path:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        f"""
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: moe
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    assistant_model_repo: {assistant_repo}
+""",
+        encoding="utf-8",
+    )
+    return manifest
+
+
+def test_assistant_model_repo_accepted(tmp_path: Path) -> None:
+    entries = validate_manifest(_assistant_manifest(tmp_path))
+
+    assert entries[0].assistant_model_repo == "google/gemma-4-27b-it-assistant"
+    assert entries[0].mtp_source_repo is None
+
+
+def test_assistant_model_repo_absent_leaves_none(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+""",
+        encoding="utf-8",
+    )
+    entries = validate_manifest(manifest)
+    assert entries[0].assistant_model_repo is None
+
+
+def test_assistant_model_repo_bad_pattern_rejected(tmp_path: Path) -> None:
+    with pytest.raises(
+        ManifestError, match="assistant_model_repo must look like owner/name"
+    ):
+        validate_manifest(
+            _assistant_manifest(tmp_path, assistant_repo="not-a-valid-repo")
+        )
+
+
+def test_assistant_model_repo_and_mtp_mutually_exclusive(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    mtp_source_repo: owner/model-a-bf16
+    mtp_sidecar_repo: acme/model-a-mtp-q4k
+    mtp_quant: q4k
+    assistant_model_repo: google/gemma-4-27b-it-assistant
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        ManifestError,
+        match="assistant_model_repo and mtp_source_repo are mutually exclusive",
+    ):
+        validate_manifest(manifest)
+
+
+def test_assistant_model_repo_in_to_dict(tmp_path: Path) -> None:
+    entries = validate_manifest(_assistant_manifest(tmp_path))
+    d = entries[0].to_dict()
+    assert d["assistant_model_repo"] == "google/gemma-4-27b-it-assistant"
+
+
 def test_hugging_face_collection_owner_must_match_config(tmp_path: Path) -> None:
     manifest = tmp_path / "models.yaml"
     manifest.write_text(

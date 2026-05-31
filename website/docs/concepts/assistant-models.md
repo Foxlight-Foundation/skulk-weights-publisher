@@ -1,0 +1,87 @@
+---
+title: Assistant Models
+---
+
+Skulk uses speculative decoding to accelerate inference. For speculative decoding
+to work, the serving node must have access to a smaller **draft model** that
+proposes token candidates for the target model to verify. Different model families
+ship their draft-model weights in different ways — SWP handles both.
+
+## Pattern 1: Embedded MTP heads (Qwen3, DeepSeek)
+
+Qwen3 and DeepSeek V3/R1 embed multi-token prediction (MTP) heads directly as
+`mtp.*` tensor keys inside the BF16 checkpoint. Standard quantization pipelines
+(mlx-lm's `sanitize()`) strip these keys when converting the model. SWP
+re-extracts them from the original BF16 checkpoint, quantizes them, and publishes
+the result as `mtp.safetensors` to a separate Hugging Face repository.
+
+Catalog fields for this pattern:
+
+```yaml
+mtp_source_repo: Qwen/Qwen3.5-9B          # BF16 source to extract from
+mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp-q4-k  # where mtp.safetensors lands
+mtp_quant: q4k
+```
+
+Detection: `skulk-weights catalog add` fetches `model.safetensors.index.json`
+from the resolved BF16 base and counts keys that start with `mtp.` or contain
+`.mtp.`. If any are found, MTP fields are written to the catalog entry.
+
+See the [MTP sidecar guide](../guides/mtp-sidecar.md) for full instructions.
+
+## Pattern 2: Companion assistant (Gemma 4)
+
+Gemma 4 does not embed MTP tensors in the base checkpoint. Instead, Google
+publishes a separate **assistant model** alongside each instruction-tuned release.
+The assistant is already quantized and published on Hugging Face — no tensor
+extraction is needed.
+
+The naming convention is `{base_model}-assistant`:
+
+| Instruction-tuned model | Companion assistant |
+|---|---|
+| `google/gemma-4-27b-it` | `google/gemma-4-27b-it-assistant` |
+| `google/gemma-4-26B-A4B-it` | `google/gemma-4-26B-A4B-it-assistant` |
+
+Catalog field for this pattern:
+
+```yaml
+assistant_model_repo: google/gemma-4-27b-it-assistant
+```
+
+`assistant_model_repo` is mutually exclusive with `mtp_source_repo`,
+`mtp_sidecar_repo`, and `mtp_quant`. Setting both on the same entry is a
+validation error.
+
+Detection: `skulk-weights catalog add` automatically tries `{immediate_base}-assistant`
+and `{resolved_base}-assistant` via a HEAD request against the HuggingFace API.
+If the candidate repository exists (HTTP 200), it is written to the catalog entry.
+No download occurs.
+
+## Choosing between the two patterns
+
+You do not choose — SWP detects the correct pattern automatically. The decision
+tree is:
+
+1. Resolve the BF16 base model from the quantized model's `base_model:quantized:`
+   tag.
+2. Fetch `model.safetensors.index.json` from the BF16 base. Count `mtp.*` keys.
+3. If `mtp.*` keys are found → write MTP fields.
+4. If no `mtp.*` keys are found → check HuggingFace for a companion assistant
+   (`{base}-assistant`). If found → write `assistant_model_repo`.
+5. If neither → no speculative-decoding fields are written.
+
+## Catalog schema summary
+
+```yaml
+# Embedded MTP heads (Qwen3, DeepSeek)
+mtp_source_repo: owner/model-bf16
+mtp_sidecar_repo: FoxlightAI/model-mtp-q4-k
+mtp_quant: q4k   # "q4k" or "q8k"
+
+# Companion assistant (Gemma 4)
+assistant_model_repo: google/gemma-4-27b-it-assistant
+```
+
+Both groups are optional and mutually exclusive. An entry with neither is a
+valid vindex-only entry with no speculative-decoding support.

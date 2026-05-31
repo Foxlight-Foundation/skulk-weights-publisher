@@ -69,6 +69,50 @@ Catalog entries can additionally declare MTP fields (`mtp_source_repo`,
 native prediction heads. See the [MTP sidecar guide](https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar)
 for catalog entry format and prerequisites.
 
+## Gemma 4 Assistant Models
+
+Gemma 4 uses a different speculative-decoding pattern from Qwen3 and DeepSeek.
+Instead of embedding `mtp.*` tensors in the BF16 checkpoint, Google publishes a
+companion **assistant model** as a separate Hugging Face repository. The assistant
+is already quantized and published by Google — SWP does not need to extract
+anything.
+
+**Pattern:** `{base_model}-assistant`
+
+| Instruction-tuned model | Companion assistant |
+|---|---|
+| `google/gemma-4-27b-it` | `google/gemma-4-27b-it-assistant` |
+| `google/gemma-4-26B-A4B-it` | `google/gemma-4-26B-A4B-it-assistant` |
+
+The catalog field for this pattern is `assistant_model_repo` (mutually exclusive
+with `mtp_source_repo` / `mtp_sidecar_repo`):
+
+```yaml
+  - key: gemma-4-27b-it-full-q4-k
+    source_model: mlx-community/gemma-4-27b-it-4bit
+    quant: q4k
+    tier: moe
+    slices:
+      - full
+    output_name: gemma-4-27b-it-full-q4-k.vindex
+    hf_repo: FoxlightAI/gemma-4-27b-it-full-q4-k-vindex
+    hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
+    assistant_model_repo: google/gemma-4-27b-it-assistant
+```
+
+`skulk-weights catalog add` detects the assistant automatically:
+
+```bash
+skulk-weights catalog add mlx-community/gemma-4-27b-it-4bit
+# Gemma 4 companion assistant detected: google/gemma-4-27b-it-assistant
+# This model uses Google's companion-assistant pattern for speculative decoding.
+# The assistant is already published — no tensor extraction needed.
+```
+
+See the [Gemma 4 assistant guide](https://foxlight-foundation.github.io/skulk-weights-publisher/guides/gemma4-assistant)
+for step-by-step instructions and the [assistant-models concept page](https://foxlight-foundation.github.io/skulk-weights-publisher/concepts/assistant-models)
+for background on both MTP patterns.
+
 ## Required Operator Setup
 
 For vindex publication:
@@ -95,13 +139,20 @@ For MTP sidecar publication (additional):
 
 ## Install The CLI
 
-Use the package CLI for local development, CI validation, and runner operation:
+Use the package CLI for local development, CI validation, and runner operation.
+
+With `uv` (recommended):
+
+```bash
+uv sync --extra dev
+```
+
+With pip:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+pip install -e ".[dev]"
 ```
 
 The legacy script names remain as compatibility wrappers, but `skulk-weights` is
@@ -121,6 +172,53 @@ it to publish all declared artifacts for that entry.
 
 The dry run prints the commands and paths that would execute without extracting
 or uploading weight files.
+
+## skulk-ui (Local GUI)
+
+`skulk-ui` is a point-and-click interface for publishing MTP sidecars. Paste a
+HuggingFace model URL, review the detected metadata, and click Publish — no
+catalog knowledge required.
+
+**Prerequisites**
+
+- A **source checkout** of this repo. `skulk-ui` serves the React app from the
+  in-repo `ui/` tree (built to `ui/dist/`), so it must run from a clone — it is
+  not usable from a bare `pip install` of a published wheel. (Override the dist
+  location with `SKULK_UI_DIST` if you build elsewhere.)
+- The `[ui]` extras installed in the active environment (see below).
+- Node.js 18+ and Yarn on `PATH` (only needed on first run — the React app is
+  built automatically and cached in `ui/dist/`).
+- A HuggingFace token with write access to `FoxlightAI`.
+
+**Run** (from the repo root)
+
+```bash
+# With uv (recommended)
+uv sync --extra ui
+uv run skulk-ui
+
+# With pip, from an editable/source install
+pip install -e '.[ui]'
+skulk-ui
+```
+
+On the first run `skulk-ui` detects that `ui/dist/` is missing, runs
+`yarn install && yarn build` automatically (~30 s), then opens
+`http://localhost:7842` in your browser. Subsequent starts are instant.
+
+**Options**
+
+```
+--port PORT    Port to listen on (default: 7842)
+--no-open      Do not open the browser automatically
+```
+
+**Configure your HF token**
+
+Click the gear icon in the top-right corner of the UI. Enter your token and
+click Save — it is stored in `~/.config/skulk-weights/.env` and read
+automatically on every subsequent launch. You can also set `HF_TOKEN` in your
+environment; that takes precedence over the saved value.
 
 ## Publication Preflight
 

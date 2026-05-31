@@ -88,6 +88,7 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         build_entry_block,
         derive_artifact_slug,
         derive_key_slug,
+        detect_assistant_model,
         detect_base_model,
         detect_mtp_keys,
         detect_quant,
@@ -95,6 +96,7 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         fetch_hf_model_info,
         find_builtin_catalog_path,
         parse_hf_model_id,
+        resolve_base_model,
     )
 
     try:
@@ -104,7 +106,8 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         token = os.environ.get("HF_TOKEN")
         print(f"fetching metadata for {model_id}...")
         info = fetch_hf_model_info(model_id, token=token)
-        base_model = detect_base_model(info)
+        immediate_base = detect_base_model(info)
+        base_model = resolve_base_model(info, token=token)
         quant = detect_quant(info)
         if quant not in ALLOWED_QUANTS:
             raise CatalogAddError(
@@ -116,6 +119,21 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         if base_model:
             print(f"checking {base_model} for MTP keys...")
             mtp_keys = detect_mtp_keys(base_model, token=token)
+        # If no MTP tensors found, check for a Gemma 4-style companion assistant.
+        assistant_model_repo: str | None = None
+        if not mtp_keys:
+            if immediate_base:
+                print(f"checking {immediate_base}-assistant on HuggingFace...")
+                assistant_model_repo = detect_assistant_model(
+                    immediate_base, token=token
+                )
+            if (
+                assistant_model_repo is None
+                and base_model
+                and base_model != immediate_base
+            ):
+                print(f"checking {base_model}-assistant on HuggingFace...")
+                assistant_model_repo = detect_assistant_model(base_model, token=token)
         key_slug = derive_key_slug(model_id, quant)
         artifact_slug = derive_artifact_slug(model_id, quant)
         effective_key = f"foxlight/{key_slug}"
@@ -151,11 +169,19 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
             tier=tier,
             base_model=base_model,
             mtp_keys=mtp_keys,
+            assistant_model_repo=assistant_model_repo,
         )
         print("\n--- entry preview ---")
         print(entry_block)
         if mtp_keys:
             print(f"detected {len(mtp_keys)} MTP tensor keys in {base_model}")
+        elif assistant_model_repo:
+            print(
+                f"Gemma 4 companion assistant detected: {assistant_model_repo}\n"
+                "This model uses Google's companion-assistant pattern for "
+                "speculative decoding.\nThe assistant is already published — "
+                "no tensor extraction needed."
+            )
         else:
             print("no MTP keys detected — mtp fields omitted")
         if args.dry_run:

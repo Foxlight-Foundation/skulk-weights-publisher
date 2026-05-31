@@ -8,3 +8,8 @@ __pycache__/
 node_modules/
 website/.docusaurus/
 website/build/
+ui/dist/
+ui/node_modules/
+ui/storybook-static/
+ui/coverage/
+ui/package-lock.json
