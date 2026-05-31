@@ -13,7 +13,7 @@ def test_cli_catalog_validate(capsys: CaptureFixture[str]) -> None:
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "catalog valid: 10 entries from 1 sources" in captured.out
+    assert "catalog valid: 11 entries from 1 sources" in captured.out
 
 
 def test_cli_catalog_sources(capsys: CaptureFixture[str]) -> None:
@@ -32,7 +32,7 @@ def test_cli_legacy_catalogue_alias_still_works(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "catalog valid: 10 entries from 1 sources" in captured.out
+    assert "catalog valid: 11 entries from 1 sources" in captured.out
 
 
 def test_cli_publish_dry_run(capsys: CaptureFixture[str]) -> None:
@@ -71,6 +71,49 @@ def test_cli_legacy_manifest_publish_dry_run(capsys: CaptureFixture[str]) -> Non
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "model key: gemma-3-4b-full-q4-k" in captured.out
+
+
+def test_cli_catalog_add_dry_run(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.catalog_adder as adder_mod
+
+    fake_info = {
+        "id": "mlx-community/TestModel-4bit",
+        "tags": ["base_model:quantized:Acme/TestModel", "text-generation"],
+    }
+    monkeypatch.setattr(adder_mod, "fetch_hf_model_info", lambda *a, **kw: fake_info)
+    monkeypatch.setattr(adder_mod, "detect_mtp_keys", lambda *a, **kw: [])
+
+    exit_code = run(
+        ["catalog", "add", "mlx-community/TestModel-4bit", "--dry-run"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "testmodel-full-q4-k" in captured.out
+    assert "dry run" in captured.out
+
+
+def test_cli_catalog_add_error_propagates(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.catalog_adder as adder_mod
+    from skulk_weights_publisher.catalog_adder import CatalogAddError
+
+    monkeypatch.setattr(
+        adder_mod,
+        "fetch_hf_model_info",
+        lambda *a, **kw: (_ for _ in ()).throw(CatalogAddError("HF API returned 404")),
+    )
+
+    exit_code = run(["catalog", "add", "bad/model", "--dry-run"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "HF API returned 404" in captured.err
 
 
 def test_cli_mtp_extraction_error_caught_by_run(
