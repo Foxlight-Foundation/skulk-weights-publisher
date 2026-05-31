@@ -51,8 +51,8 @@ def extract_mtp(
         ) from exc
 
     try:
-        from safetensors import (
-            safe_open as _safe_open,  # type: ignore[import-not-found]
+        from safetensors import (  # type: ignore[import-not-found]
+            safe_open as _safe_open,
         )
     except ImportError as exc:
         raise MtpExtractionError(
