@@ -137,6 +137,23 @@ def test_register_rejects_unsupported_quant(
     assert catalog.read_text(encoding="utf-8") == before
 
 
+def test_ensure_built_honors_dist_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_ensure_built returns early when SKULK_UI_DIST has a built index.html."""
+    from skulk_weights_publisher.server import _ensure_built
+
+    dist = tmp_path / "prebuilt"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+    monkeypatch.setenv("SKULK_UI_DIST", str(dist))
+
+    # Should return without raising SystemExit or attempting a build, even with
+    # no source ui/ tree present.
+    _ensure_built()
+
+
 def test_save_token_is_owner_only(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

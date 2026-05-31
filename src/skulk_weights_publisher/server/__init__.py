@@ -21,7 +21,19 @@ def _dist_root() -> Path:
 
 
 def _ensure_built() -> None:
-    """Build the React app if ui/dist/index.html is missing."""
+    """Build the React app if no prebuilt dist is available.
+
+    Honors the SKULK_UI_DIST override first (matching the server's
+    _resolve_dist): if it points at a directory with index.html, no in-repo
+    build is needed — supports running against an externally built dist without
+    a source tree.
+    """
+    import os
+
+    override = os.environ.get("SKULK_UI_DIST", "").strip()
+    if override and (Path(override) / "index.html").is_file():
+        return
+
     dist = _dist_root()
     if (dist / "index.html").is_file():
         return
