@@ -41,7 +41,7 @@ def test_register_appends_assistant_entry(
     monkeypatch.setattr(app_module, "detect_mtp_keys", lambda *a, **k: [])
     monkeypatch.setattr(
         app_module,
-        "detect_assistant_model",
+        "find_assistant_model",
         lambda *a, **k: "google/gemma-4-27b-it-assistant",
     )
     monkeypatch.setattr(app_module, "find_builtin_catalog_path", lambda: catalog)
@@ -88,7 +88,7 @@ def test_register_rejects_duplicate_key(
     monkeypatch.setattr(app_module, "detect_mtp_keys", lambda *a, **k: [])
     monkeypatch.setattr(
         app_module,
-        "detect_assistant_model",
+        "find_assistant_model",
         lambda *a, **k: "google/gemma-4-27b-it-assistant",
     )
     monkeypatch.setattr(app_module, "find_builtin_catalog_path", lambda: catalog)

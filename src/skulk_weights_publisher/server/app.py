@@ -23,12 +23,12 @@ from skulk_weights_publisher.catalog_adder import (
     build_entry_block,
     derive_artifact_slug,
     derive_key_slug,
-    detect_assistant_model,
     detect_base_model,
     detect_mtp_keys,
     detect_quant,
     detect_tier,
     fetch_hf_model_info,
+    find_assistant_model,
     find_builtin_catalog_path,
     parse_hf_model_id,
     quant_suffix,
@@ -171,18 +171,13 @@ async def detect(body: DetectBody) -> Any:
                     f"-mtp-{quant_suffix(quant)}"
                 )
         # If no MTP tensors, check for a Gemma 4-style companion assistant.
+        # The assistant is named after the instruct model the user pasted, so
+        # check model_id first, then its base(s).
         assistant_model_repo: str | None = None
         if not mtp_keys:
-            if immediate_base:
-                assistant_model_repo = detect_assistant_model(
-                    immediate_base, token=token
-                )
-            if (
-                assistant_model_repo is None
-                and base_model
-                and base_model != immediate_base
-            ):
-                assistant_model_repo = detect_assistant_model(base_model, token=token)
+            assistant_model_repo = find_assistant_model(
+                [model_id, immediate_base, base_model], token=token
+            )
         return {
             "model_id": model_id,
             "base_model": base_model,
@@ -276,16 +271,9 @@ async def register(body: RegisterBody) -> Any:
             mtp_keys = detect_mtp_keys(base_model, token=token)
         assistant_model_repo: str | None = None
         if not mtp_keys:
-            if immediate_base:
-                assistant_model_repo = detect_assistant_model(
-                    immediate_base, token=token
-                )
-            if (
-                assistant_model_repo is None
-                and base_model
-                and base_model != immediate_base
-            ):
-                assistant_model_repo = detect_assistant_model(base_model, token=token)
+            assistant_model_repo = find_assistant_model(
+                [model_id, immediate_base, base_model], token=token
+            )
 
         key_slug = derive_key_slug(model_id, quant)
         artifact_slug = derive_artifact_slug(model_id, quant)
