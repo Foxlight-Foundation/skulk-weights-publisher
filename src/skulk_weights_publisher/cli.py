@@ -97,18 +97,39 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
     )
 
     try:
+        from skulk_weights_publisher.catalogue import load_catalogue_view
+        from skulk_weights_publisher.manifest import ALLOWED_QUANTS
+
         model_id = parse_hf_model_id(args.model)
         token = os.environ.get("HF_TOKEN")
         print(f"fetching metadata for {model_id}...")
         info = fetch_hf_model_info(model_id, token=token)
         base_model = detect_base_model(info)
         quant = detect_quant(info)
+        if quant not in ALLOWED_QUANTS:
+            raise CatalogAddError(
+                f"detected quant '{quant}' is not supported "
+                f"(allowed: {', '.join(sorted(ALLOWED_QUANTS))})"
+            )
         tier = detect_tier(info)
         mtp_keys: list[str] = []
         if base_model:
             print(f"checking {base_model} for MTP keys...")
             mtp_keys = detect_mtp_keys(base_model, token=token)
         key_slug = derive_key_slug(model_id, quant)
+        effective_key = f"foxlight/{key_slug}"
+        hf_repo_new = f"FoxlightAI/{key_slug}-vindex"
+        view = load_catalogue_view()
+        existing_keys = {e.key for e in view.entries}
+        if effective_key in existing_keys:
+            raise CatalogAddError(
+                f"'{effective_key}' already exists in the catalog"
+            )
+        existing_hf_repos = {e.hf_repo for e in view.entries}
+        if hf_repo_new in existing_hf_repos:
+            raise CatalogAddError(
+                f"hf_repo '{hf_repo_new}' already exists in the catalog"
+            )
         entry_block = build_entry_block(
             key_slug=key_slug,
             source_model=model_id,
