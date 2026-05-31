@@ -157,8 +157,9 @@ def test_scratch_clean_rejects_dangerous_path(
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import skulk_weights_publisher.cli as cli_mod
     from pathlib import Path
+
+    import skulk_weights_publisher.cli as cli_mod
 
     monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: Path.home())
 
@@ -174,8 +175,9 @@ def test_scratch_clean_rejects_cwd(
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import skulk_weights_publisher.cli as cli_mod
     from pathlib import Path
+
+    import skulk_weights_publisher.cli as cli_mod
 
     monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: Path.cwd())
 
