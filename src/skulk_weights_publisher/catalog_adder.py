@@ -131,7 +131,7 @@ def derive_key_slug(model_id: str, quant: str) -> str:
     # Strip known MLX/quant qualifiers (case-insensitive)
     for suffix in _STRIP_SUFFIXES:
         repo = re.sub(re.escape(suffix), "", repo, flags=re.IGNORECASE)
-    slug = repo.lower().replace(".", "-")
+    slug = repo.lower().replace(".", "-").replace("_", "-")
     slug = re.sub(r"-+", "-", slug).strip("-")
     quant_suffix = "q4-k" if quant == "q4k" else "q8-k"
     return f"{slug}-full-{quant_suffix}"

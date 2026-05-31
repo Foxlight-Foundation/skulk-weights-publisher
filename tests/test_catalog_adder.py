@@ -141,6 +141,10 @@ def test_derive_key_slug_normalises_dots() -> None:
     )
 
 
+def test_derive_key_slug_normalises_underscores() -> None:
+    assert derive_key_slug("owner/Foo_Bar-4bit", "q4k") == "foo-bar-full-q4-k"
+
+
 # ── build_entry_block ────────────────────────────────────────────────────────
 
 
