@@ -169,6 +169,28 @@ def detect_assistant_model(model_id: str, token: str | None = None) -> str | Non
     return None
 
 
+def find_assistant_model(
+    candidates: list[str | None], token: str | None = None
+) -> str | None:
+    """Return the first published ``-assistant`` repo among candidate model IDs.
+
+    The Gemma 4 assistant is named after the *instruct* model
+    (``google/gemma-4-26B-A4B-it`` → ``…-it-assistant``), which is usually the
+    model the user pastes — not its base. So we check the pasted model itself
+    first, then its immediate base, then the resolved BF16 root. Deduped; falls
+    back to ``None``.
+    """
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        assistant = detect_assistant_model(candidate, token=token)
+        if assistant is not None:
+            return assistant
+    return None
+
+
 def detect_mtp_keys(base_model: str, token: str | None = None) -> list[str]:
     """Return MTP tensor key names present in base_model's weight map.
 

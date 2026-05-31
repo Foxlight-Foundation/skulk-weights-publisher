@@ -88,12 +88,12 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         build_entry_block,
         derive_artifact_slug,
         derive_key_slug,
-        detect_assistant_model,
         detect_base_model,
         detect_mtp_keys,
         detect_quant,
         detect_tier,
         fetch_hf_model_info,
+        find_assistant_model,
         find_builtin_catalog_path,
         parse_hf_model_id,
         resolve_base_model,
@@ -120,20 +120,14 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
             print(f"checking {base_model} for MTP keys...")
             mtp_keys = detect_mtp_keys(base_model, token=token)
         # If no MTP tensors found, check for a Gemma 4-style companion assistant.
+        # The assistant is named after the instruct model (what the user usually
+        # pastes), so check model_id first, then its base(s).
         assistant_model_repo: str | None = None
         if not mtp_keys:
-            if immediate_base:
-                print(f"checking {immediate_base}-assistant on HuggingFace...")
-                assistant_model_repo = detect_assistant_model(
-                    immediate_base, token=token
-                )
-            if (
-                assistant_model_repo is None
-                and base_model
-                and base_model != immediate_base
-            ):
-                print(f"checking {base_model}-assistant on HuggingFace...")
-                assistant_model_repo = detect_assistant_model(base_model, token=token)
+            print("checking for a companion assistant model on HuggingFace...")
+            assistant_model_repo = find_assistant_model(
+                [model_id, immediate_base, base_model], token=token
+            )
         key_slug = derive_key_slug(model_id, quant)
         artifact_slug = derive_artifact_slug(model_id, quant)
         effective_key = f"foxlight/{key_slug}"

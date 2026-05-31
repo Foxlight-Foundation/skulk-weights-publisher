@@ -362,6 +362,55 @@ def test_detect_assistant_model_constructs_candidate_correctly() -> None:
     assert result == "google/gemma-4-26B-A4B-it-assistant"
 
 
+# ── find_assistant_model ─────────────────────────────────────────────────────
+
+
+def test_find_assistant_model_checks_pasted_model_first() -> None:
+    """The instruct model the user pasted carries the assistant — check it first.
+
+    Regression: previously only the base was checked, so pasting
+    google/gemma-4-26B-A4B-it (whose -it-assistant exists) missed it because the
+    base gemma-4-26B-A4B has no assistant.
+    """
+    from skulk_weights_publisher.catalog_adder import find_assistant_model
+
+    calls: list[str] = []
+
+    def fake(model_id: str, token: str | None = None) -> str | None:
+        calls.append(model_id)
+        if model_id == "google/gemma-4-26B-A4B-it":
+            return f"{model_id}-assistant"
+        return None
+
+    with patch(
+        "skulk_weights_publisher.catalog_adder.detect_assistant_model", side_effect=fake
+    ):
+        result = find_assistant_model(
+            ["google/gemma-4-26B-A4B-it", "google/gemma-4-26B-A4B", None]
+        )
+
+    assert result == "google/gemma-4-26B-A4B-it-assistant"
+    assert calls[0] == "google/gemma-4-26B-A4B-it"  # pasted model checked first
+
+
+def test_find_assistant_model_dedups_and_returns_none() -> None:
+    from skulk_weights_publisher.catalog_adder import find_assistant_model
+
+    calls: list[str] = []
+
+    def fake(model_id: str, token: str | None = None) -> str | None:
+        calls.append(model_id)
+        return None
+
+    with patch(
+        "skulk_weights_publisher.catalog_adder.detect_assistant_model", side_effect=fake
+    ):
+        result = find_assistant_model(["owner/m", "owner/m", None, "owner/base"])
+
+    assert result is None
+    assert calls == ["owner/m", "owner/base"]  # deduped, None skipped
+
+
 # ── build_entry_block (assistant_model_repo) ─────────────────────────────────
 
 
