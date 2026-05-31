@@ -80,6 +80,106 @@ def _cmd_catalogue_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_catalog_add(args: argparse.Namespace) -> int:
+    import os
+
+    from skulk_weights_publisher.catalog_adder import (
+        CatalogAddError,
+        build_entry_block,
+        derive_artifact_slug,
+        derive_key_slug,
+        detect_base_model,
+        detect_mtp_keys,
+        detect_quant,
+        detect_tier,
+        fetch_hf_model_info,
+        find_builtin_catalog_path,
+        parse_hf_model_id,
+    )
+
+    try:
+        from skulk_weights_publisher.manifest import ALLOWED_QUANTS
+
+        model_id = parse_hf_model_id(args.model)
+        token = os.environ.get("HF_TOKEN")
+        print(f"fetching metadata for {model_id}...")
+        info = fetch_hf_model_info(model_id, token=token)
+        base_model = detect_base_model(info)
+        quant = detect_quant(info)
+        if quant not in ALLOWED_QUANTS:
+            raise CatalogAddError(
+                f"detected quant '{quant}' is not supported "
+                f"(allowed: {', '.join(sorted(ALLOWED_QUANTS))})"
+            )
+        tier = detect_tier(info)
+        mtp_keys: list[str] = []
+        if base_model:
+            print(f"checking {base_model} for MTP keys...")
+            mtp_keys = detect_mtp_keys(base_model, token=token)
+        key_slug = derive_key_slug(model_id, quant)
+        artifact_slug = derive_artifact_slug(model_id, quant)
+        effective_key = f"foxlight/{key_slug}"
+        hf_repo_new = f"FoxlightAI/{artifact_slug}-vindex"
+        output_name_new = f"{artifact_slug}.vindex"
+        view = _catalogue_view_from_args(args)
+        # catalog add always writes to the built-in foxlight.yaml; when
+        # --manifest is passed the view only covers that legacy file, so
+        # explicitly include the built-in entries in collision checks.
+        collision_entries = list(view.entries)
+        if args.manifest:
+            collision_entries = [*load_catalogue_view().entries, *collision_entries]
+        existing_keys = {e.key for e in collision_entries}
+        if effective_key in existing_keys:
+            raise CatalogAddError(
+                f"'{effective_key}' already exists in the catalog"
+            )
+        existing_hf_repos = {e.hf_repo for e in collision_entries}
+        if hf_repo_new in existing_hf_repos:
+            raise CatalogAddError(
+                f"hf_repo '{hf_repo_new}' already exists in the catalog"
+            )
+        existing_output_names = {e.output_name for e in collision_entries}
+        if output_name_new in existing_output_names:
+            raise CatalogAddError(
+                f"output_name '{output_name_new}' already exists in the catalog"
+            )
+        entry_block = build_entry_block(
+            key_slug=key_slug,
+            artifact_slug=artifact_slug,
+            source_model=model_id,
+            quant=quant,
+            tier=tier,
+            base_model=base_model,
+            mtp_keys=mtp_keys,
+        )
+        print("\n--- entry preview ---")
+        print(entry_block)
+        if mtp_keys:
+            print(f"detected {len(mtp_keys)} MTP tensor keys in {base_model}")
+        else:
+            print("no MTP keys detected — mtp fields omitted")
+        if args.dry_run:
+            print("--- dry run: nothing written ---")
+            return 0
+        catalog_path = find_builtin_catalog_path()
+        if not args.yes:
+            answer = input(f"\nAppend to {catalog_path}? [y/N] ").strip().lower()
+            if answer != "y":
+                print("aborted")
+                return 0
+        with open(catalog_path, "a", encoding="utf-8") as f:
+            f.write(entry_block)
+        print(f"added {key_slug} to {catalog_path}")
+        print(
+            "remember to update test entry counts in "
+            "tests/test_cli.py and tests/test_catalogue.py"
+        )
+        return 0
+    except CatalogAddError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+
 def _cmd_publish(args: argparse.Namespace) -> int:
     artifact = getattr(args, "artifact", None) or "all"
     entry = find_catalogue_entry(args.model, _catalogue_view_from_args(args))
@@ -221,6 +321,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     catalogue_init_parser.add_argument("--force", action="store_true")
     catalogue_init_parser.set_defaults(func=_cmd_catalogue_init)
+
+    catalogue_add_parser = catalogue_subparsers.add_parser(
+        "add", help="Auto-detect and add a HF model to the Foxlight catalog."
+    )
+    catalogue_add_parser.add_argument(
+        "model", help="HuggingFace model URL or owner/repo."
+    )
+    catalogue_add_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview the entry without writing to disk.",
+    )
+    catalogue_add_parser.add_argument(
+        "-y", "--yes", action="store_true", help="Skip confirmation prompt."
+    )
+    catalogue_add_parser.set_defaults(func=_cmd_catalog_add)
 
     # publish subcommand
     publish_parser = subparsers.add_parser(

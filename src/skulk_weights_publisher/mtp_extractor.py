@@ -37,6 +37,13 @@ def extract_mtp(
         return
 
     try:
+        import mlx.core as mx  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise MtpExtractionError(
+            "mlx is required for MTP weight quantization"
+        ) from exc
+
+    try:
         from huggingface_hub import create_repo, hf_hub_download, upload_file
     except ImportError as exc:
         raise MtpExtractionError(
@@ -44,10 +51,12 @@ def extract_mtp(
         ) from exc
 
     try:
-        import mlx.core as mx  # type: ignore[import-not-found]
+        from safetensors import (  # type: ignore[import-not-found]
+            safe_open as _safe_open,
+        )
     except ImportError as exc:
         raise MtpExtractionError(
-            "mlx is required for MTP weight quantization"
+            "safetensors is required for MTP extraction"
         ) from exc
 
     # Verify/create the sidecar repo before the expensive download+quantize work.
@@ -81,14 +90,15 @@ def extract_mtp(
         local_shards.append(local)
         print(f"mtp: downloaded {shard}", file=sys.stderr)
 
-    # Extract mtp.* tensors as mlx arrays.
-    # mx.load handles bfloat16 natively; safe_open+numpy does not.
+    # Extract mtp.* tensors per-key using safe_open(mlx): memory-mapped and lazy,
+    # so only accessed keys are read from disk — large non-MTP tensors in BF16
+    # shards are never materialised in RAM.
     mtp_tensors: dict[str, Any] = {}
     for shard_path in local_shards:
-        shard_weights: dict[str, Any] = mx.load(str(shard_path))
-        for key, arr in shard_weights.items():
-            if key.startswith("mtp.") or ".mtp." in key:
-                mtp_tensors[key] = arr
+        with _safe_open(str(shard_path), framework="mlx") as f:
+            for key in f.keys():  # noqa: SIM118 — safe_open is not a dict
+                if key.startswith("mtp.") or ".mtp." in key:
+                    mtp_tensors[key] = f.get_tensor(key)
 
     if not mtp_tensors:
         raise MtpExtractionError(
@@ -154,7 +164,12 @@ def _find_mtp_shards(
         pass
 
     # Fall back to single-file layout — check if model.safetensors has mtp.* keys.
-    from safetensors import safe_open  # type: ignore[import-not-found]
+    try:
+        from safetensors import safe_open  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise MtpExtractionError(
+            "safetensors is required for single-file model inspection"
+        ) from exc
 
     try:
         single_path = hf_hub_download(
