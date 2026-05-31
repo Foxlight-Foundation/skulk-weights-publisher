@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pytest import CaptureFixture
 
@@ -74,7 +76,7 @@ def test_cli_legacy_manifest_publish_dry_run(capsys: CaptureFixture[str]) -> Non
 
 
 def test_scratch_clean_deletes_directory(
-    tmp_path: pytest.TempPathFactory,
+    tmp_path: Path,
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -93,7 +95,7 @@ def test_scratch_clean_deletes_directory(
 
 
 def test_scratch_clean_missing_dir(
-    tmp_path: pytest.TempPathFactory,
+    tmp_path: Path,
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -110,7 +112,7 @@ def test_scratch_clean_missing_dir(
 
 
 def test_scratch_clean_aborts_on_no(
-    tmp_path: pytest.TempPathFactory,
+    tmp_path: Path,
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -130,7 +132,7 @@ def test_scratch_clean_aborts_on_no(
 
 
 def test_scratch_clean_aborts_on_eof(
-    tmp_path: pytest.TempPathFactory,
+    tmp_path: Path,
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -157,8 +159,6 @@ def test_scratch_clean_rejects_dangerous_path(
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from pathlib import Path
-
     import skulk_weights_publisher.cli as cli_mod
 
     monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: Path.home())
@@ -171,12 +171,10 @@ def test_scratch_clean_rejects_dangerous_path(
 
 
 def test_scratch_clean_rejects_cwd(
-    tmp_path: pytest.TempPathFactory,
+    tmp_path: Path,
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from pathlib import Path
-
     import skulk_weights_publisher.cli as cli_mod
 
     monkeypatch.setattr(cli_mod, "default_scratch_root", lambda: Path.cwd())
