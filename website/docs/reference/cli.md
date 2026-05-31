@@ -97,6 +97,62 @@ Example:
 skulk-weights catalog init
 ```
 
+## `skulk-weights catalog add HF_MODEL_ID`
+
+Adds a new Foxlight catalog entry by fetching metadata from a Hugging Face
+model repo and generating the YAML block automatically. Use this instead of
+editing `foxlight.yaml` by hand.
+
+Options:
+
+- `--dry-run`: print the generated YAML block without writing anything
+- `--yes` / `-y`: skip the confirmation prompt before writing
+
+What it does:
+
+1. Resolves the HF model ID (accepts bare `owner/repo` strings)
+2. Fetches model card tags to detect quant scheme and tier
+3. Checks the base model for `mtp.*` tensor keys and populates MTP sidecar fields if found
+4. Derives `key`, `output_name`, and `hf_repo` from the model ID
+5. Validates no key, output name, or repo collisions against the existing catalog
+6. Appends the entry to the built-in `foxlight.yaml`
+
+Examples:
+
+```bash
+skulk-weights catalog add mlx-community/Qwen3-6B-4bit --dry-run
+skulk-weights catalog add mlx-community/Qwen3-6B-4bit
+```
+
+The command exits 1 if the detected quant scheme is not supported, or if the
+generated key, `output_name`, or `hf_repo` would collide with an existing entry.
+Always use `--dry-run` first to review the generated block before writing.
+
+Setting `HF_TOKEN` in the environment is recommended — it allows the MTP key
+scan to access gated base model repos without hitting rate limits.
+
+## `skulk-weights scratch clean`
+
+Deletes the scratch directory and all cached weight shards inside it. Use this
+to reclaim disk space after a publish run or to force a clean re-download.
+
+Options:
+
+- `--scratch PATH`: override `SKULK_WEIGHTS_SCRATCH` for this operation
+- `--yes` / `-y`: skip the confirmation prompt
+
+Examples:
+
+```bash
+skulk-weights scratch clean
+skulk-weights scratch clean --yes
+skulk-weights scratch clean --scratch /fast/skulk-weights --yes
+```
+
+The command refuses to delete paths that are too broad: home directory, root,
+current working directory, any ancestor of the current working directory, or
+any path fewer than three components deep.
+
 ## `skulk-weights doctor`
 
 Checks local prerequisites that are safe on any machine: Python dependencies,

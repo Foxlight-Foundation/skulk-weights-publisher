@@ -6,6 +6,22 @@ Use this guide when you want to add an operator-owned vindex to the merged
 catalog. The Foxlight catalog is already included; your job is to describe
 the additional vindex library your organization wants to publish.
 
+:::tip Adding to the Foxlight built-in catalog?
+
+If you are a Foxlight contributor adding a model to the built-in catalog rather
+than setting up an operator-owned catalog, use `catalog add` instead of editing
+`foxlight.yaml` by hand:
+
+```bash
+skulk-weights catalog add mlx-community/Qwen3-6B-4bit --dry-run
+```
+
+See the [`catalog add` CLI reference](../reference/cli.md) for details. The
+rest of this guide covers the operator workflow — adding your own catalog
+source alongside the built-in Foxlight entries.
+
+:::
+
 ## 1. Create The Catalog Config
 
 Start with a config file:
