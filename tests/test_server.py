@@ -112,3 +112,44 @@ def test_register_rejects_duplicate_key(
     assert "already exists" in resp.json()["error"]
     # Nothing was written.
     assert catalog.read_text(encoding="utf-8") == before
+
+
+def test_register_rejects_unsupported_quant(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A q8 model is rejected before writing (manifest only allows q4k vindexes)."""
+    catalog = tmp_path / "foxlight.yaml"
+    catalog.write_text("models: []\n", encoding="utf-8")
+    before = catalog.read_text(encoding="utf-8")
+
+    info = {"id": "mlx-community/some-model-8bit", "tags": ["8-bit"]}
+    monkeypatch.setattr(app_module, "fetch_hf_model_info", lambda *a, **k: info)
+    monkeypatch.setattr(app_module, "find_builtin_catalog_path", lambda: catalog)
+
+    resp = client.post(
+        "/api/register",
+        json={"url": "mlx-community/some-model-8bit"},
+    )
+
+    assert resp.status_code == 400
+    assert "not supported" in resp.json()["error"]
+    assert catalog.read_text(encoding="utf-8") == before
+
+
+def test_save_token_is_owner_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The saved .env holding HF_TOKEN must be 0600, not world-readable."""
+    import stat
+
+    env_file = tmp_path / "cfg" / ".env"
+    monkeypatch.setattr(app_module, "_CONFIG_DIR", env_file.parent)
+    monkeypatch.setattr(app_module, "_ENV_FILE", env_file)
+
+    resp = client.post("/api/config", json={"hf_token": "hf_secret"})
+    assert resp.status_code == 200
+
+    mode = stat.S_IMODE(env_file.stat().st_mode)
+    assert mode == 0o600, f"expected 0600, got {oct(mode)}"

@@ -35,6 +35,7 @@ from skulk_weights_publisher.catalog_adder import (
     resolve_base_model,
 )
 from skulk_weights_publisher.catalogue import load_catalogue_view
+from skulk_weights_publisher.manifest import ALLOWED_QUANTS
 from skulk_weights_publisher.mtp_extractor import MtpExtractionError, extract_mtp
 from skulk_weights_publisher.publisher import default_scratch_root
 
@@ -239,6 +240,16 @@ async def register(body: RegisterBody) -> Any:
         immediate_base = detect_base_model(info)
         base_model = resolve_base_model(info, token=token)
         quant = detect_quant(info)
+        if quant not in ALLOWED_QUANTS:
+            return JSONResponse(
+                {
+                    "error": (
+                        f"detected quant '{quant}' is not supported "
+                        f"(allowed: {', '.join(sorted(ALLOWED_QUANTS))})"
+                    )
+                },
+                status_code=400,
+            )
         tier = detect_tier(info)
 
         mtp_keys: list[str] = []
@@ -376,8 +387,14 @@ def _get_token() -> str | None:
 
 
 def _save_token(token: str) -> None:
-    """Write or update HF_TOKEN in ~/.config/skulk-weights/.env."""
+    """Write or update HF_TOKEN in ~/.config/skulk-weights/.env.
+
+    The file holds a write-capable HF token, so it is created with owner-only
+    (0600) permissions and the config dir with 0700, to avoid exposing the
+    token on shared machines with a permissive default umask.
+    """
     _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    os.chmod(_CONFIG_DIR, 0o700)
     pairs: dict[str, str] = {}
     if _ENV_FILE.is_file():
         for raw in _ENV_FILE.read_text(encoding="utf-8").splitlines():
@@ -386,7 +403,9 @@ def _save_token(token: str) -> None:
                 k, v = raw.split("=", 1)
                 pairs[k.strip()] = v.strip()
     pairs["HF_TOKEN"] = token
-    _ENV_FILE.write_text(
-        "\n".join(f"{k}={v}" for k, v in pairs.items()) + "\n",
-        encoding="utf-8",
-    )
+    content = "\n".join(f"{k}={v}" for k, v in pairs.items()) + "\n"
+    # Open with 0600 from the start so the token is never briefly world-readable.
+    fd = os.open(_ENV_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    os.chmod(_ENV_FILE, 0o600)
