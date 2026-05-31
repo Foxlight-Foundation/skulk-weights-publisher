@@ -11,6 +11,7 @@ module.exports = {
         "concepts/catalog",
         "concepts/publishing-lifecycle",
         "concepts/safety-model",
+        "concepts/assistant-models",
       ],
     },
     {
@@ -21,6 +22,8 @@ module.exports = {
         "guides/add-catalog-entry",
         "guides/first-publish",
         "guides/mtp-sidecar",
+        "guides/gemma4-assistant",
+        "guides/skulk-ui",
         "guides/runner-setup",
         "guides/development",
       ],
