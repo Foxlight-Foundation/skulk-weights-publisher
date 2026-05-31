@@ -122,17 +122,23 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         hf_repo_new = f"FoxlightAI/{artifact_slug}-vindex"
         output_name_new = f"{artifact_slug}.vindex"
         view = _catalogue_view_from_args(args)
-        existing_keys = {e.key for e in view.entries}
+        # catalog add always writes to the built-in foxlight.yaml; when
+        # --manifest is passed the view only covers that legacy file, so
+        # explicitly include the built-in entries in collision checks.
+        collision_entries = list(view.entries)
+        if args.manifest:
+            collision_entries = [*load_catalogue_view().entries, *collision_entries]
+        existing_keys = {e.key for e in collision_entries}
         if effective_key in existing_keys:
             raise CatalogAddError(
                 f"'{effective_key}' already exists in the catalog"
             )
-        existing_hf_repos = {e.hf_repo for e in view.entries}
+        existing_hf_repos = {e.hf_repo for e in collision_entries}
         if hf_repo_new in existing_hf_repos:
             raise CatalogAddError(
                 f"hf_repo '{hf_repo_new}' already exists in the catalog"
             )
-        existing_output_names = {e.output_name for e in view.entries}
+        existing_output_names = {e.output_name for e in collision_entries}
         if output_name_new in existing_output_names:
             raise CatalogAddError(
                 f"output_name '{output_name_new}' already exists in the catalog"
