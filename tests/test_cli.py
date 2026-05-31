@@ -82,7 +82,7 @@ def _patch_catalog_add_deps(
 ) -> None:
     """Patch the three external calls made by _cmd_catalog_add."""
     import skulk_weights_publisher.catalog_adder as adder_mod
-    import skulk_weights_publisher.catalogue as catalogue_mod
+    import skulk_weights_publisher.cli as cli_mod
 
     fake_info = {"id": id, "tags": tags or ["text-generation"]}
     monkeypatch.setattr(adder_mod, "fetch_hf_model_info", lambda *a, **kw: fake_info)
@@ -92,7 +92,7 @@ def _patch_catalog_add_deps(
 
         view = MagicMock()
         view.entries = []
-        monkeypatch.setattr(catalogue_mod, "load_catalogue_view", lambda **kw: view)
+        monkeypatch.setattr(cli_mod, "load_catalogue_view", lambda **kw: view)
 
 
 def test_cli_catalog_add_dry_run(
@@ -138,7 +138,7 @@ def test_cli_catalog_add_rejects_duplicate_key(
     from unittest.mock import MagicMock
 
     import skulk_weights_publisher.catalog_adder as adder_mod
-    import skulk_weights_publisher.catalogue as catalogue_mod
+    import skulk_weights_publisher.cli as cli_mod
 
     fake_info = {"id": "mlx-community/TestModel-4bit", "tags": ["text-generation"]}
     monkeypatch.setattr(adder_mod, "fetch_hf_model_info", lambda *a, **kw: fake_info)
@@ -147,9 +147,10 @@ def test_cli_catalog_add_rejects_duplicate_key(
     existing = MagicMock()
     existing.key = "foxlight/testmodel-full-q4-k"
     existing.hf_repo = "FoxlightAI/testmodel-full-q4-k-vindex"
+    existing.output_name = "testmodel-full-q4-k.vindex"
     view = MagicMock()
     view.entries = [existing]
-    monkeypatch.setattr(catalogue_mod, "load_catalogue_view", lambda **kw: view)
+    monkeypatch.setattr(cli_mod, "load_catalogue_view", lambda **kw: view)
 
     exit_code = run(
         ["catalog", "add", "mlx-community/TestModel-4bit", "--dry-run"]
@@ -157,6 +158,37 @@ def test_cli_catalog_add_rejects_duplicate_key(
 
     captured = capsys.readouterr()
     assert exit_code == 1
+    assert "already exists" in captured.err
+
+
+def test_cli_catalog_add_rejects_duplicate_output_name(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import MagicMock
+
+    import skulk_weights_publisher.catalog_adder as adder_mod
+    import skulk_weights_publisher.cli as cli_mod
+
+    fake_info = {"id": "mlx-community/TestModel-4bit", "tags": ["text-generation"]}
+    monkeypatch.setattr(adder_mod, "fetch_hf_model_info", lambda *a, **kw: fake_info)
+    monkeypatch.setattr(adder_mod, "detect_mtp_keys", lambda *a, **kw: [])
+
+    existing = MagicMock()
+    existing.key = "foxlight/other-key-full-q4-k"
+    existing.hf_repo = "FoxlightAI/other-hf-repo-vindex"
+    existing.output_name = "testmodel-full-q4-k.vindex"
+    view = MagicMock()
+    view.entries = [existing]
+    monkeypatch.setattr(cli_mod, "load_catalogue_view", lambda **kw: view)
+
+    exit_code = run(
+        ["catalog", "add", "mlx-community/TestModel-4bit", "--dry-run"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "output_name" in captured.err
     assert "already exists" in captured.err
 
 

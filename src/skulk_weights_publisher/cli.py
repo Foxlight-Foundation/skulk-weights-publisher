@@ -98,7 +98,6 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
     )
 
     try:
-        from skulk_weights_publisher.catalogue import load_catalogue_view
         from skulk_weights_publisher.manifest import ALLOWED_QUANTS
 
         model_id = parse_hf_model_id(args.model)
@@ -121,7 +120,8 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         artifact_slug = derive_artifact_slug(model_id, quant)
         effective_key = f"foxlight/{key_slug}"
         hf_repo_new = f"FoxlightAI/{artifact_slug}-vindex"
-        view = load_catalogue_view()
+        output_name_new = f"{artifact_slug}.vindex"
+        view = _catalogue_view_from_args(args)
         existing_keys = {e.key for e in view.entries}
         if effective_key in existing_keys:
             raise CatalogAddError(
@@ -131,6 +131,11 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         if hf_repo_new in existing_hf_repos:
             raise CatalogAddError(
                 f"hf_repo '{hf_repo_new}' already exists in the catalog"
+            )
+        existing_output_names = {e.output_name for e in view.entries}
+        if output_name_new in existing_output_names:
+            raise CatalogAddError(
+                f"output_name '{output_name_new}' already exists in the catalog"
             )
         entry_block = build_entry_block(
             key_slug=key_slug,
