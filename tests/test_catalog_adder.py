@@ -382,7 +382,7 @@ def test_build_entry_block_with_assistant_model_repo() -> None:
 
 
 def test_build_entry_block_assistant_wins_over_empty_mtp() -> None:
-    """When assistant_model_repo is set, mtp fields are suppressed even if mtp_keys non-empty."""
+    """assistant_model_repo set → mtp fields suppressed even with mtp_keys."""
     block = build_entry_block(
         key_slug="gemma-4-27b-it-full-q4-k",
         source_model="mlx-community/gemma-4-27b-it-4bit",

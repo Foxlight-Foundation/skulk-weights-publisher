@@ -8,8 +8,9 @@ import queue
 import sys
 import threading
 import uuid
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -129,13 +130,22 @@ async def detect(body: DetectBody) -> Any:
         sidecar_repo: str | None = None
         if base_model:
             mtp_keys = detect_mtp_keys(base_model, token=token)
-            sidecar_repo = f"{_FOXLIGHT_HF_OWNER}/{base_model_slug(base_model)}-mtp-{quant_suffix(quant)}"
+            sidecar_repo = (
+                f"{_FOXLIGHT_HF_OWNER}/{base_model_slug(base_model)}"
+                f"-mtp-{quant_suffix(quant)}"
+            )
         # If no MTP tensors, check for a Gemma 4-style companion assistant.
         assistant_model_repo: str | None = None
         if not mtp_keys:
             if immediate_base:
-                assistant_model_repo = detect_assistant_model(immediate_base, token=token)
-            if assistant_model_repo is None and base_model and base_model != immediate_base:
+                assistant_model_repo = detect_assistant_model(
+                    immediate_base, token=token
+                )
+            if (
+                assistant_model_repo is None
+                and base_model
+                and base_model != immediate_base
+            ):
                 assistant_model_repo = detect_assistant_model(base_model, token=token)
         return {
             "model_id": model_id,
@@ -180,7 +190,10 @@ async def publish(body: PublishBody) -> Any:
         try:
             if body.publish_type == "assistant":
                 q.put(f"assistant: confirming companion model {body.sidecar_repo}")
-                q.put(f"assistant: {body.sidecar_repo} is already published by the model owner")
+                q.put(
+                    f"assistant: {body.sidecar_repo} is already published "
+                    "by the model owner"
+                )
                 q.put("assistant: no tensor extraction needed")
                 q.put("assistant: ready")
                 q.put("publish complete")

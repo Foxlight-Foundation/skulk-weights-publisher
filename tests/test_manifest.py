@@ -313,7 +313,9 @@ models:
         validate_manifest(manifest)
 
 
-def _assistant_manifest(tmp_path: Path, *, assistant_repo: str = "google/gemma-4-27b-it-assistant") -> Path:
+def _assistant_manifest(
+    tmp_path: Path, *, assistant_repo: str = "google/gemma-4-27b-it-assistant"
+) -> Path:
     manifest = tmp_path / "models.yaml"
     manifest.write_text(
         f"""
@@ -359,8 +361,12 @@ models:
 
 
 def test_assistant_model_repo_bad_pattern_rejected(tmp_path: Path) -> None:
-    with pytest.raises(ManifestError, match="assistant_model_repo must look like owner/name"):
-        validate_manifest(_assistant_manifest(tmp_path, assistant_repo="not-a-valid-repo"))
+    with pytest.raises(
+        ManifestError, match="assistant_model_repo must look like owner/name"
+    ):
+        validate_manifest(
+            _assistant_manifest(tmp_path, assistant_repo="not-a-valid-repo")
+        )
 
 
 def test_assistant_model_repo_and_mtp_mutually_exclusive(tmp_path: Path) -> None:
@@ -383,7 +389,8 @@ models:
         encoding="utf-8",
     )
     with pytest.raises(
-        ManifestError, match="assistant_model_repo and mtp_source_repo are mutually exclusive"
+        ManifestError,
+        match="assistant_model_repo and mtp_source_repo are mutually exclusive",
     ):
         validate_manifest(manifest)
 

@@ -27,7 +27,7 @@ Detection: `skulk-weights catalog add` fetches `model.safetensors.index.json`
 from the resolved BF16 base and counts keys that start with `mtp.` or contain
 `.mtp.`. If any are found, MTP fields are written to the catalog entry.
 
-See the [MTP sidecar guide](./guides/mtp-sidecar.md) for full instructions.
+See the [MTP sidecar guide](../guides/mtp-sidecar.md) for full instructions.
 
 ## Pattern 2: Companion assistant (Gemma 4)
 

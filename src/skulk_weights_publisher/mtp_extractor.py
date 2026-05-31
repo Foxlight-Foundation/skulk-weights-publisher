@@ -45,15 +45,18 @@ def extract_mtp(
 
     try:
         from huggingface_hub import create_repo, hf_hub_download, upload_file
-        from huggingface_hub.utils.tqdm import disable_progress_bars  # type: ignore[import-untyped]
+        from huggingface_hub.utils.tqdm import (
+            disable_progress_bars,  # type: ignore[import-untyped]
+        )
         disable_progress_bars()
     except ImportError as exc:
         raise MtpExtractionError(
             "huggingface_hub is required for MTP extraction"
         ) from exc
 
-    # safetensors is still needed by _find_mtp_shards (key-listing only, no tensor load).
-    # Tensor extraction uses mx.load() directly to avoid numpy bfloat16 conversion issues.
+    # safetensors is still needed by _find_mtp_shards (key-listing only, no
+    # tensor load). Tensor extraction uses mx.load() directly to avoid numpy
+    # bfloat16 conversion issues.
 
     # Verify/create the sidecar repo before the expensive download+quantize work.
     create_repo(

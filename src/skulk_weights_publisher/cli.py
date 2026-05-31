@@ -124,8 +124,14 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         if not mtp_keys:
             if immediate_base:
                 print(f"checking {immediate_base}-assistant on HuggingFace...")
-                assistant_model_repo = detect_assistant_model(immediate_base, token=token)
-            if assistant_model_repo is None and base_model and base_model != immediate_base:
+                assistant_model_repo = detect_assistant_model(
+                    immediate_base, token=token
+                )
+            if (
+                assistant_model_repo is None
+                and base_model
+                and base_model != immediate_base
+            ):
                 print(f"checking {base_model}-assistant on HuggingFace...")
                 assistant_model_repo = detect_assistant_model(base_model, token=token)
         key_slug = derive_key_slug(model_id, quant)
@@ -172,8 +178,9 @@ def _cmd_catalog_add(args: argparse.Namespace) -> int:
         elif assistant_model_repo:
             print(
                 f"Gemma 4 companion assistant detected: {assistant_model_repo}\n"
-                "This model uses Google's companion-assistant pattern for speculative "
-                "decoding.\nThe assistant is already published — no tensor extraction needed."
+                "This model uses Google's companion-assistant pattern for "
+                "speculative decoding.\nThe assistant is already published — "
+                "no tensor extraction needed."
             )
         else:
             print("no MTP keys detected — mtp fields omitted")

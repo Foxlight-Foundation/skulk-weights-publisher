@@ -38,7 +38,8 @@ def _ensure_built() -> None:
     if not shutil.which("yarn"):
         print(
             "skulk-ui: ui/dist/ not found and yarn is not available.\n"
-            "Install Node.js 18+ and Yarn, then re-run skulk-ui — it will build automatically.",
+            "Install Node.js 18+ and Yarn, then re-run skulk-ui — "
+            "it will build automatically.",
             file=sys.stderr,
         )
         sys.exit(1)

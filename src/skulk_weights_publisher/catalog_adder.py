@@ -223,7 +223,7 @@ _FOXLIGHT_HF_OWNER = "FoxlightAI"
 
 
 def base_model_slug(base_model: str) -> str:
-    """Derive a lowercase kebab-case slug from a base model ID (owner/repo → repo slug)."""
+    """Derive a lowercase kebab-case slug from a base model ID (repo part only)."""
     repo = base_model.split("/")[-1]
     slug = repo.lower().replace(".", "-")
     return re.sub(r"-+", "-", slug).strip("-")
