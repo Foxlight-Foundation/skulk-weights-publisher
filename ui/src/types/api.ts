@@ -28,6 +28,15 @@ export interface PublishResponse {
   job_id: string;
 }
 
+/** Response from POST /api/register */
+export interface RegisterResponse {
+  ok: boolean;
+  key: string;
+  assistant_model_repo: string | null;
+  catalog_path: string;
+  entry_block: string;
+}
+
 /** Error envelope returned by API routes on failure */
 export interface ApiError {
   error: string;

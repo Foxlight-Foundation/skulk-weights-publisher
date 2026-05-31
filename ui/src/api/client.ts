@@ -5,7 +5,13 @@
  * responses, so callers can catch a single error type.
  */
 
-import type { ConfigResponse, DetectResponse, PublishResponse, StatusResponse } from '@/types/api';
+import type {
+  ConfigResponse,
+  DetectResponse,
+  PublishResponse,
+  RegisterResponse,
+  StatusResponse,
+} from '@/types/api';
 
 async function _post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -49,19 +55,26 @@ export function detectModel(url: string): Promise<DetectResponse> {
   return _post<DetectResponse>('/api/detect', { url });
 }
 
-/** Start an async publish job (MTP extraction or assistant registration) and return the job ID. */
+/** Start an async MTP extraction job and return the job ID. */
 export function startPublish(
   baseModel: string,
   sidecarRepo: string,
   quant: string,
-  publishType: 'mtp' | 'assistant' = 'mtp',
 ): Promise<PublishResponse> {
   return _post<PublishResponse>('/api/publish', {
     base_model: baseModel,
     sidecar_repo: sidecarRepo,
     quant,
-    publish_type: publishType,
   });
+}
+
+/**
+ * Register a catalog entry for a model (no upload). Used by "Register in
+ * Catalog" for Gemma 4 assistant-type models. Re-detects from the URL
+ * server-side and appends the entry.
+ */
+export function registerCatalog(url: string): Promise<RegisterResponse> {
+  return _post<RegisterResponse>('/api/register', { url });
 }
 
 /**

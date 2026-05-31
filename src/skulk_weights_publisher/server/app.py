@@ -20,16 +20,21 @@ from pydantic import BaseModel
 from skulk_weights_publisher.catalog_adder import (
     CatalogAddError,
     base_model_slug,
+    build_entry_block,
+    derive_artifact_slug,
+    derive_key_slug,
     detect_assistant_model,
     detect_base_model,
     detect_mtp_keys,
     detect_quant,
     detect_tier,
     fetch_hf_model_info,
+    find_builtin_catalog_path,
     parse_hf_model_id,
     quant_suffix,
     resolve_base_model,
 )
+from skulk_weights_publisher.catalogue import load_catalogue_view
 from skulk_weights_publisher.mtp_extractor import MtpExtractionError, extract_mtp
 from skulk_weights_publisher.publisher import default_scratch_root
 
@@ -65,12 +70,17 @@ class DetectBody(BaseModel):
 
 
 class PublishBody(BaseModel):
-    """Request body for POST /api/publish."""
+    """Request body for POST /api/publish (MTP sidecar extraction)."""
 
     base_model: str
     sidecar_repo: str
     quant: str
-    publish_type: str = "mtp"
+
+
+class RegisterBody(BaseModel):
+    """Request body for POST /api/register (catalog entry, no upload)."""
+
+    url: str
 
 
 # ---------------------------------------------------------------------------
@@ -188,24 +198,14 @@ async def publish(body: PublishBody) -> Any:
         old_stderr = sys.stderr
         sys.stderr = _QueueWriter()  # type: ignore[assignment]
         try:
-            if body.publish_type == "assistant":
-                q.put(f"assistant: confirming companion model {body.sidecar_repo}")
-                q.put(
-                    f"assistant: {body.sidecar_repo} is already published "
-                    "by the model owner"
-                )
-                q.put("assistant: no tensor extraction needed")
-                q.put("assistant: ready")
-                q.put("publish complete")
-            else:
-                extract_mtp(
-                    source_repo=body.base_model,
-                    sidecar_repo=body.sidecar_repo,
-                    mtp_quant=body.quant,
-                    scratch_root=scratch,
-                    token=token,
-                )
-                q.put("publish complete")
+            extract_mtp(
+                source_repo=body.base_model,
+                sidecar_repo=body.sidecar_repo,
+                mtp_quant=body.quant,
+                scratch_root=scratch,
+                token=token,
+            )
+            q.put("publish complete")
         except MtpExtractionError as exc:
             q.put(f"[error]: {exc}")
         except Exception as exc:  # noqa: BLE001
@@ -216,6 +216,100 @@ async def publish(body: PublishBody) -> Any:
 
     threading.Thread(target=_run, daemon=True).start()
     return {"job_id": job_id}
+
+
+@app.post("/api/register")
+async def register(body: RegisterBody) -> Any:
+    """Append a catalog entry for a model (no upload).
+
+    Used by the GUI's "Register in Catalog" action — chiefly for Gemma 4
+    assistant-type models, where there is nothing to extract and the entry
+    simply records the source-model → assistant pairing. Mirrors the
+    `skulk-weights catalog add` flow: detect, build the entry, collision-check,
+    append to the built-in foxlight.yaml.
+    """
+    url = body.url.strip()
+    if not url:
+        return JSONResponse({"error": "url is required"}, status_code=400)
+
+    token = _get_token()
+    try:
+        model_id = parse_hf_model_id(url)
+        info = fetch_hf_model_info(model_id, token=token)
+        immediate_base = detect_base_model(info)
+        base_model = resolve_base_model(info, token=token)
+        quant = detect_quant(info)
+        tier = detect_tier(info)
+
+        mtp_keys: list[str] = []
+        if base_model:
+            mtp_keys = detect_mtp_keys(base_model, token=token)
+        assistant_model_repo: str | None = None
+        if not mtp_keys:
+            if immediate_base:
+                assistant_model_repo = detect_assistant_model(
+                    immediate_base, token=token
+                )
+            if (
+                assistant_model_repo is None
+                and base_model
+                and base_model != immediate_base
+            ):
+                assistant_model_repo = detect_assistant_model(base_model, token=token)
+
+        key_slug = derive_key_slug(model_id, quant)
+        artifact_slug = derive_artifact_slug(model_id, quant)
+        effective_key = f"foxlight/{key_slug}"
+        hf_repo_new = f"FoxlightAI/{artifact_slug}-vindex"
+        output_name_new = f"{artifact_slug}.vindex"
+
+        entries = load_catalogue_view().entries
+        if effective_key in {e.key for e in entries}:
+            return JSONResponse(
+                {"error": f"'{effective_key}' already exists in the catalog"},
+                status_code=409,
+            )
+        if hf_repo_new in {e.hf_repo for e in entries}:
+            return JSONResponse(
+                {"error": f"hf_repo '{hf_repo_new}' already exists in the catalog"},
+                status_code=409,
+            )
+        if output_name_new in {e.output_name for e in entries}:
+            return JSONResponse(
+                {
+                    "error": (
+                        f"output_name '{output_name_new}' already exists "
+                        "in the catalog"
+                    )
+                },
+                status_code=409,
+            )
+
+        entry_block = build_entry_block(
+            key_slug=key_slug,
+            artifact_slug=artifact_slug,
+            source_model=model_id,
+            quant=quant,
+            tier=tier,
+            base_model=base_model,
+            mtp_keys=mtp_keys,
+            assistant_model_repo=assistant_model_repo,
+        )
+        catalog_path = find_builtin_catalog_path()
+        with open(catalog_path, "a", encoding="utf-8") as fh:
+            fh.write(entry_block)
+
+        return {
+            "ok": True,
+            "key": effective_key,
+            "assistant_model_repo": assistant_model_repo,
+            "catalog_path": str(catalog_path),
+            "entry_block": entry_block,
+        }
+    except CatalogAddError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"error": str(exc)}, status_code=500)
 
 
 @app.get("/api/stream/{job_id}")

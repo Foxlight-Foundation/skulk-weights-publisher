@@ -181,20 +181,24 @@ catalog knowledge required.
 
 **Prerequisites**
 
-- Python environment with `[ui]` extras (see install step below)
-- Node.js 18+ on `PATH` (only needed on first run — the React app is built
-  automatically and cached in `ui/dist/`)
-- A HuggingFace token with write access to `FoxlightAI`
+- A **source checkout** of this repo. `skulk-ui` serves the React app from the
+  in-repo `ui/` tree (built to `ui/dist/`), so it must run from a clone — it is
+  not usable from a bare `pip install` of a published wheel. (Override the dist
+  location with `SKULK_UI_DIST` if you build elsewhere.)
+- The `[ui]` extras installed in the active environment (see below).
+- Node.js 18+ and Yarn on `PATH` (only needed on first run — the React app is
+  built automatically and cached in `ui/dist/`).
+- A HuggingFace token with write access to `FoxlightAI`.
 
-**Run**
+**Run** (from the repo root)
 
 ```bash
 # With uv (recommended)
 uv sync --extra ui
 uv run skulk-ui
 
-# With pip
-pip install '.[ui]'
+# With pip, from an editable/source install
+pip install -e '.[ui]'
 skulk-ui
 ```
 
