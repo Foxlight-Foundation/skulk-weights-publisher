@@ -336,16 +336,22 @@ async def stream(job_id: str) -> Any:
 
     async def _event_gen() -> AsyncGenerator[str, None]:
         loop = asyncio.get_running_loop()
+        completed = False
         try:
             while True:
                 line = await loop.run_in_executor(None, q.get)
                 if line is None:
+                    completed = True
                     yield "data: [done]\n\n"
                     break
                 yield f"data: {line}\n\n"
         finally:
-            # Drop the finished job so completed queues don't accumulate.
-            _jobs.pop(job_id, None)
+            # Only drop the job once it has genuinely finished (sentinel seen).
+            # On a transient SSE disconnect the background thread is still using
+            # the queue, so we keep the job registered to let the UI reconnect
+            # rather than orphaning a running publish (and risking a duplicate).
+            if completed:
+                _jobs.pop(job_id, None)
 
     return StreamingResponse(
         _event_gen(),
