@@ -66,6 +66,49 @@ def detect_base_model(info: dict[str, Any]) -> str | None:
     return None
 
 
+def resolve_base_model(
+    info: dict[str, Any],
+    token: str | None = None,
+    max_depth: int = 5,
+) -> str | None:
+    """Return the true BF16 root model by traversing the base_model:quantized: chain.
+
+    Many community MLX quants point their ``base_model:quantized:`` tag at a
+    fine-tuned intermediate rather than the original base checkpoint.  This
+    function follows the chain — fetching each intermediate's metadata — until
+    it reaches a model that is not itself a quantization, then returns that
+    model's ``base_model:`` target (or the model's own ID if it has none).
+    """
+    current = info
+    for _ in range(max_depth):
+        tags: list[str] = current.get("tags", [])
+        quantized_from: str | None = None
+        for tag in tags:
+            if tag.startswith("base_model:quantized:"):
+                quantized_from = tag.split("base_model:quantized:", 1)[1]
+                break
+
+        if quantized_from is None:
+            # Leaf node — not a quantization.  Return its own base_model or
+            # (if it has none) its model ID, provided it differs from the
+            # original model we started with.
+            base = detect_base_model(current)
+            if base is not None:
+                return base
+            current_id = current.get("id")
+            if isinstance(current_id, str) and current_id != info.get("id"):
+                return current_id
+            return None
+
+        try:
+            current = fetch_hf_model_info(quantized_from, token=token)
+        except CatalogAddError:
+            # Can't fetch the intermediate — return it as the best available answer.
+            return quantized_from
+
+    return detect_base_model(current)
+
+
 def detect_quant(info: dict[str, Any]) -> str:
     """Infer quant scheme from tags or model name. Returns 'q4k' or 'q8k'."""
     model_id: str = info.get("id", "")
@@ -93,6 +136,32 @@ def detect_tier(info: dict[str, Any]) -> str:
         if tag.lower() in _MOE_ARCH_TAGS:
             return "moe"
     return "smoke"
+
+
+def detect_assistant_model(model_id: str, token: str | None = None) -> str | None:
+    """Return the companion assistant model repo if it exists on HuggingFace.
+
+    Appends ``-assistant`` to ``model_id`` and performs a lightweight HEAD
+    request against the HF API.  Returns the candidate ID on HTTP 200, or
+    ``None`` on any error (404, network failure, etc.).
+
+    Used to detect Gemma 4-style companion-assistant models where the
+    assistant is already published separately by the model owner rather than
+    embedded as ``mtp.*`` tensors in the base checkpoint.
+    """
+    candidate = f"{model_id}-assistant"
+    url = f"https://huggingface.co/api/models/{candidate}"
+    headers: dict[str, str] = {"Accept": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers, method="HEAD")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status == 200:
+                return candidate
+    except Exception:  # noqa: BLE001
+        pass
+    return None
 
 
 def detect_mtp_keys(base_model: str, token: str | None = None) -> list[str]:
@@ -132,27 +201,29 @@ def _make_slug(repo: str, *, strip_instruct: bool) -> str:
     return re.sub(r"-+", "-", slug).strip("-")
 
 
-def _quant_suffix(quant: str) -> str:
+def quant_suffix(quant: str) -> str:
+    """Return the kebab-case quant suffix used in repo and artifact names."""
     return "q4-k" if quant == "q4k" else "q8-k"
 
 
 def derive_key_slug(model_id: str, quant: str) -> str:
     """Derive a kebab-case catalog key slug (instruct/it stripped)."""
     slug = _make_slug(model_id.split("/")[-1], strip_instruct=True)
-    return f"{slug}-full-{_quant_suffix(quant)}"
+    return f"{slug}-full-{quant_suffix(quant)}"
 
 
 def derive_artifact_slug(model_id: str, quant: str) -> str:
     """Derive a kebab-case artifact slug (instruct normalized to -it-)."""
     slug = _make_slug(model_id.split("/")[-1], strip_instruct=False)
-    return f"{slug}-full-{_quant_suffix(quant)}"
+    return f"{slug}-full-{quant_suffix(quant)}"
 
 
 _FOXLIGHT_COLLECTION = "FoxlightAI/vindexes-6a124406dd5fb439c431b051"
 _FOXLIGHT_HF_OWNER = "FoxlightAI"
 
 
-def _base_model_slug(base_model: str) -> str:
+def base_model_slug(base_model: str) -> str:
+    """Derive a lowercase kebab-case slug from a base model ID (owner/repo → repo slug)."""
     repo = base_model.split("/")[-1]
     slug = repo.lower().replace(".", "-")
     return re.sub(r"-+", "-", slug).strip("-")
@@ -167,6 +238,7 @@ def build_entry_block(
     tier: str,
     base_model: str | None,
     mtp_keys: list[str],
+    assistant_model_repo: str | None = None,
     namespace: str = "foxlight",
 ) -> str:
     """Return an indented YAML block (with leading blank line) for one entry.
@@ -175,6 +247,10 @@ def build_entry_block(
     from ``key_slug`` when the source model has an instruct/it qualifier (which
     the catalog key omits but artifact names retain as ``-it-``). Defaults to
     ``key_slug`` when not supplied.
+
+    When ``assistant_model_repo`` is provided the block includes
+    ``assistant_model_repo`` and omits the ``mtp_*`` fields (mutually exclusive
+    per the catalog schema).
     """
     hf_owner = _FOXLIGHT_HF_OWNER if namespace == "foxlight" else namespace
     aslug = artifact_slug if artifact_slug is not None else key_slug
@@ -189,8 +265,10 @@ def build_entry_block(
         f"    hf_repo: {hf_owner}/{aslug}-vindex",
         f"    hf_collection: {_FOXLIGHT_COLLECTION}",
     ]
-    if mtp_keys and base_model:
-        sidecar = f"{hf_owner}/{_base_model_slug(base_model)}-mtp"
+    if assistant_model_repo:
+        lines.append(f"    assistant_model_repo: {assistant_model_repo}")
+    elif mtp_keys and base_model:
+        sidecar = f"{hf_owner}/{base_model_slug(base_model)}-mtp-{quant_suffix(quant)}"
         lines += [
             f"    mtp_source_repo: {base_model}",
             f"    mtp_sidecar_repo: {sidecar}",

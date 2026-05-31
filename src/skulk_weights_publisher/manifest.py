@@ -44,6 +44,7 @@ class ManifestEntry:
     mtp_source_repo: str | None = None
     mtp_sidecar_repo: str | None = None
     mtp_quant: str | None = None
+    assistant_model_repo: str | None = None
 
     @property
     def publish_slices(self) -> str:
@@ -233,6 +234,20 @@ def validate_manifest_payload(
                     f"{effective_key}: unsupported mtp_quant {mtp_quant_raw!r}"
                 )
 
+        assistant_model_repo = _optional_string(
+            entry, "assistant_model_repo", effective_key
+        )
+        if assistant_model_repo is not None:
+            if not HF_REPO_PATTERN.fullmatch(assistant_model_repo):
+                raise ManifestError(
+                    f"{effective_key}: assistant_model_repo must look like owner/name"
+                )
+            if mtp_source_repo is not None:
+                raise ManifestError(
+                    f"{effective_key}: assistant_model_repo and mtp_source_repo"
+                    " are mutually exclusive"
+                )
+
         entries.append(
             ManifestEntry(
                 key=effective_key,
@@ -246,6 +261,7 @@ def validate_manifest_payload(
                 mtp_source_repo=mtp_source_repo,
                 mtp_sidecar_repo=mtp_sidecar_repo,
                 mtp_quant=mtp_quant_raw,
+                assistant_model_repo=assistant_model_repo,
             )
         )
 

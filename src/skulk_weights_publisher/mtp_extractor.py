@@ -45,19 +45,15 @@ def extract_mtp(
 
     try:
         from huggingface_hub import create_repo, hf_hub_download, upload_file
+        from huggingface_hub.utils.tqdm import disable_progress_bars  # type: ignore[import-untyped]
+        disable_progress_bars()
     except ImportError as exc:
         raise MtpExtractionError(
             "huggingface_hub is required for MTP extraction"
         ) from exc
 
-    try:
-        from safetensors import (  # type: ignore[import-not-found]
-            safe_open as _safe_open,
-        )
-    except ImportError as exc:
-        raise MtpExtractionError(
-            "safetensors is required for MTP extraction"
-        ) from exc
+    # safetensors is still needed by _find_mtp_shards (key-listing only, no tensor load).
+    # Tensor extraction uses mx.load() directly to avoid numpy bfloat16 conversion issues.
 
     # Verify/create the sidecar repo before the expensive download+quantize work.
     create_repo(
@@ -78,7 +74,11 @@ def extract_mtp(
     # Download the relevant shards into scratch.
     scratch_root.mkdir(parents=True, exist_ok=True)
     local_shards: list[Path] = []
-    for shard in shard_files:
+    for index, shard in enumerate(shard_files, 1):
+        print(
+            f"mtp: downloading shard {index}/{len(shard_files)}: {shard}",
+            file=sys.stderr,
+        )
         local = Path(
             hf_hub_download(
                 repo_id=source_repo,
@@ -88,17 +88,16 @@ def extract_mtp(
             )
         )
         local_shards.append(local)
-        print(f"mtp: downloaded {shard}", file=sys.stderr)
+        print(f"mtp: shard {index}/{len(shard_files)} ready", file=sys.stderr)
 
-    # Extract mtp.* tensors per-key using safe_open(mlx): memory-mapped and lazy,
-    # so only accessed keys are read from disk — large non-MTP tensors in BF16
-    # shards are never materialised in RAM.
+    # Extract mtp.* tensors using mx.load() — natively handles bfloat16 without
+    # routing through numpy (which doesn't support that dtype).
     mtp_tensors: dict[str, Any] = {}
     for shard_path in local_shards:
-        with _safe_open(str(shard_path), framework="mlx") as f:
-            for key in f.keys():  # noqa: SIM118 — safe_open is not a dict
-                if key.startswith("mtp.") or ".mtp." in key:
-                    mtp_tensors[key] = f.get_tensor(key)
+        loaded: dict[str, Any] = mx.load(str(shard_path))  # type: ignore[assignment]
+        for key, tensor in loaded.items():
+            if key.startswith("mtp.") or ".mtp." in key:
+                mtp_tensors[key] = tensor
 
     if not mtp_tensors:
         raise MtpExtractionError(
@@ -118,6 +117,7 @@ def extract_mtp(
     print(f"mtp: saved to {output_path}", file=sys.stderr)
 
     # Upload.
+    print(f"mtp: uploading to hf://{sidecar_repo}/mtp.safetensors", file=sys.stderr)
     upload_file(
         path_or_fileobj=str(output_path),
         path_in_repo="mtp.safetensors",

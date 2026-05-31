@@ -12,11 +12,13 @@ from skulk_weights_publisher.catalog_adder import (
     build_entry_block,
     derive_artifact_slug,
     derive_key_slug,
+    detect_assistant_model,
     detect_base_model,
     detect_mtp_keys,
     detect_quant,
     detect_tier,
     parse_hf_model_id,
+    resolve_base_model,
 )
 
 # ── parse_hf_model_id ────────────────────────────────────────────────────────
@@ -75,6 +77,65 @@ def test_detect_base_model_no_slash_skipped() -> None:
 
 def test_detect_base_model_none_when_no_tags() -> None:
     assert detect_base_model({}) is None
+
+
+# ── resolve_base_model ───────────────────────────────────────────────────────
+
+
+def test_resolve_base_model_direct_quant_of_root() -> None:
+    # MLX quant → original BF16 root (single hop, root has no base_model tag)
+    mlx_info = {
+        "id": "mlx-community/Qwen3-35B-A3B-4bit",
+        "tags": ["base_model:quantized:Qwen/Qwen3-35B-A3B"],
+    }
+    root_info = {"id": "Qwen/Qwen3-35B-A3B", "tags": []}
+
+    with patch(
+        "skulk_weights_publisher.catalog_adder.fetch_hf_model_info",
+        return_value=root_info,
+    ):
+        assert resolve_base_model(mlx_info) == "Qwen/Qwen3-35B-A3B"
+
+
+def test_resolve_base_model_quant_of_finetune() -> None:
+    # MLX quant → uncensored finetune → original BF16 root (two hops)
+    mlx_info = {
+        "id": "froggeric/Qwen3.6-35B-A3B-Uncensored-Heretic-MLX-4bit",
+        "tags": ["base_model:quantized:llmfan46/Qwen3.6-35B-A3B-uncensored-heretic"],
+    }
+    finetune_info = {
+        "id": "llmfan46/Qwen3.6-35B-A3B-uncensored-heretic",
+        "tags": ["base_model:Qwen/Qwen3.6-35B-A3B"],
+    }
+
+    with patch(
+        "skulk_weights_publisher.catalog_adder.fetch_hf_model_info",
+        return_value=finetune_info,
+    ):
+        assert resolve_base_model(mlx_info) == "Qwen/Qwen3.6-35B-A3B"
+
+
+def test_resolve_base_model_no_base_tag_returns_none() -> None:
+    info = {"id": "owner/SomeModel", "tags": ["text-generation"]}
+    assert resolve_base_model(info) is None
+
+
+def test_resolve_base_model_plain_base_tag_no_fetch() -> None:
+    # Model is a finetune (not a quant) — resolved in one pass, no fetch needed.
+    info = {"id": "owner/FineTuned", "tags": ["base_model:Qwen/Qwen3-35B-A3B"]}
+    assert resolve_base_model(info) == "Qwen/Qwen3-35B-A3B"
+
+
+def test_resolve_base_model_fetch_error_returns_intermediate() -> None:
+    mlx_info = {
+        "id": "mlx-community/Foo-4bit",
+        "tags": ["base_model:quantized:private/Intermediate"],
+    }
+    with patch(
+        "skulk_weights_publisher.catalog_adder.fetch_hf_model_info",
+        side_effect=CatalogAddError("HF API returned 404"),
+    ):
+        assert resolve_base_model(mlx_info) == "private/Intermediate"
 
 
 # ── detect_quant ─────────────────────────────────────────────────────────────
@@ -209,7 +270,7 @@ def test_build_entry_block_with_mtp() -> None:
         mtp_keys=["mtp.fc.weight"],
     )
     assert "mtp_source_repo: Qwen/Qwen3.5-9B" in block
-    assert "mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp" in block
+    assert "mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp-q4-k" in block
     assert "mtp_quant: q4k" in block
 
 
@@ -256,3 +317,80 @@ def test_detect_mtp_keys_returns_empty_on_http_error() -> None:
 def test_detect_mtp_keys_returns_empty_on_generic_error() -> None:
     with patch("urllib.request.urlopen", side_effect=OSError("network")):
         assert detect_mtp_keys("some/model") == []
+
+
+# ── detect_assistant_model ───────────────────────────────────────────────────
+
+
+def _make_head_response(status: int) -> MagicMock:
+    resp = MagicMock()
+    resp.status = status
+    resp.__enter__ = lambda s: s
+    resp.__exit__ = MagicMock(return_value=False)
+    return resp
+
+
+def test_detect_assistant_model_returns_candidate_on_200() -> None:
+    with patch(
+        "urllib.request.urlopen",
+        return_value=_make_head_response(200),
+    ):
+        result = detect_assistant_model("google/gemma-4-27b-it")
+    assert result == "google/gemma-4-27b-it-assistant"
+
+
+def test_detect_assistant_model_returns_none_on_404() -> None:
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=urllib.error.HTTPError(None, 404, "Not Found", {}, None),  # type: ignore[arg-type]
+    ):
+        assert detect_assistant_model("google/gemma-4-27b-it") is None
+
+
+def test_detect_assistant_model_returns_none_on_network_error() -> None:
+    with patch("urllib.request.urlopen", side_effect=OSError("timeout")):
+        assert detect_assistant_model("google/gemma-4-27b-it") is None
+
+
+def test_detect_assistant_model_constructs_candidate_correctly() -> None:
+    """Candidate is always {model_id}-assistant regardless of slashes."""
+    with patch(
+        "urllib.request.urlopen",
+        return_value=_make_head_response(200),
+    ):
+        result = detect_assistant_model("google/gemma-4-26B-A4B-it")
+    assert result == "google/gemma-4-26B-A4B-it-assistant"
+
+
+# ── build_entry_block (assistant_model_repo) ─────────────────────────────────
+
+
+def test_build_entry_block_with_assistant_model_repo() -> None:
+    block = build_entry_block(
+        key_slug="gemma-4-27b-it-full-q4-k",
+        source_model="mlx-community/gemma-4-27b-it-4bit",
+        quant="q4k",
+        tier="moe",
+        base_model="google/gemma-4-27b-it",
+        mtp_keys=[],
+        assistant_model_repo="google/gemma-4-27b-it-assistant",
+    )
+    assert "assistant_model_repo: google/gemma-4-27b-it-assistant" in block
+    assert "mtp_source_repo" not in block
+    assert "mtp_sidecar_repo" not in block
+    assert "mtp_quant" not in block
+
+
+def test_build_entry_block_assistant_wins_over_empty_mtp() -> None:
+    """When assistant_model_repo is set, mtp fields are suppressed even if mtp_keys non-empty."""
+    block = build_entry_block(
+        key_slug="gemma-4-27b-it-full-q4-k",
+        source_model="mlx-community/gemma-4-27b-it-4bit",
+        quant="q4k",
+        tier="moe",
+        base_model="google/gemma-4-27b-it",
+        mtp_keys=["mtp.fake"],
+        assistant_model_repo="google/gemma-4-27b-it-assistant",
+    )
+    assert "assistant_model_repo: google/gemma-4-27b-it-assistant" in block
+    assert "mtp_source_repo" not in block
