@@ -38,10 +38,9 @@ def extract_mtp(
 
     try:
         from huggingface_hub import create_repo, hf_hub_download, upload_file
-        from safetensors import safe_open  # type: ignore[import-not-found]
     except ImportError as exc:
         raise MtpExtractionError(
-            "huggingface_hub and safetensors are required for MTP extraction"
+            "huggingface_hub is required for MTP extraction"
         ) from exc
 
     try:
@@ -83,13 +82,13 @@ def extract_mtp(
         print(f"mtp: downloaded {shard}", file=sys.stderr)
 
     # Extract mtp.* tensors as mlx arrays.
+    # mx.load handles bfloat16 natively; safe_open+numpy does not.
     mtp_tensors: dict[str, Any] = {}
     for shard_path in local_shards:
-        with safe_open(str(shard_path), framework="numpy") as f:
-            for key in f.keys():  # noqa: SIM118
-                if key.startswith("mtp.") or ".mtp." in key:
-                    arr = mx.array(f.get_tensor(key))
-                    mtp_tensors[key] = arr
+        shard_weights: dict[str, Any] = mx.load(str(shard_path))  # type: ignore[assignment]
+        for key, arr in shard_weights.items():
+            if key.startswith("mtp.") or ".mtp." in key:
+                mtp_tensors[key] = arr
 
     if not mtp_tensors:
         raise MtpExtractionError(

@@ -118,23 +118,34 @@ def detect_mtp_keys(base_model: str, token: str | None = None) -> list[str]:
         return []
 
 
-_STRIP_SUFFIXES = [
-    "-4bit", "-8bit",
-    "-mlx", "-optiq",
-    "-instruct", "-it",
-]
+_STRIP_SUFFIXES_KEY = ["-4bit", "-8bit", "-mlx", "-optiq", "-instruct", "-it"]
+_STRIP_SUFFIXES_ARTIFACT = ["-4bit", "-8bit", "-mlx", "-optiq"]
+
+
+def _make_slug(repo: str, *, strip_instruct: bool) -> str:
+    suffixes = _STRIP_SUFFIXES_KEY if strip_instruct else _STRIP_SUFFIXES_ARTIFACT
+    for suffix in suffixes:
+        repo = re.sub(re.escape(suffix), "", repo, flags=re.IGNORECASE)
+    slug = repo.lower().replace(".", "-").replace("_", "-")
+    if not strip_instruct:
+        slug = re.sub(r"-instruct\b", "-it", slug, flags=re.IGNORECASE)
+    return re.sub(r"-+", "-", slug).strip("-")
+
+
+def _quant_suffix(quant: str) -> str:
+    return "q4-k" if quant == "q4k" else "q8-k"
 
 
 def derive_key_slug(model_id: str, quant: str) -> str:
-    """Derive a kebab-case catalog key slug from a HF model ID."""
-    repo = model_id.split("/")[-1]
-    # Strip known MLX/quant qualifiers (case-insensitive)
-    for suffix in _STRIP_SUFFIXES:
-        repo = re.sub(re.escape(suffix), "", repo, flags=re.IGNORECASE)
-    slug = repo.lower().replace(".", "-").replace("_", "-")
-    slug = re.sub(r"-+", "-", slug).strip("-")
-    quant_suffix = "q4-k" if quant == "q4k" else "q8-k"
-    return f"{slug}-full-{quant_suffix}"
+    """Derive a kebab-case catalog key slug (instruct/it stripped)."""
+    slug = _make_slug(model_id.split("/")[-1], strip_instruct=True)
+    return f"{slug}-full-{_quant_suffix(quant)}"
+
+
+def derive_artifact_slug(model_id: str, quant: str) -> str:
+    """Derive a kebab-case artifact slug (instruct normalized to -it-)."""
+    slug = _make_slug(model_id.split("/")[-1], strip_instruct=False)
+    return f"{slug}-full-{_quant_suffix(quant)}"
 
 
 _FOXLIGHT_COLLECTION = "FoxlightAI/vindexes-6a124406dd5fb439c431b051"
@@ -150,6 +161,7 @@ def _base_model_slug(base_model: str) -> str:
 def build_entry_block(
     *,
     key_slug: str,
+    artifact_slug: str | None = None,
     source_model: str,
     quant: str,
     tier: str,
@@ -157,8 +169,15 @@ def build_entry_block(
     mtp_keys: list[str],
     namespace: str = "foxlight",
 ) -> str:
-    """Return an indented YAML block (with leading blank line) for one entry."""
+    """Return an indented YAML block (with leading blank line) for one entry.
+
+    ``artifact_slug`` is used for ``output_name`` and ``hf_repo``. It differs
+    from ``key_slug`` when the source model has an instruct/it qualifier (which
+    the catalog key omits but artifact names retain as ``-it-``). Defaults to
+    ``key_slug`` when not supplied.
+    """
     hf_owner = _FOXLIGHT_HF_OWNER if namespace == "foxlight" else namespace
+    aslug = artifact_slug if artifact_slug is not None else key_slug
     lines = [
         f"  - key: {key_slug}",
         f"    source_model: {source_model}",
@@ -166,8 +185,8 @@ def build_entry_block(
         f"    tier: {tier}",
         "    slices:",
         "      - full",
-        f"    output_name: {key_slug}.vindex",
-        f"    hf_repo: {hf_owner}/{key_slug}-vindex",
+        f"    output_name: {aslug}.vindex",
+        f"    hf_repo: {hf_owner}/{aslug}-vindex",
         f"    hf_collection: {_FOXLIGHT_COLLECTION}",
     ]
     if mtp_keys and base_model:

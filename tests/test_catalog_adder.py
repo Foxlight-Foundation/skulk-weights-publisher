@@ -10,6 +10,7 @@ import pytest
 from skulk_weights_publisher.catalog_adder import (
     CatalogAddError,
     build_entry_block,
+    derive_artifact_slug,
     derive_key_slug,
     detect_base_model,
     detect_mtp_keys,
@@ -145,6 +146,27 @@ def test_derive_key_slug_normalises_underscores() -> None:
     assert derive_key_slug("owner/Foo_Bar-4bit", "q4k") == "foo-bar-full-q4-k"
 
 
+# ── derive_artifact_slug ─────────────────────────────────────────────────────
+
+
+def test_derive_artifact_slug_retains_it_from_instruct() -> None:
+    assert derive_artifact_slug("mlx-community/Gemma-3-4B-Instruct-4bit", "q4k") == (
+        "gemma-3-4b-it-full-q4-k"
+    )
+
+
+def test_derive_artifact_slug_retains_it_suffix() -> None:
+    assert derive_artifact_slug("mlx-community/Llama-3.2-3B-Instruct-4bit", "q4k") == (
+        "llama-3-2-3b-it-full-q4-k"
+    )
+
+
+def test_derive_artifact_slug_no_instruct_unchanged() -> None:
+    assert derive_artifact_slug("mlx-community/Qwen3.6-35B-A3B-4bit", "q4k") == (
+        "qwen3-6-35b-a3b-full-q4-k"
+    )
+
+
 # ── build_entry_block ────────────────────────────────────────────────────────
 
 
@@ -160,6 +182,21 @@ def test_build_entry_block_no_mtp() -> None:
     assert "key: gemma-3-4b-full-q4-k" in block
     assert "mtp_source_repo" not in block
     assert "hf_collection: FoxlightAI/" in block
+
+
+def test_build_entry_block_artifact_slug_used_for_output_and_repo() -> None:
+    block = build_entry_block(
+        key_slug="gemma-3-4b-full-q4-k",
+        artifact_slug="gemma-3-4b-it-full-q4-k",
+        source_model="mlx-community/gemma-3-4b-it-4bit",
+        quant="q4k",
+        tier="smoke",
+        base_model=None,
+        mtp_keys=[],
+    )
+    assert "key: gemma-3-4b-full-q4-k" in block
+    assert "output_name: gemma-3-4b-it-full-q4-k.vindex" in block
+    assert "hf_repo: FoxlightAI/gemma-3-4b-it-full-q4-k-vindex" in block
 
 
 def test_build_entry_block_with_mtp() -> None:
