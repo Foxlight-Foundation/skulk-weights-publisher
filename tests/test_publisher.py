@@ -108,19 +108,20 @@ def test_execute_publish_plan_adds_repo_to_collection(
         commands.append(command)
         return subprocess.CompletedProcess(command, 0)
 
-    def fake_add_vindex_to_collection(
-        collection_slug: str,
+    def fake_file_in_collection(
         repo_id: str,
+        artifact_type: str,
         *,
         token: str | None,
+        note: str | None = None,
     ) -> None:
-        collection_calls.append((collection_slug, repo_id, token))
+        collection_calls.append((artifact_type, repo_id, token))
 
     card_calls: list[dict[str, object]] = []
     monkeypatch.setattr(publisher.shutil, "which", lambda _name: "/usr/bin/larql")
     monkeypatch.setattr(publisher.subprocess, "run", fake_run)
     monkeypatch.setattr(
-        publisher, "add_vindex_to_collection", fake_add_vindex_to_collection
+        publisher, "file_artifact_in_collection", fake_file_in_collection
     )
     monkeypatch.setattr(
         publisher, "publish_model_card", lambda **kw: card_calls.append(kw)
@@ -134,9 +135,8 @@ def test_execute_publish_plan_adds_repo_to_collection(
     )
 
     assert commands == [plan.extract_command, plan.publish_command]
-    assert collection_calls == [
-        (DEFAULT_FOXLIGHT_VINDEX_COLLECTION, entry.hf_repo, "hf_write_token")
-    ]
+    # The vindex is filed into its per-artifact-type collection.
+    assert collection_calls == [("vindex", entry.hf_repo, "hf_write_token")]
     # A self-describing card is published to the vindex repo.
     assert len(card_calls) == 1
     assert card_calls[0]["repo_id"] == entry.hf_repo
@@ -160,18 +160,19 @@ def test_execute_publish_plan_does_not_publish_after_extract_failure(
         commands.append(command)
         raise subprocess.CalledProcessError(1, command)
 
-    def fake_add_vindex_to_collection(
-        collection_slug: str,
+    def fake_file_in_collection(
         repo_id: str,
+        artifact_type: str,
         *,
         token: str | None,
+        note: str | None = None,
     ) -> None:
-        collection_calls.append((collection_slug, repo_id, token))
+        collection_calls.append((artifact_type, repo_id, token))
 
     monkeypatch.setattr(publisher.shutil, "which", lambda _name: "/usr/bin/larql")
     monkeypatch.setattr(publisher.subprocess, "run", fake_run)
     monkeypatch.setattr(
-        publisher, "add_vindex_to_collection", fake_add_vindex_to_collection
+        publisher, "file_artifact_in_collection", fake_file_in_collection
     )
     monkeypatch.setattr(publisher, "publish_model_card", lambda **kw: None)
 
@@ -266,7 +267,6 @@ def test_execute_publish_plan_mtp_calls_extractor(
 
     monkeypatch.setattr(pub_mod.shutil, "which", lambda _name: "/usr/bin/larql")
     monkeypatch.setattr(pub_mod.subprocess, "run", lambda *a, **kw: None)
-    monkeypatch.setattr(pub_mod, "add_vindex_to_collection", lambda *a, **kw: None)
 
     import skulk_weights_publisher.mtp_extractor as mtp_mod
     monkeypatch.setattr(mtp_mod, "extract_mtp", fake_extract_mtp)

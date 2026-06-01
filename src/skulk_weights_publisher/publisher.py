@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from skulk_weights_publisher.card_publish import publish_model_card
+from skulk_weights_publisher.collection_publish import file_artifact_in_collection
 from skulk_weights_publisher.defaults import COLLECTION_ENV_VAR
 from skulk_weights_publisher.manifest import HF_COLLECTION_PATTERN, ManifestEntry
 
@@ -236,9 +237,9 @@ def execute_publish_plan(
         subprocess.run(plan.extract_command, check=True)
         subprocess.run(plan.publish_command, check=True)
         if plan.collection_slug is not None:
-            add_vindex_to_collection(
-                plan.collection_slug,
+            file_artifact_in_collection(
                 plan.entry.hf_repo,
+                "vindex",
                 token=env.get("HF_TOKEN"),
             )
         publish_model_card(
@@ -271,6 +272,12 @@ def execute_publish_plan(
                 dry_run=False,
                 catalog_key=plan.entry.key,
             )
+            if plan.collection_slug is not None:
+                file_artifact_in_collection(
+                    plan.mtp_step.sidecar_repo,
+                    "mtp-sidecar",
+                    token=env.get("HF_TOKEN"),
+                )
 
     if artifact in ("all", "vision"):
         if plan.vision_step is None:
@@ -294,27 +301,11 @@ def execute_publish_plan(
                 target_model=plan.entry.source_model,
                 catalog_key=plan.entry.key,
             )
+            if plan.collection_slug is not None:
+                file_artifact_in_collection(
+                    plan.vision_step.sidecar_repo,
+                    "vision-sidecar",
+                    token=env.get("HF_TOKEN"),
+                )
 
 
-def add_vindex_to_collection(
-    collection_slug: str,
-    repo_id: str,
-    *,
-    token: str | None,
-) -> None:
-    """Add a published vindex model repo to its Hugging Face collection."""
-
-    try:
-        from huggingface_hub import add_collection_item
-
-        add_collection_item(
-            collection_slug,
-            item_id=repo_id,
-            item_type="model",
-            exists_ok=True,
-            token=token,
-        )
-    except Exception as exc:
-        raise PublishError(
-            f"failed to add {repo_id} to collection {collection_slug}: {exc}"
-        ) from exc
