@@ -29,7 +29,10 @@ def test_ensure_collection_creates_if_missing_and_returns_slug() -> None:
         created.update(kw)
         return SimpleNamespace(slug="FoxlightAI/mtp-sidecars-abc123")
 
-    with patch("huggingface_hub.create_collection", side_effect=fake_create):
+    with (
+        patch("huggingface_hub.list_collections", return_value=iter([])),
+        patch("huggingface_hub.create_collection", side_effect=fake_create),
+    ):
         slug = ensure_collection("MTP Sidecars", "FoxlightAI", token="t")
 
     assert slug == "FoxlightAI/mtp-sidecars-abc123"
@@ -38,10 +41,37 @@ def test_ensure_collection_creates_if_missing_and_returns_slug() -> None:
     assert created["exists_ok"] is True
 
 
+def test_ensure_collection_reuses_existing_titled_collection() -> None:
+    # An existing collection with the same title is reused — no new one created,
+    # so repeated publishes don't scatter items across duplicates.
+    existing = [
+        SimpleNamespace(title="Other", slug="FoxlightAI/other-1"),
+        SimpleNamespace(title="MTP Sidecars", slug="FoxlightAI/mtp-sidecars-orig"),
+    ]
+    create_called = {"n": 0}
+
+    def fake_create(**kw: Any) -> SimpleNamespace:
+        create_called["n"] += 1
+        return SimpleNamespace(slug="FoxlightAI/mtp-sidecars-NEW")
+
+    with (
+        patch("huggingface_hub.list_collections", return_value=iter(existing)),
+        patch("huggingface_hub.create_collection", side_effect=fake_create),
+    ):
+        slug = ensure_collection("MTP Sidecars", "FoxlightAI", token="t")
+
+    assert slug == "FoxlightAI/mtp-sidecars-orig"
+    assert create_called["n"] == 0  # reused, did not create a duplicate
+
+
 def test_ensure_collection_wraps_failures() -> None:
-    with patch(
-        "huggingface_hub.create_collection", side_effect=RuntimeError("boom")
-    ), pytest.raises(CollectionError, match="failed to ensure collection"):
+    with (
+        patch("huggingface_hub.list_collections", return_value=iter([])),
+        patch(
+            "huggingface_hub.create_collection", side_effect=RuntimeError("boom")
+        ),
+        pytest.raises(CollectionError, match="failed to ensure collection"),
+    ):
         ensure_collection("Vindexes", "FoxlightAI", token=None)
 
 
@@ -56,6 +86,7 @@ def test_file_artifact_ensures_collection_and_adds_item() -> None:
         added.update(kw)
 
     with (
+        patch("huggingface_hub.list_collections", return_value=iter([])),
         patch("huggingface_hub.create_collection", side_effect=fake_create),
         patch("huggingface_hub.add_collection_item", side_effect=fake_add),
     ):
@@ -106,6 +137,7 @@ def test_file_artifact_derives_owner_from_repo() -> None:
         return SimpleNamespace(slug="acme/mtp-sidecars-1")
 
     with (
+        patch("huggingface_hub.list_collections", return_value=iter([])),
         patch("huggingface_hub.create_collection", side_effect=fake_create),
         patch("huggingface_hub.add_collection_item", lambda *a, **k: None),
     ):

@@ -30,28 +30,37 @@ class CollectionError(RuntimeError):
 
 def ensure_collection(title: str, owner: str, *, token: str | None) -> str:
     """Return the slug of ``owner``'s collection titled ``title``, creating it
-    if it does not exist. Idempotent via ``exists_ok``."""
+    only if none exists.
+
+    Looks up an existing collection by title first. ``create_collection`` is not
+    reliably idempotent by title — HF collection slugs carry a generated unique
+    suffix, so creating blindly can spawn duplicate "MTP Sidecars" collections and
+    scatter items across them on repeated publishes. Reuse-before-create keeps all
+    items of a type in one collection.
+    """
 
     try:
-        from huggingface_hub import create_collection
+        from huggingface_hub import create_collection, list_collections
     except ImportError as exc:  # pragma: no cover - hub is a base dependency
         raise CollectionError(
             "huggingface_hub is required to manage collections"
         ) from exc
 
     try:
-        collection = create_collection(
+        for collection in list_collections(owner=owner, token=token):
+            if collection.title == title:
+                return collection.slug
+        created = create_collection(
             title=title,
             namespace=owner,
             exists_ok=True,
             token=token,
         )
+        return created.slug
     except Exception as exc:  # noqa: BLE001 - surface any hub failure as our error
         raise CollectionError(
             f"failed to ensure collection {owner}/{title!r}: {exc}"
         ) from exc
-
-    return collection.slug
 
 
 def file_artifact_in_collection(
