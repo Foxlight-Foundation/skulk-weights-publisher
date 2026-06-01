@@ -113,9 +113,10 @@ def test_execute_publish_plan_adds_repo_to_collection(
         artifact_type: str,
         *,
         token: str | None,
+        collection_slug: str | None = None,
         note: str | None = None,
     ) -> None:
-        collection_calls.append((artifact_type, repo_id, token))
+        collection_calls.append((artifact_type, repo_id, collection_slug))
 
     card_calls: list[dict[str, object]] = []
     monkeypatch.setattr(publisher.shutil, "which", lambda _name: "/usr/bin/larql")
@@ -135,8 +136,10 @@ def test_execute_publish_plan_adds_repo_to_collection(
     )
 
     assert commands == [plan.extract_command, plan.publish_command]
-    # The vindex is filed into its per-artifact-type collection.
-    assert collection_calls == [("vindex", entry.hf_repo, "hf_write_token")]
+    # The vindex is filed into the configured collection slug (honored exactly).
+    assert collection_calls == [
+        ("vindex", entry.hf_repo, DEFAULT_FOXLIGHT_VINDEX_COLLECTION)
+    ]
     # A self-describing card is published to the vindex repo.
     assert len(card_calls) == 1
     assert card_calls[0]["repo_id"] == entry.hf_repo

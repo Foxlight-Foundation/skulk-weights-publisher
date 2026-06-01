@@ -237,10 +237,13 @@ def execute_publish_plan(
         subprocess.run(plan.extract_command, check=True)
         subprocess.run(plan.publish_command, check=True)
         if plan.collection_slug is not None:
+            # Honor the configured/overridden slug exactly (matches the dry-run
+            # plan); ensure-by-title is only for sidecars, which carry no slug.
             file_artifact_in_collection(
                 plan.entry.hf_repo,
                 "vindex",
                 token=env.get("HF_TOKEN"),
+                collection_slug=plan.collection_slug,
             )
         publish_model_card(
             repo_id=plan.entry.hf_repo,

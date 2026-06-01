@@ -59,22 +59,19 @@ def file_artifact_in_collection(
     artifact_type: ArtifactType,
     *,
     token: str | None,
+    collection_slug: str | None = None,
     note: str | None = None,
 ) -> None:
-    """File ``repo_id`` into the collection for its artifact type.
+    """File ``repo_id`` into a Hugging Face collection.
 
-    The collection is ensured (create-if-missing) under the repo's own owner,
-    then the repo is added as a model item (idempotent via ``exists_ok``).
+    When ``collection_slug`` is given (an explicitly-configured target — a catalog
+    ``hf_collection`` or the ``SKULK_WEIGHTS_COLLECTION`` override), the repo is
+    added to that exact collection, so operator configuration is honored and the
+    dry-run plan matches what executes. Otherwise the collection is resolved by
+    title for the artifact type, create-if-missing under the repo's own owner
+    (the rollout-robust default for sidecars, which carry no configured slug).
+    The item add is idempotent via ``exists_ok``.
     """
-
-    title = COLLECTION_TITLES.get(artifact_type)
-    if title is None:
-        raise CollectionError(
-            f"no collection configured for artifact type {artifact_type!r}"
-        )
-    if "/" not in repo_id:
-        raise CollectionError(f"cannot derive collection owner from {repo_id!r}")
-    owner = repo_id.split("/", maxsplit=1)[0]
 
     try:
         from huggingface_hub import add_collection_item
@@ -83,7 +80,19 @@ def file_artifact_in_collection(
             "huggingface_hub is required to manage collections"
         ) from exc
 
-    slug = ensure_collection(title, owner, token=token)
+    if collection_slug is not None:
+        slug = collection_slug
+    else:
+        title = COLLECTION_TITLES.get(artifact_type)
+        if title is None:
+            raise CollectionError(
+                f"no collection configured for artifact type {artifact_type!r}"
+            )
+        if "/" not in repo_id:
+            raise CollectionError(f"cannot derive collection owner from {repo_id!r}")
+        owner = repo_id.split("/", maxsplit=1)[0]
+        slug = ensure_collection(title, owner, token=token)
+
     try:
         add_collection_item(
             slug,

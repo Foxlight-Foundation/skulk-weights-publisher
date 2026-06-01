@@ -69,6 +69,35 @@ def test_file_artifact_ensures_collection_and_adds_item() -> None:
     assert added["exists_ok"] is True
 
 
+def test_file_artifact_honors_explicit_slug_without_ensuring() -> None:
+    # When a slug is configured, add to it directly — don't create a new
+    # title-based collection (preserves operator config + dry-run consistency).
+    added: dict[str, Any] = {}
+    create_called = {"n": 0}
+
+    def fake_create(**kw: Any) -> SimpleNamespace:
+        create_called["n"] += 1
+        return SimpleNamespace(slug="should-not-be-used")
+
+    with (
+        patch("huggingface_hub.create_collection", side_effect=fake_create),
+        patch(
+            "huggingface_hub.add_collection_item",
+            side_effect=lambda slug, **k: added.update({"slug": slug, **k}),
+        ),
+    ):
+        file_artifact_in_collection(
+            "acme/local-7b-full-q4-k-vindex",
+            "vindex",
+            token="t",
+            collection_slug="acme/custom-vindexes-0123456789abcdef01234567",
+        )
+
+    assert create_called["n"] == 0  # ensure_collection NOT called
+    assert added["slug"] == "acme/custom-vindexes-0123456789abcdef01234567"
+    assert added["item_id"] == "acme/local-7b-full-q4-k-vindex"
+
+
 def test_file_artifact_derives_owner_from_repo() -> None:
     seen: dict[str, Any] = {}
 
