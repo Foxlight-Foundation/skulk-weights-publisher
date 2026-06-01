@@ -97,6 +97,25 @@ def find_catalogue_entry(key: str, view: CatalogueView) -> ManifestEntry:
     raise ManifestError(f"catalog key not found: {key}")
 
 
+def find_catalogue_entry_by_source(
+    source_model: str,
+    view: CatalogueView,
+) -> ManifestEntry:
+    """Return the entry whose ``source_model`` matches a HF model id.
+
+    The lookup is the reverse of :func:`find_catalogue_entry`: given the upstream
+    HuggingFace model (``owner/repo``) an operator started from, resolve the
+    catalog entry it produced. ``source_model`` must already be normalized to a
+    bare ``owner/repo`` (callers parse URLs with ``parse_hf_model_id`` first).
+    The scan is linear because the catalog is small and unindexed.
+    """
+
+    for entry in view.entries:
+        if entry.source_model == source_model:
+            return entry
+    raise ManifestError(f"no catalog entry found for source_model {source_model!r}")
+
+
 def filter_catalogue_entries(
     view: CatalogueView,
     tier: Literal["all", "smoke", "moe"] = "all",

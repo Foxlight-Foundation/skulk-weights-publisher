@@ -161,9 +161,21 @@ the product interface:
 ```bash
 skulk-weights doctor
 skulk-weights catalog validate
+skulk-weights catalog find google/gemma-3-4b-it
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact vindex --dry-run
 skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
+```
+
+`skulk-weights catalog find <hf-url-or-owner/repo>` is the reverse of
+`catalog show`: given the upstream HuggingFace source model you started from, it
+prints the resolved catalog entry as JSON (or exits non-zero with a clear message
+if no entry matches). It accepts both bare `owner/repo` ids and full
+`huggingface.co/...` URLs, and respects operator catalogs loaded via `--config`:
+
+```bash
+skulk-weights catalog find https://huggingface.co/google/gemma-3-4b-it
+# { "key": "foxlight/gemma-3-4b-full-q4-k", "source_model": "google/gemma-3-4b-it", ... }
 ```
 
 The `--artifact` flag selects which artifact to publish: `vindex` (LARQL vindex),

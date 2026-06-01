@@ -7,6 +7,7 @@ import pytest
 from skulk_weights_publisher.catalog import (
     filter_catalog_entries,
     find_catalog_entry,
+    find_catalog_entry_by_source,
     load_catalog_view,
     write_default_config,
 )
@@ -233,6 +234,50 @@ catalogs:
 
     with pytest.raises(ManifestError, match="hf_repo owner must be 'acme'"):
         load_catalog_view(config_path=config)
+
+
+def test_find_by_source_resolves_builtin_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    view = load_catalog_view()
+    entry = find_catalog_entry_by_source("google/gemma-3-4b-it", view)
+
+    assert entry.key == "foxlight/gemma-3-4b-full-q4-k"
+    assert entry.source_model == "google/gemma-3-4b-it"
+
+
+def test_find_by_source_resolves_operator_entry(tmp_path: Path) -> None:
+    operator_manifest = tmp_path / "operator-vindexes.yaml"
+    _write_operator_manifest(operator_manifest)
+    config = tmp_path / "skulk-weights.yaml"
+    config.write_text(
+        """
+catalogs:
+  - path: ./operator-vindexes.yaml
+    namespace: acme
+    hf_owner: acme
+""",
+        encoding="utf-8",
+    )
+
+    view = load_catalog_view(config_path=config)
+    entry = find_catalog_entry_by_source("acme/Local-7B-Instruct", view)
+
+    assert entry.key == "acme/local-7b-full-q4-k"
+
+
+def test_find_by_source_raises_for_unknown_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    view = load_catalog_view()
+    with pytest.raises(ManifestError, match="no catalog entry found for source_model"):
+        find_catalog_entry_by_source("does-not/exist", view)
 
 
 def test_operator_collection_owner_must_match_config(tmp_path: Path) -> None:

@@ -11,6 +11,7 @@ from skulk_weights_publisher.catalogue import (
     CatalogueView,
     filter_catalogue_entries,
     find_catalogue_entry,
+    find_catalogue_entry_by_source,
     load_catalogue_view,
     write_default_config,
 )
@@ -61,6 +62,23 @@ def _cmd_catalogue_sources(args: argparse.Namespace) -> int:
 def _cmd_catalogue_show(args: argparse.Namespace) -> int:
     view = _catalogue_view_from_args(args)
     entry = find_catalogue_entry(args.key, view)
+    print(entry.to_json())
+    return 0
+
+
+def _cmd_catalogue_find(args: argparse.Namespace) -> int:
+    from skulk_weights_publisher.catalog_adder import (
+        CatalogAddError,
+        parse_hf_model_id,
+    )
+
+    try:
+        source_model = parse_hf_model_id(args.model)
+    except CatalogAddError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    view = _catalogue_view_from_args(args)
+    entry = find_catalogue_entry_by_source(source_model, view)
     print(entry.to_json())
     return 0
 
@@ -322,6 +340,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     catalogue_show_parser.add_argument("key", help="Fully-qualified catalog key.")
     catalogue_show_parser.set_defaults(func=_cmd_catalogue_show)
+
+    catalogue_find_parser = catalogue_subparsers.add_parser(
+        "find",
+        help="Reverse-lookup a catalog entry by HF source model URL or owner/repo.",
+    )
+    catalogue_find_parser.add_argument(
+        "model", help="HuggingFace model URL or owner/repo of the source model."
+    )
+    catalogue_find_parser.set_defaults(func=_cmd_catalogue_find)
 
     catalogue_list_parser = catalogue_subparsers.add_parser(
         "list", help="List catalog keys, optionally filtered by tier."
