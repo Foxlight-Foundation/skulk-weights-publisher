@@ -170,10 +170,13 @@ async def catalog_find(body: CatalogFindBody) -> Any:
         return JSONResponse({"error": str(exc)}, status_code=400)
     # Load the catalog OUTSIDE the lookup try: a malformed/unreadable catalog is a
     # 500 configuration error, not a 404 "no entry" miss. Only the lookup's own
-    # ManifestError (genuinely no match) maps to 404.
+    # ManifestError (genuinely no match) maps to 404. Catch broadly here —
+    # load_catalogue_view can raise yaml.YAMLError, OSError, etc. (not just
+    # ManifestError) — so every load failure still returns the JSON error
+    # envelope the UI expects instead of a bare 500 that breaks res.json().
     try:
         view = load_catalogue_view()
-    except ManifestError as exc:
+    except Exception as exc:  # noqa: BLE001
         return JSONResponse(
             {"error": f"catalog failed to load: {exc}"}, status_code=500
         )

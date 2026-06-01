@@ -207,6 +207,22 @@ def test_catalog_find_load_failure_is_500_not_404(
     assert "catalog failed to load" in resp.json()["error"]
 
 
+def test_catalog_find_non_manifest_load_failure_is_json_500(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-ManifestError (malformed YAML / OSError) still returns the JSON
+    error envelope, not a bare 500 that breaks the UI's res.json()."""
+
+    def boom() -> None:
+        raise OSError("skulk-weights.yaml is unreadable")
+
+    monkeypatch.setattr(app_module, "load_catalogue_view", boom)
+    resp = client.post("/api/catalog/find", json={"url": "google/gemma-3-4b-it"})
+
+    assert resp.status_code == 500
+    assert "catalog failed to load" in resp.json()["error"]
+
+
 def test_catalog_find_unknown_source_returns_404() -> None:
     """An unmatched source model yields 404 with a clear message."""
     resp = client.post("/api/catalog/find", json={"url": "does-not/exist"})
