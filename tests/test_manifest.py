@@ -313,6 +313,144 @@ models:
         validate_manifest(manifest)
 
 
+def _vision_manifest(tmp_path: Path, *, extra: str = "") -> Path:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        f"""
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    vision_source_repo: thirdparty/model-a-vision
+    vision_sidecar_repo: acme/model-a-vision
+{extra}
+""",
+        encoding="utf-8",
+    )
+    return manifest
+
+
+def test_vision_fields_accepted(tmp_path: Path) -> None:
+    entries = validate_manifest(_vision_manifest(tmp_path))
+
+    assert entries[0].vision_source_repo == "thirdparty/model-a-vision"
+    assert entries[0].vision_sidecar_repo == "acme/model-a-vision"
+
+
+def test_vision_fields_absent_leaves_none(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+""",
+        encoding="utf-8",
+    )
+
+    entries = validate_manifest(manifest)
+
+    assert entries[0].vision_source_repo is None
+    assert entries[0].vision_sidecar_repo is None
+
+
+def test_vision_partial_fields_rejected(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    vision_source_repo: thirdparty/model-a-vision
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ManifestError,
+        match="vision_source_repo and vision_sidecar_repo",
+    ):
+        validate_manifest(manifest)
+
+
+def test_vision_bad_repo_pattern_rejected(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    vision_source_repo: not-a-valid-repo
+    vision_sidecar_repo: acme/model-a-vision
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ManifestError, match="vision_source_repo must look like owner/name"
+    ):
+        validate_manifest(manifest)
+
+
+def test_vision_sidecar_owner_must_match_hf_repo_owner(tmp_path: Path) -> None:
+    manifest = tmp_path / "models.yaml"
+    manifest.write_text(
+        """
+models:
+  - key: model-a
+    source_model: owner/model-a
+    quant: q4k
+    tier: smoke
+    slices: [full]
+    output_name: model-a.vindex
+    hf_repo: acme/model-a
+    vision_source_repo: thirdparty/model-a-vision
+    vision_sidecar_repo: other/model-a-vision
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ManifestError, match="vision_sidecar_repo owner must be 'acme'"
+    ):
+        validate_manifest(manifest)
+
+
+def test_vision_and_mtp_can_coexist(tmp_path: Path) -> None:
+    entries = validate_manifest(
+        _vision_manifest(
+            tmp_path,
+            extra=(
+                "    mtp_source_repo: owner/model-a-bf16\n"
+                "    mtp_sidecar_repo: acme/model-a-mtp-int4\n"
+                "    mtp_quant: q4k\n"
+            ),
+        )
+    )
+
+    assert entries[0].vision_source_repo == "thirdparty/model-a-vision"
+    assert entries[0].mtp_source_repo == "owner/model-a-bf16"
+
+
 def _assistant_manifest(
     tmp_path: Path, *, assistant_repo: str = "google/gemma-4-27b-it-assistant"
 ) -> Path:

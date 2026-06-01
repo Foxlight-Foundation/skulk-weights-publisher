@@ -28,6 +28,14 @@ class MtpSidecarStep:
 
 
 @dataclass(frozen=True)
+class VisionSidecarStep:
+    """Parameters for the vision encoder sidecar publish step."""
+
+    source_repo: str
+    sidecar_repo: str
+
+
+@dataclass(frozen=True)
 class PublishPlan:
     """Concrete commands and paths for publishing one catalogue entry."""
 
@@ -38,6 +46,7 @@ class PublishPlan:
     publish_command: tuple[str, ...]
     collection_slug: str | None
     mtp_step: MtpSidecarStep | None = None
+    vision_step: VisionSidecarStep | None = None
 
     def summary_lines(self, *, force: bool, artifact: str = "all") -> tuple[str, ...]:
         """Return the human-readable command summary printed before execution."""
@@ -77,7 +86,14 @@ class PublishPlan:
             else:
                 lines.append("mtp step: not configured for this entry")
         if artifact in ("all", "vision"):
-            lines.append("vision step: not yet implemented")
+            if self.vision_step is not None:
+                lines += [
+                    f"vision source repo:  hf://{self.vision_step.source_repo}",
+                    f"vision sidecar repo: hf://{self.vision_step.sidecar_repo}",
+                    "vision step:         mirror weights + configs (no quantization)",
+                ]
+            else:
+                lines.append("vision step: not configured for this entry")
         return tuple(lines)
 
 
@@ -132,6 +148,14 @@ def build_publish_plan(
         if entry.mtp_source_repo is not None
         else None
     )
+    vision_step = (
+        VisionSidecarStep(
+            source_repo=entry.vision_source_repo,
+            sidecar_repo=cast(str, entry.vision_sidecar_repo),
+        )
+        if entry.vision_source_repo is not None
+        else None
+    )
     return PublishPlan(
         entry=entry,
         scratch_root=resolved_scratch,
@@ -140,6 +164,7 @@ def build_publish_plan(
         publish_command=publish_command,
         collection_slug=resolved_collection,
         mtp_step=mtp_step,
+        vision_step=vision_step,
     )
 
 
@@ -190,7 +215,7 @@ def execute_publish_plan(
     if not env.get("HF_TOKEN"):
         raise PublishError("HF_TOKEN is required for non-dry-run publishing")
 
-    if artifact not in ("all", "vindex", "mtp"):
+    if artifact not in ("all", "vindex", "mtp", "vision"):
         raise PublishError(
             f"artifact '{artifact}' is not yet implemented for non-dry-run publishing; "
             "use --dry-run to preview the plan"
@@ -231,6 +256,27 @@ def execute_publish_plan(
                 plan.mtp_step.source_repo,
                 plan.mtp_step.sidecar_repo,
                 plan.mtp_step.mtp_quant,
+                plan.scratch_root,
+                token=env.get("HF_TOKEN"),
+                dry_run=False,
+            )
+
+    if artifact in ("all", "vision"):
+        if plan.vision_step is None:
+            if artifact == "vision":
+                raise PublishError(
+                    f"no vision sidecar configured for {plan.entry.key}; "
+                    "add vision_source_repo and vision_sidecar_repo"
+                    " to the catalog entry"
+                )
+        else:
+            from skulk_weights_publisher.vision_extractor import (
+                extract_and_publish_vision,
+            )
+
+            extract_and_publish_vision(
+                plan.vision_step.source_repo,
+                plan.vision_step.sidecar_repo,
                 plan.scratch_root,
                 token=env.get("HF_TOKEN"),
                 dry_run=False,
