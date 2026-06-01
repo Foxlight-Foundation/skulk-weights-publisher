@@ -246,6 +246,21 @@ def test_summary_lines_mtp_not_configured_note(tmp_path: Path) -> None:
     assert "not configured" in summary
 
 
+def test_summary_lines_reports_per_type_sidecar_collections(tmp_path: Path) -> None:
+    # Sidecars go into their own per-type collections; the dry-run must say so
+    # (the configured slug is the vindex collection only).
+    entry = _make_mtp_entry()
+    plan = build_publish_plan(
+        entry,  # type: ignore[arg-type]
+        scratch_root=tmp_path,
+        collection_slug="FoxlightAI/vindexes-0123456789abcdef01234567",
+    )
+    summary = "\n".join(plan.summary_lines(force=False, artifact="all"))
+
+    assert "vindex collection:" in summary
+    assert "mtp collection:   MTP Sidecars" in summary
+
+
 def test_execute_publish_plan_mtp_calls_extractor(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import cast
 
 from skulk_weights_publisher.card_publish import publish_model_card
-from skulk_weights_publisher.collection_publish import file_artifact_in_collection
+from skulk_weights_publisher.collection_publish import (
+    COLLECTION_TITLES,
+    file_artifact_in_collection,
+)
 from skulk_weights_publisher.defaults import COLLECTION_ENV_VAR
 from skulk_weights_publisher.manifest import HF_COLLECTION_PATTERN, ManifestEntry
 
@@ -53,8 +56,11 @@ class PublishPlan:
     def summary_lines(self, *, force: bool, artifact: str = "all") -> tuple[str, ...]:
         """Return the human-readable command summary printed before execution."""
 
+        # The configured slug is the *vindex* collection; sidecars go into their
+        # own per-artifact-type collections (resolved by title), so the dry-run
+        # reports each artifact's destination separately below.
         collection_line = (
-            f"collection: https://huggingface.co/collections/{self.collection_slug}"
+            f"vindex collection: https://huggingface.co/collections/{self.collection_slug}"
             if self.collection_slug
             else "collection: disabled"
         )
@@ -85,6 +91,10 @@ class PublishPlan:
                     f"mtp quant:        {self.mtp_step.mtp_quant}",
                     f"mtp output path:  {mtp_output}",
                 ]
+                if self.collection_slug is not None:
+                    lines.append(
+                        f"mtp collection:   {COLLECTION_TITLES['mtp-sidecar']}"
+                    )
             else:
                 lines.append("mtp step: not configured for this entry")
         if artifact in ("all", "vision"):
@@ -93,6 +103,11 @@ class PublishPlan:
                     f"vision source repo:  hf://{self.vision_step.source_repo}",
                     f"vision sidecar repo: hf://{self.vision_step.sidecar_repo}",
                     "vision step:         mirror weights + configs (no quantization)",
+                    *(
+                        [f"vision collection:   {COLLECTION_TITLES['vision-sidecar']}"]
+                        if self.collection_slug is not None
+                        else []
+                    ),
                 ]
             else:
                 lines.append("vision step: not configured for this entry")
