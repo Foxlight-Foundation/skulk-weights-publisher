@@ -36,6 +36,18 @@ def test_cli_catalog_find_by_owner_repo(capsys: CaptureFixture[str]) -> None:
     assert '"source_model": "google/gemma-3-4b-it"' in captured.out
 
 
+def test_cli_catalog_find_prints_all_matches(capsys: CaptureFixture[str]) -> None:
+    # A source model with both full and expert-server slices must print both.
+    exit_code = run(["catalog", "find", "google/gemma-4-26b-a4b-it"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert len(lines) == 2
+    assert '"foxlight/gemma-4-26b-a4b-full-q4-k"' in captured.out
+    assert '"foxlight/gemma-4-26b-a4b-expert-server-q4-k"' in captured.out
+
+
 def test_cli_catalog_find_accepts_full_url(capsys: CaptureFixture[str]) -> None:
     exit_code = run(["catalog", "find", "https://huggingface.co/google/gemma-3-4b-it"])
 

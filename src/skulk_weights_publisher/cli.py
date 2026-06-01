@@ -10,8 +10,8 @@ from pathlib import Path
 from skulk_weights_publisher.catalogue import (
     CatalogueView,
     filter_catalogue_entries,
+    find_catalogue_entries_by_source,
     find_catalogue_entry,
-    find_catalogue_entry_by_source,
     load_catalogue_view,
     write_default_config,
 )
@@ -78,8 +78,11 @@ def _cmd_catalogue_find(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
     view = _catalogue_view_from_args(args)
-    entry = find_catalogue_entry_by_source(source_model, view)
-    print(entry.to_json())
+    # Reverse lookup is one-to-many (e.g. full + expert-server slices of one MoE
+    # source model), so print every matching entry, one JSON object per line.
+    entries = find_catalogue_entries_by_source(source_model, view)
+    for entry in entries:
+        print(entry.to_json())
     return 0
 
 

@@ -169,13 +169,16 @@ skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
 
 `skulk-weights catalog find <hf-url-or-owner/repo>` is the reverse of
 `catalog show`: given the upstream HuggingFace source model you started from, it
-prints the resolved catalog entry as JSON (or exits non-zero with a clear message
-if no entry matches). It accepts both bare `owner/repo` ids and full
-`huggingface.co/...` URLs, and respects operator catalogs loaded via `--config`:
+prints every matching catalog entry as JSON, one object per line (or exits
+non-zero with a clear message if none match). The mapping is one-to-many — a
+single source model can have several entries (e.g. `full` and `expert-server`
+slices of the same MoE model), and all are printed. It accepts both bare
+`owner/repo` ids and full `huggingface.co/...` URLs, and respects operator
+catalogs loaded via `--config`:
 
 ```bash
 skulk-weights catalog find https://huggingface.co/google/gemma-3-4b-it
-# { "key": "foxlight/gemma-3-4b-full-q4-k", "source_model": "google/gemma-3-4b-it", ... }
+# {"hf_repo": "FoxlightAI/...", "key": "foxlight/gemma-3-4b-full-q4-k", "source_model": "google/gemma-3-4b-it", ...}
 ```
 
 The `--artifact` flag selects which artifact to publish: `vindex` (LARQL vindex),

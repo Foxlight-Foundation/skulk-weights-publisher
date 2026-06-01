@@ -6,8 +6,8 @@ import pytest
 
 from skulk_weights_publisher.catalog import (
     filter_catalog_entries,
+    find_catalog_entries_by_source,
     find_catalog_entry,
-    find_catalog_entry_by_source,
     load_catalog_view,
     write_default_config,
 )
@@ -243,10 +243,29 @@ def test_find_by_source_resolves_builtin_entry(
     monkeypatch.chdir(tmp_path)
 
     view = load_catalog_view()
-    entry = find_catalog_entry_by_source("google/gemma-3-4b-it", view)
+    entries = find_catalog_entries_by_source("google/gemma-3-4b-it", view)
 
-    assert entry.key == "foxlight/gemma-3-4b-full-q4-k"
-    assert entry.source_model == "google/gemma-3-4b-it"
+    assert len(entries) == 1
+    assert entries[0].key == "foxlight/gemma-3-4b-full-q4-k"
+    assert entries[0].source_model == "google/gemma-3-4b-it"
+
+
+def test_find_by_source_returns_all_matches_for_shared_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # gemma-4-26b-a4b-it has two catalog keys (full + expert-server slices) that
+    # share one source model — the lookup must surface both, not just the first.
+    monkeypatch.chdir(tmp_path)
+
+    view = load_catalog_view()
+    entries = find_catalog_entries_by_source("google/gemma-4-26b-a4b-it", view)
+
+    keys = {e.key for e in entries}
+    assert keys == {
+        "foxlight/gemma-4-26b-a4b-full-q4-k",
+        "foxlight/gemma-4-26b-a4b-expert-server-q4-k",
+    }
 
 
 def test_find_by_source_resolves_operator_entry(tmp_path: Path) -> None:
@@ -264,9 +283,9 @@ catalogs:
     )
 
     view = load_catalog_view(config_path=config)
-    entry = find_catalog_entry_by_source("acme/Local-7B-Instruct", view)
+    entries = find_catalog_entries_by_source("acme/Local-7B-Instruct", view)
 
-    assert entry.key == "acme/local-7b-full-q4-k"
+    assert [e.key for e in entries] == ["acme/local-7b-full-q4-k"]
 
 
 def test_find_by_source_raises_for_unknown_source(
@@ -277,7 +296,7 @@ def test_find_by_source_raises_for_unknown_source(
 
     view = load_catalog_view()
     with pytest.raises(ManifestError, match="no catalog entry found for source_model"):
-        find_catalog_entry_by_source("does-not/exist", view)
+        find_catalog_entries_by_source("does-not/exist", view)
 
 
 def test_operator_collection_owner_must_match_config(tmp_path: Path) -> None:
