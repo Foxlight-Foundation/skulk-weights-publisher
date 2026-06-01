@@ -8,7 +8,8 @@ export type CatalogFindPhase = 'idle' | 'finding' | 'found' | 'notFound' | 'erro
 interface CatalogState {
   phase: CatalogFindPhase;
   query: string;
-  entry: CatalogEntry | null;
+  /** All catalog entries matching the source model (one-to-many). */
+  entries: CatalogEntry[];
   /** The normalized source model echoed back by the server (owner/repo). */
   sourceModel: string | null;
   errorMessage: string | null;
@@ -20,14 +21,16 @@ interface CatalogState {
 
 /**
  * State for the read-only "Find in Catalog" view: given a HuggingFace source
- * model, resolve and display its catalog entry. A 404 (no match) is a normal
- * outcome, modelled as the `notFound` phase rather than `error`; `error` is
- * reserved for unexpected failures (parse errors, network).
+ * model, resolve and display its catalog entries. The mapping is one-to-many (a
+ * source model can produce several entries, e.g. full + expert-server slices).
+ * A 404 (no match) is a normal outcome, modelled as the `notFound` phase rather
+ * than `error`; `error` is reserved for unexpected failures (parse errors,
+ * network, a broken catalog).
  */
 export const useCatalogStore = create<CatalogState>()((set, get) => ({
   phase: 'idle',
   query: '',
-  entry: null,
+  entries: [],
   sourceModel: null,
   errorMessage: null,
 
@@ -38,10 +41,10 @@ export const useCatalogStore = create<CatalogState>()((set, get) => ({
     if (!query) {
       return;
     }
-    set({ phase: 'finding', entry: null, sourceModel: null, errorMessage: null });
+    set({ phase: 'finding', entries: [], sourceModel: null, errorMessage: null });
     try {
       const result = await findCatalog(query);
-      set({ phase: 'found', entry: result.entry, sourceModel: result.source_model });
+      set({ phase: 'found', entries: result.entries, sourceModel: result.source_model });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Lookup failed';
       // A "no catalog entry" message is the server's 404 — a normal miss, not
@@ -58,7 +61,7 @@ export const useCatalogStore = create<CatalogState>()((set, get) => ({
     set({
       phase: 'idle',
       query: '',
-      entry: null,
+      entries: [],
       sourceModel: null,
       errorMessage: null,
     }),

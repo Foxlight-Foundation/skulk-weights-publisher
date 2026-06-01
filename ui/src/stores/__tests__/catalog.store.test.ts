@@ -26,7 +26,7 @@ beforeEach(() => {
   useCatalogStore.setState({
     phase: 'idle',
     query: '',
-    entry: null,
+    entries: [],
     sourceModel: null,
     errorMessage: null,
   });
@@ -39,18 +39,18 @@ describe('catalog.store', () => {
     expect(useCatalogStore.getState().query).toBe('google/gemma-3-4b-it');
   });
 
-  it('find resolves to the found phase with the entry on a hit', async () => {
-    mockFindCatalog.mockResolvedValue({ source_model: 'google/gemma-3-4b-it', entry: ENTRY });
+  it('find resolves to the found phase with all entries on a hit', async () => {
+    mockFindCatalog.mockResolvedValue({ source_model: 'google/gemma-3-4b-it', entries: [ENTRY] });
     useCatalogStore.setState({ query: 'google/gemma-3-4b-it' });
     await useCatalogStore.getState().find();
     const state = useCatalogStore.getState();
     expect(state.phase).toBe('found');
-    expect(state.entry).toEqual(ENTRY);
+    expect(state.entries).toEqual([ENTRY]);
     expect(state.sourceModel).toBe('google/gemma-3-4b-it');
   });
 
   it('find trims the query before calling the API', async () => {
-    mockFindCatalog.mockResolvedValue({ source_model: 'google/gemma-3-4b-it', entry: ENTRY });
+    mockFindCatalog.mockResolvedValue({ source_model: 'google/gemma-3-4b-it', entries: [ENTRY] });
     useCatalogStore.setState({ query: '  google/gemma-3-4b-it  ' });
     await useCatalogStore.getState().find();
     expect(mockFindCatalog).toHaveBeenCalledWith('google/gemma-3-4b-it');
@@ -85,7 +85,7 @@ describe('catalog.store', () => {
     useCatalogStore.setState({
       phase: 'found',
       query: 'x/y',
-      entry: ENTRY,
+      entries: [ENTRY],
       sourceModel: 'x/y',
       errorMessage: null,
     });
@@ -93,6 +93,6 @@ describe('catalog.store', () => {
     const state = useCatalogStore.getState();
     expect(state.phase).toBe('idle');
     expect(state.query).toBe('');
-    expect(state.entry).toBeNull();
+    expect(state.entries).toEqual([]);
   });
 });

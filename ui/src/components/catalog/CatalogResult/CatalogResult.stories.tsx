@@ -33,7 +33,7 @@ export const Found: Story = {
     useEffect(() => {
       useCatalogStore.setState({
         phase: 'found',
-        entry: SAMPLE,
+        entries: [SAMPLE],
         sourceModel: SAMPLE.source_model,
       });
     }, []);
@@ -46,7 +46,7 @@ export const NotFound: Story = {
     useEffect(() => {
       useCatalogStore.setState({
         phase: 'notFound',
-        entry: null,
+        entries: [],
         sourceModel: 'mlx-community/unknown-model',
         errorMessage: "no catalog entry found for source_model 'mlx-community/unknown-model'",
       });

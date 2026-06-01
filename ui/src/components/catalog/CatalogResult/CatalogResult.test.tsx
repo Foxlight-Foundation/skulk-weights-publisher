@@ -29,7 +29,7 @@ beforeEach(() => {
   useCatalogStore.setState({
     phase: 'idle',
     query: '',
-    entry: null,
+    entries: [],
     sourceModel: null,
     errorMessage: null,
   });
@@ -42,21 +42,42 @@ describe('CatalogResult', () => {
   });
 
   it('renders the resolved entry in the found phase', () => {
-    useCatalogStore.setState({ phase: 'found', entry: ENTRY, sourceModel: ENTRY.source_model });
+    useCatalogStore.setState({ phase: 'found', entries: [ENTRY], sourceModel: ENTRY.source_model });
     renderWithTheme(<CatalogResult />);
     expect(screen.getByText('foxlight/gemma-3-4b-full-q4-k')).toBeInTheDocument();
     expect(screen.getByText('FoxlightAI/gemma-3-4b-full-q4-k-vindex')).toBeInTheDocument();
     expect(screen.getByText('q4k')).toBeInTheDocument();
   });
 
+  it('renders all entries and a count when a source has several', () => {
+    const second: CatalogEntry = {
+      ...ENTRY,
+      key: 'foxlight/gemma-3-4b-expert-server-q4-k',
+      slices: ['expert-server'],
+      output_name: 'gemma-3-4b-expert-server-q4-k.vindex',
+      hf_repo: 'FoxlightAI/gemma-3-4b-expert-server-q4-k-vindex',
+    };
+    useCatalogStore.setState({
+      phase: 'found',
+      entries: [ENTRY, second],
+      sourceModel: ENTRY.source_model,
+    });
+    renderWithTheme(<CatalogResult />);
+    expect(screen.getByText(/2 entries match/)).toBeInTheDocument();
+    expect(screen.getByText('foxlight/gemma-3-4b-full-q4-k')).toBeInTheDocument();
+    expect(screen.getByText('foxlight/gemma-3-4b-expert-server-q4-k')).toBeInTheDocument();
+  });
+
   it('shows MTP sidecar and assistant rows only when present', () => {
     useCatalogStore.setState({
       phase: 'found',
-      entry: {
-        ...ENTRY,
-        mtp_sidecar_repo: 'FoxlightAI/some-mtp',
-        assistant_model_repo: 'google/gemma-4-27b-it-assistant',
-      },
+      entries: [
+        {
+          ...ENTRY,
+          mtp_sidecar_repo: 'FoxlightAI/some-mtp',
+          assistant_model_repo: 'google/gemma-4-27b-it-assistant',
+        },
+      ],
       sourceModel: ENTRY.source_model,
     });
     renderWithTheme(<CatalogResult />);
@@ -83,7 +104,7 @@ describe('CatalogResult', () => {
 
   it('Clear button resets the store', async () => {
     const user = userEvent.setup();
-    useCatalogStore.setState({ phase: 'found', entry: ENTRY, sourceModel: ENTRY.source_model });
+    useCatalogStore.setState({ phase: 'found', entries: [ENTRY], sourceModel: ENTRY.source_model });
     renderWithTheme(<CatalogResult />);
     await user.click(screen.getByRole('button', { name: 'Clear' }));
     expect(useCatalogStore.getState().phase).toBe('idle');

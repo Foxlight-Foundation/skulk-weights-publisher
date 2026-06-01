@@ -53,10 +53,10 @@ export interface CatalogEntry {
   assistant_model_repo: string | null;
 }
 
-/** Response from POST /api/catalog/find (success) */
+/** Response from POST /api/catalog/find (success) — one-to-many by source model */
 export interface CatalogFindResponse {
   source_model: string;
-  entry: CatalogEntry;
+  entries: CatalogEntry[];
 }
 
 /** Error envelope returned by API routes on failure */

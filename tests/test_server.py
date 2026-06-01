@@ -155,14 +155,29 @@ def test_ensure_built_honors_dist_override(
 
 
 def test_catalog_find_resolves_builtin_source() -> None:
-    """POST /api/catalog/find returns the entry for a known source model."""
+    """POST /api/catalog/find returns the entries for a known source model."""
     resp = client.post("/api/catalog/find", json={"url": "google/gemma-3-4b-it"})
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["source_model"] == "google/gemma-3-4b-it"
-    assert body["entry"]["key"] == "foxlight/gemma-3-4b-full-q4-k"
-    assert body["entry"]["source_model"] == "google/gemma-3-4b-it"
+    assert len(body["entries"]) == 1
+    assert body["entries"][0]["key"] == "foxlight/gemma-3-4b-full-q4-k"
+    assert body["entries"][0]["source_model"] == "google/gemma-3-4b-it"
+
+
+def test_catalog_find_returns_all_matches() -> None:
+    """A source model with multiple slices returns every matching entry."""
+    resp = client.post(
+        "/api/catalog/find", json={"url": "google/gemma-4-26b-a4b-it"}
+    )
+
+    assert resp.status_code == 200
+    keys = {e["key"] for e in resp.json()["entries"]}
+    assert keys == {
+        "foxlight/gemma-4-26b-a4b-full-q4-k",
+        "foxlight/gemma-4-26b-a4b-expert-server-q4-k",
+    }
 
 
 def test_catalog_find_accepts_full_url() -> None:
@@ -173,7 +188,23 @@ def test_catalog_find_accepts_full_url() -> None:
     )
 
     assert resp.status_code == 200
-    assert resp.json()["entry"]["key"] == "foxlight/gemma-3-4b-full-q4-k"
+    assert resp.json()["entries"][0]["key"] == "foxlight/gemma-3-4b-full-q4-k"
+
+
+def test_catalog_find_load_failure_is_500_not_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A malformed catalog is a 500 config error, not a 404 'no entry' miss."""
+    from skulk_weights_publisher.manifest import ManifestError
+
+    def boom() -> None:
+        raise ManifestError("catalog is broken")
+
+    monkeypatch.setattr(app_module, "load_catalogue_view", boom)
+    resp = client.post("/api/catalog/find", json={"url": "google/gemma-3-4b-it"})
+
+    assert resp.status_code == 500
+    assert "catalog failed to load" in resp.json()["error"]
 
 
 def test_catalog_find_unknown_source_returns_404() -> None:

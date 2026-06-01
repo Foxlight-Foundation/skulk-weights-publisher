@@ -35,7 +35,7 @@ from skulk_weights_publisher.catalog_adder import (
     resolve_base_model,
 )
 from skulk_weights_publisher.catalogue import (
-    find_catalogue_entry_by_source,
+    find_catalogue_entries_by_source,
     load_catalogue_view,
 )
 from skulk_weights_publisher.manifest import ALLOWED_QUANTS, ManifestError
@@ -154,11 +154,12 @@ async def save_config(body: ConfigBody) -> Any:
 
 @app.post("/api/catalog/find")
 async def catalog_find(body: CatalogFindBody) -> Any:
-    """Reverse-lookup a catalog entry by its HF source model.
+    """Reverse-lookup catalog entries by their HF source model.
 
     The GUI counterpart of ``skulk-weights catalog find``: given the upstream
-    source model (URL or ``owner/repo``), return the resolved catalog entry, or
-    404 when no entry matches. Read-only — never mutates the catalog.
+    source model (URL or ``owner/repo``), return all matching catalog entries
+    (the mapping is one-to-many — e.g. full + expert-server slices), or 404 when
+    none match. Read-only — never mutates the catalog.
     """
     query = body.url.strip()
     if not query:
@@ -167,13 +168,25 @@ async def catalog_find(body: CatalogFindBody) -> Any:
         source_model = parse_hf_model_id(query)
     except CatalogAddError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
+    # Load the catalog OUTSIDE the lookup try: a malformed/unreadable catalog is a
+    # 500 configuration error, not a 404 "no entry" miss. Only the lookup's own
+    # ManifestError (genuinely no match) maps to 404.
     try:
-        entry = find_catalogue_entry_by_source(source_model, load_catalogue_view())
+        view = load_catalogue_view()
+    except ManifestError as exc:
+        return JSONResponse(
+            {"error": f"catalog failed to load: {exc}"}, status_code=500
+        )
+    try:
+        entries = find_catalogue_entries_by_source(source_model, view)
     except ManifestError as exc:
         return JSONResponse(
             {"error": str(exc), "source_model": source_model}, status_code=404
         )
-    return {"source_model": source_model, "entry": entry.to_dict()}
+    return {
+        "source_model": source_model,
+        "entries": [entry.to_dict() for entry in entries],
+    }
 
 
 @app.post("/api/detect")

@@ -63,6 +63,17 @@ const Actions = styled.div`
   border-top: 1px solid ${({ theme }) => theme.colors.borderLight};
 `;
 
+const MatchCount = styled.p`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textSecondary};
+`;
+
+const Divider = styled.hr`
+  border: none;
+  border-top: 1px solid ${({ theme }) => theme.colors.borderLight};
+  margin: ${({ theme }) => theme.spacing.sm} 0;
+`;
+
 const Row = ({ label, value }: { label: string; value: string }) => (
   <>
     <GridLabel>{label}</GridLabel>
@@ -99,7 +110,7 @@ const EntryGrid = ({ entry }: { entry: CatalogEntry }) => (
  */
 export const CatalogResult = ({ className }: CatalogResultProps) => {
   const phase = useCatalogStore((s) => s.phase);
-  const entry = useCatalogStore((s) => s.entry);
+  const entries = useCatalogStore((s) => s.entries);
   const sourceModel = useCatalogStore((s) => s.sourceModel);
   const errorMessage = useCatalogStore((s) => s.errorMessage);
   const reset = useCatalogStore((s) => s.reset);
@@ -133,13 +144,23 @@ export const CatalogResult = ({ className }: CatalogResultProps) => {
     );
   }
 
-  if (phase !== 'found' || !entry) {
+  if (phase !== 'found' || entries.length === 0) {
     return null;
   }
 
   return (
     <Card className={className}>
-      <EntryGrid entry={entry} />
+      {entries.length > 1 && (
+        <MatchCount>
+          {entries.length} entries match <Mono>{sourceModel ?? 'this source model'}</Mono>
+        </MatchCount>
+      )}
+      {entries.map((entry, index) => (
+        <div key={entry.key}>
+          {index > 0 && <Divider />}
+          <EntryGrid entry={entry} />
+        </div>
+      ))}
       <Actions>
         <Button variant="ghost" size="sm" onClick={reset}>
           Clear
