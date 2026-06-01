@@ -67,6 +67,10 @@ def test_extract_and_publish_vision_mirrors_weights(tmp_path: Path) -> None:
         patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download),
         patch("huggingface_hub.upload_folder", side_effect=fake_upload_folder),
         patch("huggingface_hub.utils.tqdm.disable_progress_bars", lambda: None),
+        patch(
+            "skulk_weights_publisher.card_publish.publish_model_card",
+            lambda **kw: None,
+        ),
     ):
         extract_and_publish_vision(
             "thirdparty/model-vision",
@@ -112,6 +116,10 @@ def test_extract_and_publish_vision_clears_stale_scratch(tmp_path: Path) -> None
         patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download),
         patch("huggingface_hub.upload_folder", side_effect=fake_upload_folder),
         patch("huggingface_hub.utils.tqdm.disable_progress_bars", lambda: None),
+        patch(
+            "skulk_weights_publisher.card_publish.publish_model_card",
+            lambda **kw: None,
+        ),
     ):
         extract_and_publish_vision(
             "thirdparty/model-vision",

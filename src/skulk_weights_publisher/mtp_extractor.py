@@ -73,6 +73,7 @@ def extract_mtp(
     *,
     token: str | None,
     dry_run: bool = False,
+    catalog_key: str | None = None,
     log: Callable[[str], None] | None = None,
 ) -> None:
     """Extract MTP weights from source_repo, quantize, and publish to sidecar_repo.
@@ -183,6 +184,22 @@ def extract_mtp(
         commit_message=f"Add MTP sidecar from {source_repo} ({mtp_quant})",
     )
     emit(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors")
+
+    # Publish a self-describing model card so the sidecar carries its provenance
+    # (source repo + revision), target, quant, and inherited license.
+    from skulk_weights_publisher.card_publish import publish_model_card
+
+    publish_model_card(
+        repo_id=sidecar_repo,
+        artifact_type="mtp-sidecar",
+        source_repo=source_repo,
+        token=token,
+        target_model=source_repo,
+        quant=mtp_quant,
+        catalog_key=catalog_key,
+        weight_filename="mtp.safetensors",
+        log=emit,
+    )
 
 
 def _find_mtp_shards(

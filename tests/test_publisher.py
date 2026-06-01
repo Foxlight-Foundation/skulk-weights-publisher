@@ -116,10 +116,14 @@ def test_execute_publish_plan_adds_repo_to_collection(
     ) -> None:
         collection_calls.append((collection_slug, repo_id, token))
 
+    card_calls: list[dict[str, object]] = []
     monkeypatch.setattr(publisher.shutil, "which", lambda _name: "/usr/bin/larql")
     monkeypatch.setattr(publisher.subprocess, "run", fake_run)
     monkeypatch.setattr(
         publisher, "add_vindex_to_collection", fake_add_vindex_to_collection
+    )
+    monkeypatch.setattr(
+        publisher, "publish_model_card", lambda **kw: card_calls.append(kw)
     )
 
     execute_publish_plan(
@@ -133,6 +137,11 @@ def test_execute_publish_plan_adds_repo_to_collection(
     assert collection_calls == [
         (DEFAULT_FOXLIGHT_VINDEX_COLLECTION, entry.hf_repo, "hf_write_token")
     ]
+    # A self-describing card is published to the vindex repo.
+    assert len(card_calls) == 1
+    assert card_calls[0]["repo_id"] == entry.hf_repo
+    assert card_calls[0]["artifact_type"] == "vindex"
+    assert card_calls[0]["catalog_key"] == entry.key
 
 
 def test_execute_publish_plan_does_not_publish_after_extract_failure(
@@ -164,6 +173,7 @@ def test_execute_publish_plan_does_not_publish_after_extract_failure(
     monkeypatch.setattr(
         publisher, "add_vindex_to_collection", fake_add_vindex_to_collection
     )
+    monkeypatch.setattr(publisher, "publish_model_card", lambda **kw: None)
 
     with pytest.raises(subprocess.CalledProcessError):
         execute_publish_plan(
@@ -250,6 +260,7 @@ def test_execute_publish_plan_mtp_calls_extractor(
         *,
         token: str | None,
         dry_run: bool = False,
+        catalog_key: str | None = None,
     ) -> None:
         extract_calls.append((source_repo, sidecar_repo, mtp_quant, scratch_root))
 
@@ -362,6 +373,8 @@ def test_execute_publish_plan_vision_calls_extractor(
         *,
         token: str | None,
         dry_run: bool = False,
+        target_model: str | None = None,
+        catalog_key: str | None = None,
     ) -> None:
         calls.append((source_repo, sidecar_repo, scratch_root))
 
