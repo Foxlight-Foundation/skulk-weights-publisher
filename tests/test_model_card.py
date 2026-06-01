@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from typing import Any
+
 import yaml
 
 from skulk_weights_publisher.model_card import CardInfo, render_model_card
 
 
-def _split_card(card: str) -> tuple[dict[str, object], str]:
-    """Split a rendered card into (parsed frontmatter, body)."""
+def _split_card(card: str) -> tuple[Any, str]:
+    """Split a rendered card into (parsed frontmatter, body).
+
+    Frontmatter is returned as ``Any`` (it's freeform parsed YAML) so tests can
+    index nested provenance values without fighting the type checker.
+    """
     assert card.startswith("---\n")
     _, fm, body = card.split("---\n", 2)
     return yaml.safe_load(fm), body
