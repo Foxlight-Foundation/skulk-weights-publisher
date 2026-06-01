@@ -18,6 +18,7 @@ carries no quant parameter for exactly this reason; precision is preserved.
 
 from __future__ import annotations
 
+import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -87,7 +88,13 @@ def extract_and_publish_vision(
         sidecar_repo, repo_type="model", private=False, exist_ok=True, token=token
     )
 
+    # Start from a clean scratch dir: snapshot_download(local_dir=...) only writes
+    # the files that match the current source snapshot, so a reused dir from an
+    # earlier run (with shards/configs the source has since dropped or renamed)
+    # would leave stale files behind and break the byte-for-byte mirror guarantee.
     local_dir = scratch_root / "vision" / sidecar_repo.replace("/", "--")
+    if local_dir.exists():
+        shutil.rmtree(local_dir)
     local_dir.mkdir(parents=True, exist_ok=True)
 
     emit(f"vision: downloading weights from hf://{source_repo}")
@@ -108,12 +115,18 @@ def extract_and_publish_vision(
     emit(f"vision: {len(weight_files)} weight file(s) downloaded")
 
     emit(f"vision: uploading to hf://{sidecar_repo}")
+    # delete_patterns prunes files already on the Hub that the current snapshot no
+    # longer contains, so republishing a repointed/slimmed source produces a true
+    # mirror instead of accumulating obsolete shards/configs/indexes alongside the
+    # new ones. Scoped to the same file kinds we manage so HF repo metadata
+    # (.gitattributes, auto-created README) is left untouched.
     upload_folder(
         folder_path=str(local_dir),
         repo_id=sidecar_repo,
         repo_type="model",
         token=token,
         commit_message=f"Mirror vision encoder from {source_repo}",
+        delete_patterns=_VISION_ALLOW_PATTERNS,
     )
     emit(f"vision: published to hf://{sidecar_repo}")
 

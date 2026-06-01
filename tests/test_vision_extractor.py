@@ -79,6 +79,50 @@ def test_extract_and_publish_vision_mirrors_weights(tmp_path: Path) -> None:
     assert len(upload_calls) == 1
     assert upload_calls[0]["repo_id"] == "acme/model-vision"
     assert upload_calls[0]["repo_type"] == "model"
+    # delete_patterns must be passed so stale remote files are pruned (true mirror).
+    assert upload_calls[0]["delete_patterns"]
+
+
+def test_extract_and_publish_vision_clears_stale_scratch(tmp_path: Path) -> None:
+    # A prior run left a stale shard in the deterministic scratch dir; it must be
+    # gone after the next run so it can't be uploaded alongside the fresh snapshot.
+    local_dir = tmp_path / "vision" / "acme--model-vision"
+    local_dir.mkdir(parents=True)
+    (local_dir / "stale-old-shard.safetensors").write_bytes(b"\xff")
+
+    uploaded_files: list[list[str]] = []
+
+    def fake_snapshot_download(
+        repo_id: str,
+        *,
+        local_dir: str,
+        **_kw: Any,
+    ) -> str:
+        Path(local_dir).mkdir(parents=True, exist_ok=True)
+        (Path(local_dir) / "model.safetensors").write_bytes(b"\x00")
+        return local_dir
+
+    def fake_upload_folder(*, folder_path: str, **_kw: Any) -> None:
+        uploaded_files.append(
+            sorted(p.name for p in Path(folder_path).rglob("*.safetensors"))
+        )
+
+    with (
+        patch("huggingface_hub.create_repo", lambda *a, **k: None),
+        patch("huggingface_hub.snapshot_download", side_effect=fake_snapshot_download),
+        patch("huggingface_hub.upload_folder", side_effect=fake_upload_folder),
+        patch("huggingface_hub.utils.tqdm.disable_progress_bars", lambda: None),
+    ):
+        extract_and_publish_vision(
+            "thirdparty/model-vision",
+            "acme/model-vision",
+            tmp_path,
+            token="hf_tok",
+        )
+
+    # Only the fresh file is present — the stale shard was removed before download.
+    assert uploaded_files == [["model.safetensors"]]
+    assert not (local_dir / "stale-old-shard.safetensors").exists()
 
 
 def test_extract_and_publish_vision_errors_when_no_weights(tmp_path: Path) -> None:
