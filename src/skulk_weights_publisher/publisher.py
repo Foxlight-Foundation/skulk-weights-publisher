@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+from skulk_weights_publisher.card_publish import publish_model_card
 from skulk_weights_publisher.defaults import COLLECTION_ENV_VAR
 from skulk_weights_publisher.manifest import HF_COLLECTION_PATTERN, ManifestEntry
 
@@ -240,6 +241,15 @@ def execute_publish_plan(
                 plan.entry.hf_repo,
                 token=env.get("HF_TOKEN"),
             )
+        publish_model_card(
+            repo_id=plan.entry.hf_repo,
+            artifact_type="vindex",
+            source_repo=plan.entry.source_model,
+            token=env.get("HF_TOKEN"),
+            quant=plan.entry.quant,
+            catalog_key=plan.entry.key,
+            target_model=plan.entry.source_model,
+        )
 
     if artifact in ("all", "mtp"):
         if plan.mtp_step is None:
@@ -259,6 +269,7 @@ def execute_publish_plan(
                 plan.scratch_root,
                 token=env.get("HF_TOKEN"),
                 dry_run=False,
+                catalog_key=plan.entry.key,
             )
 
     if artifact in ("all", "vision"):
@@ -280,6 +291,8 @@ def execute_publish_plan(
                 plan.scratch_root,
                 token=env.get("HF_TOKEN"),
                 dry_run=False,
+                target_model=plan.entry.source_model,
+                catalog_key=plan.entry.key,
             )
 
 

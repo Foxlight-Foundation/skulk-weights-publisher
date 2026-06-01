@@ -50,6 +50,8 @@ def extract_and_publish_vision(
     *,
     token: str | None,
     dry_run: bool = False,
+    target_model: str | None = None,
+    catalog_key: str | None = None,
     log: Callable[[str], None] | None = None,
 ) -> None:
     """Mirror vision encoder weights from ``source_repo`` to ``sidecar_repo``.
@@ -129,6 +131,20 @@ def extract_and_publish_vision(
         delete_patterns=_VISION_ALLOW_PATTERNS,
     )
     emit(f"vision: published to hf://{sidecar_repo}")
+
+    # Publish a self-describing model card. README.md is not in
+    # _VISION_ALLOW_PATTERNS, so a later mirror's delete_patterns never prunes it.
+    from skulk_weights_publisher.card_publish import publish_model_card
+
+    publish_model_card(
+        repo_id=sidecar_repo,
+        artifact_type="vision-sidecar",
+        source_repo=source_repo,
+        token=token,
+        target_model=target_model,
+        catalog_key=catalog_key,
+        log=emit,
+    )
 
 
 def _print_dry_run_plan(
