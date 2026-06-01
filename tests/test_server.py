@@ -154,6 +154,54 @@ def test_ensure_built_honors_dist_override(
     _ensure_built()
 
 
+def test_catalog_find_resolves_builtin_source() -> None:
+    """POST /api/catalog/find returns the entry for a known source model."""
+    resp = client.post("/api/catalog/find", json={"url": "google/gemma-3-4b-it"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source_model"] == "google/gemma-3-4b-it"
+    assert body["entry"]["key"] == "foxlight/gemma-3-4b-full-q4-k"
+    assert body["entry"]["source_model"] == "google/gemma-3-4b-it"
+
+
+def test_catalog_find_accepts_full_url() -> None:
+    """POST /api/catalog/find normalizes a full huggingface.co URL."""
+    resp = client.post(
+        "/api/catalog/find",
+        json={"url": "https://huggingface.co/google/gemma-3-4b-it"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["entry"]["key"] == "foxlight/gemma-3-4b-full-q4-k"
+
+
+def test_catalog_find_unknown_source_returns_404() -> None:
+    """An unmatched source model yields 404 with a clear message."""
+    resp = client.post("/api/catalog/find", json={"url": "does-not/exist"})
+
+    assert resp.status_code == 404
+    body = resp.json()
+    assert "no catalog entry found for source_model" in body["error"]
+    assert body["source_model"] == "does-not/exist"
+
+
+def test_catalog_find_unparseable_input_returns_400() -> None:
+    """An input that is neither owner/repo nor a URL yields 400."""
+    resp = client.post("/api/catalog/find", json={"url": "not-a-valid-id"})
+
+    assert resp.status_code == 400
+    assert "expected owner/repo or a huggingface.co URL" in resp.json()["error"]
+
+
+def test_catalog_find_empty_input_returns_400() -> None:
+    """A blank query yields 400."""
+    resp = client.post("/api/catalog/find", json={"url": "  "})
+
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "url is required"
+
+
 def test_save_token_is_owner_only(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

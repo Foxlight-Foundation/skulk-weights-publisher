@@ -34,8 +34,11 @@ from skulk_weights_publisher.catalog_adder import (
     quant_suffix,
     resolve_base_model,
 )
-from skulk_weights_publisher.catalogue import load_catalogue_view
-from skulk_weights_publisher.manifest import ALLOWED_QUANTS
+from skulk_weights_publisher.catalogue import (
+    find_catalogue_entry_by_source,
+    load_catalogue_view,
+)
+from skulk_weights_publisher.manifest import ALLOWED_QUANTS, ManifestError
 from skulk_weights_publisher.mtp_extractor import MtpExtractionError, extract_mtp
 from skulk_weights_publisher.publisher import default_scratch_root
 
@@ -105,6 +108,12 @@ class RegisterBody(BaseModel):
     url: str
 
 
+class CatalogFindBody(BaseModel):
+    """Request body for POST /api/catalog/find (reverse-lookup by source model)."""
+
+    url: str
+
+
 # ---------------------------------------------------------------------------
 # API routes
 # ---------------------------------------------------------------------------
@@ -141,6 +150,30 @@ async def save_config(body: ConfigBody) -> Any:
         return JSONResponse({"error": "hf_token must not be empty"}, status_code=400)
     _save_token(token)
     return {"ok": True}
+
+
+@app.post("/api/catalog/find")
+async def catalog_find(body: CatalogFindBody) -> Any:
+    """Reverse-lookup a catalog entry by its HF source model.
+
+    The GUI counterpart of ``skulk-weights catalog find``: given the upstream
+    source model (URL or ``owner/repo``), return the resolved catalog entry, or
+    404 when no entry matches. Read-only — never mutates the catalog.
+    """
+    query = body.url.strip()
+    if not query:
+        return JSONResponse({"error": "url is required"}, status_code=400)
+    try:
+        source_model = parse_hf_model_id(query)
+    except CatalogAddError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    try:
+        entry = find_catalogue_entry_by_source(source_model, load_catalogue_view())
+    except ManifestError as exc:
+        return JSONResponse(
+            {"error": str(exc), "source_model": source_model}, status_code=404
+        )
+    return {"source_model": source_model, "entry": entry.to_dict()}
 
 
 @app.post("/api/detect")
