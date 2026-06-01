@@ -97,6 +97,35 @@ def find_catalogue_entry(key: str, view: CatalogueView) -> ManifestEntry:
     raise ManifestError(f"catalog key not found: {key}")
 
 
+def find_catalogue_entries_by_source(
+    source_model: str,
+    view: CatalogueView,
+) -> tuple[ManifestEntry, ...]:
+    """Return all entries whose ``source_model`` matches a HF model id.
+
+    The lookup is the reverse of :func:`find_catalogue_entry`: given the upstream
+    HuggingFace model (``owner/repo``) an operator started from, resolve the
+    catalog entries it produced. ``source_model`` must already be normalized to a
+    bare ``owner/repo`` (callers parse URLs with ``parse_hf_model_id`` first).
+
+    The mapping is **one-to-many**: a single source model can produce several
+    catalog entries (e.g. separate ``full`` and ``expert-server`` slices of the
+    same MoE model, as the built-in catalog does for ``google/gemma-4-26b-a4b-it``
+    and the Mixtral models). All matches are returned in catalog order; raises
+    :class:`ManifestError` only when there are none. The scan is linear because
+    the catalog is small and unindexed.
+    """
+
+    matches = tuple(
+        entry for entry in view.entries if entry.source_model == source_model
+    )
+    if not matches:
+        raise ManifestError(
+            f"no catalog entry found for source_model {source_model!r}"
+        )
+    return matches
+
+
 def filter_catalogue_entries(
     view: CatalogueView,
     tier: Literal["all", "smoke", "moe"] = "all",

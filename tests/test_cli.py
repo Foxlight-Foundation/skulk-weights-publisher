@@ -27,6 +27,55 @@ def test_cli_catalog_sources(capsys: CaptureFixture[str]) -> None:
     assert f"hf_collection={DEFAULT_FOXLIGHT_VINDEX_COLLECTION}" in captured.out
 
 
+def test_cli_catalog_find_by_owner_repo(capsys: CaptureFixture[str]) -> None:
+    exit_code = run(["catalog", "find", "google/gemma-3-4b-it"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert '"key": "foxlight/gemma-3-4b-full-q4-k"' in captured.out
+    assert '"source_model": "google/gemma-3-4b-it"' in captured.out
+
+
+def test_cli_catalog_find_prints_all_matches(capsys: CaptureFixture[str]) -> None:
+    # A source model with both full and expert-server slices must print both.
+    exit_code = run(["catalog", "find", "google/gemma-4-26b-a4b-it"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert len(lines) == 2
+    assert '"foxlight/gemma-4-26b-a4b-full-q4-k"' in captured.out
+    assert '"foxlight/gemma-4-26b-a4b-expert-server-q4-k"' in captured.out
+
+
+def test_cli_catalog_find_accepts_full_url(capsys: CaptureFixture[str]) -> None:
+    exit_code = run(["catalog", "find", "https://huggingface.co/google/gemma-3-4b-it"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert '"key": "foxlight/gemma-3-4b-full-q4-k"' in captured.out
+
+
+def test_cli_catalog_find_unknown_source_exits_1(
+    capsys: CaptureFixture[str],
+) -> None:
+    exit_code = run(["catalog", "find", "does-not/exist"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "no catalog entry found for source_model" in captured.err
+
+
+def test_cli_catalog_find_unparseable_input_exits_1(
+    capsys: CaptureFixture[str],
+) -> None:
+    exit_code = run(["catalog", "find", "not-a-valid-id"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "expected owner/repo or a huggingface.co URL" in captured.err
+
+
 def test_cli_legacy_catalogue_alias_still_works(
     capsys: CaptureFixture[str],
 ) -> None:

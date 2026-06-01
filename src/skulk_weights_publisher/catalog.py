@@ -12,6 +12,9 @@ from skulk_weights_publisher.catalogue import (
     filter_catalogue_entries as filter_catalog_entries,
 )
 from skulk_weights_publisher.catalogue import (
+    find_catalogue_entries_by_source as find_catalog_entries_by_source,
+)
+from skulk_weights_publisher.catalogue import (
     find_catalogue_entry as find_catalog_entry,
 )
 from skulk_weights_publisher.catalogue import (
@@ -26,6 +29,7 @@ __all__ = [
     "CatalogView",
     "filter_catalog_entries",
     "find_catalog_entry",
+    "find_catalog_entries_by_source",
     "load_catalog_view",
     "write_default_config",
 ]
