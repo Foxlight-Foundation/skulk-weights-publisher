@@ -182,11 +182,35 @@ skulk-weights catalog find https://huggingface.co/google/gemma-3-4b-it
 ```
 
 The `--artifact` flag selects which artifact to publish: `vindex` (LARQL vindex),
-`mtp` (MTP sidecar), or `all` (both, when the entry has both configured). Omit
-it to publish all declared artifacts for that entry.
+`mtp` (MTP sidecar), `vision` (vision encoder sidecar), or `all` (every artifact
+the entry has configured). Omit it to publish all declared artifacts for that
+entry.
 
 The dry run prints the commands and paths that would execute without extracting
 or uploading weight files.
+
+### Vision encoder sidecars
+
+Some mlx-community VLM checkpoints omit the vision encoder — the main repo carries
+only the language model, and the vision weights live in a third-party repo (e.g.
+`davehind/Kimi-K2.5-vision`). Skulk's `VisionCardConfig.weights_repo` points at
+that separate repo, so depending on a third party is an availability and
+versioning risk. A catalog entry can declare a Foxlight-owned vision sidecar:
+
+```yaml
+    vision_source_repo: thirdparty/Kimi-K2.5-vision   # upstream vision weights
+    vision_sidecar_repo: FoxlightAI/kimi-k2-5-vision  # Foxlight-owned mirror
+```
+
+Both fields are set together or not at all, and `vision_sidecar_repo` must share
+its owner with `hf_repo`. Publishing `--artifact vision` mirrors the source repo's
+weights and configs into the sidecar **byte-for-byte — no quantization, no dtype
+conversion** — so the published vision encoder is numerically identical to
+upstream.
+
+```bash
+skulk-weights publish --model foxlight/kimi-k2-5-full-q4-k --artifact vision --dry-run
+```
 
 ## skulk-ui (Local GUI)
 

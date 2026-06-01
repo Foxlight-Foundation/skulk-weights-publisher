@@ -27,6 +27,7 @@ from skulk_weights_publisher.publisher import (
     execute_publish_plan,
     resolve_publish_collection,
 )
+from skulk_weights_publisher.vision_extractor import VisionExtractionError
 
 ARTIFACT_CHOICES = ["vindex", "mtp", "vision", "all"]
 
@@ -482,7 +483,12 @@ def run(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(normalized_argv)
     try:
         return int(args.func(args))
-    except (ManifestError, MtpExtractionError, PublishError) as exc:
+    except (
+        ManifestError,
+        MtpExtractionError,
+        PublishError,
+        VisionExtractionError,
+    ) as exc:
         print(str(exc), file=sys.stderr)
         return 1
 

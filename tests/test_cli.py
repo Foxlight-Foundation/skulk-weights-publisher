@@ -411,3 +411,24 @@ def test_cli_mtp_extraction_error_caught_by_run(
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "no mtp.* keys found" in captured.err
+
+
+def test_cli_vision_extraction_error_caught_by_run(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skulk_weights_publisher.cli as cli_mod
+    from skulk_weights_publisher.vision_extractor import VisionExtractionError
+
+    def _raise(*a: object, **kw: object) -> None:
+        raise VisionExtractionError("no .safetensors weights found in test/repo")
+
+    monkeypatch.setattr(cli_mod, "execute_publish_plan", _raise)
+
+    exit_code = run(
+        ["--manifest", "models.yaml", "publish", "--model", "gemma-3-4b-full-q4-k"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "no .safetensors weights found" in captured.err

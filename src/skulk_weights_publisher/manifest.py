@@ -45,6 +45,8 @@ class ManifestEntry:
     mtp_sidecar_repo: str | None = None
     mtp_quant: str | None = None
     assistant_model_repo: str | None = None
+    vision_source_repo: str | None = None
+    vision_sidecar_repo: str | None = None
 
     @property
     def publish_slices(self) -> str:
@@ -248,6 +250,36 @@ def validate_manifest_payload(
                     " are mutually exclusive"
                 )
 
+        vision_source_repo = _optional_string(
+            entry, "vision_source_repo", effective_key
+        )
+        vision_sidecar_repo = _optional_string(
+            entry, "vision_sidecar_repo", effective_key
+        )
+        vision_fields_set = sum(
+            1 for f in (vision_source_repo, vision_sidecar_repo) if f is not None
+        )
+        if 0 < vision_fields_set < 2:
+            raise ManifestError(
+                f"{effective_key}: vision_source_repo and vision_sidecar_repo"
+                " must both be set together or not at all"
+            )
+        if vision_source_repo is not None:
+            if not HF_REPO_PATTERN.fullmatch(vision_source_repo):
+                raise ManifestError(
+                    f"{effective_key}: vision_source_repo must look like owner/name"
+                )
+            if not HF_REPO_PATTERN.fullmatch(vision_sidecar_repo):  # type: ignore[arg-type]
+                raise ManifestError(
+                    f"{effective_key}: vision_sidecar_repo must look like owner/name"
+                )
+            vision_sidecar_owner = vision_sidecar_repo.split("/", maxsplit=1)[0]  # type: ignore[union-attr]
+            if vision_sidecar_owner != hf_repo.split("/", maxsplit=1)[0]:
+                raise ManifestError(
+                    f"{effective_key}: vision_sidecar_repo owner must be"
+                    f" {hf_repo.split('/', maxsplit=1)[0]!r}"
+                )
+
         entries.append(
             ManifestEntry(
                 key=effective_key,
@@ -262,6 +294,8 @@ def validate_manifest_payload(
                 mtp_sidecar_repo=mtp_sidecar_repo,
                 mtp_quant=mtp_quant_raw,
                 assistant_model_repo=assistant_model_repo,
+                vision_source_repo=vision_source_repo,
+                vision_sidecar_repo=vision_sidecar_repo,
             )
         )
 

@@ -294,6 +294,111 @@ def test_execute_publish_plan_mtp_artifact_without_step_raises(
         )
 
 
+def _make_vision_entry() -> object:
+    from skulk_weights_publisher.manifest import ManifestEntry
+
+    return ManifestEntry(
+        key="acme/kimi-k2-5-full-q4-k",
+        source_model="acme/Kimi-K2.5",
+        quant="q4k",
+        tier="moe",
+        slices=("full",),
+        output_name="kimi-k2-5-full-q4-k.vindex",
+        hf_repo="acme/kimi-k2-5-full-q4-k-vindex",
+        vision_source_repo="thirdparty/Kimi-K2.5-vision",
+        vision_sidecar_repo="acme/kimi-k2-5-vision",
+    )
+
+
+def test_build_publish_plan_populates_vision_step(tmp_path: Path) -> None:
+    from skulk_weights_publisher.publisher import VisionSidecarStep
+
+    entry = _make_vision_entry()
+    plan = build_publish_plan(entry, scratch_root=tmp_path)  # type: ignore[arg-type]
+
+    assert plan.vision_step == VisionSidecarStep(
+        source_repo="thirdparty/Kimi-K2.5-vision",
+        sidecar_repo="acme/kimi-k2-5-vision",
+    )
+
+
+def test_build_publish_plan_no_vision_step_when_not_configured(tmp_path: Path) -> None:
+    entry = find_entry("gemma-3-4b-full-q4-k", Path("models.yaml"))
+    plan = build_publish_plan(entry, scratch_root=tmp_path)
+
+    assert plan.vision_step is None
+
+
+def test_summary_lines_includes_vision_details(tmp_path: Path) -> None:
+    entry = _make_vision_entry()
+    plan = build_publish_plan(entry, scratch_root=tmp_path)  # type: ignore[arg-type]
+    summary = "\n".join(plan.summary_lines(force=False, artifact="vision"))
+
+    assert "thirdparty/Kimi-K2.5-vision" in summary
+    assert "acme/kimi-k2-5-vision" in summary
+    assert "no quantization" in summary
+
+
+def test_summary_lines_vision_not_configured_note(tmp_path: Path) -> None:
+    entry = find_entry("gemma-3-4b-full-q4-k", Path("models.yaml"))
+    plan = build_publish_plan(entry, scratch_root=tmp_path)
+    summary = "\n".join(plan.summary_lines(force=False, artifact="vision"))
+
+    assert "not configured" in summary
+
+
+def test_execute_publish_plan_vision_calls_extractor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = _make_vision_entry()
+    plan = build_publish_plan(entry, scratch_root=tmp_path)  # type: ignore[arg-type]
+    calls: list[tuple[str, str, Path]] = []
+
+    def fake_extract_vision(
+        source_repo: str,
+        sidecar_repo: str,
+        scratch_root: Path,
+        *,
+        token: str | None,
+        dry_run: bool = False,
+    ) -> None:
+        calls.append((source_repo, sidecar_repo, scratch_root))
+
+    import skulk_weights_publisher.vision_extractor as vision_mod
+
+    monkeypatch.setattr(vision_mod, "extract_and_publish_vision", fake_extract_vision)
+
+    execute_publish_plan(
+        plan,
+        dry_run=False,
+        force=False,
+        artifact="vision",
+        environ={"HF_TOKEN": "hf_tok"},
+    )
+
+    assert len(calls) == 1
+    assert calls[0][:2] == ("thirdparty/Kimi-K2.5-vision", "acme/kimi-k2-5-vision")
+
+
+def test_execute_publish_plan_vision_artifact_without_step_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = find_entry("gemma-3-4b-full-q4-k", Path("models.yaml"))
+    plan = build_publish_plan(entry, scratch_root=tmp_path)
+    monkeypatch.setattr(publisher.shutil, "which", lambda _name: "/usr/bin/larql")
+
+    with pytest.raises(PublishError, match="no vision sidecar configured"):
+        execute_publish_plan(
+            plan,
+            dry_run=False,
+            force=False,
+            artifact="vision",
+            environ={"HF_TOKEN": "hf_tok"},
+        )
+
+
 def test_default_scratch_root_honors_injected_empty_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
