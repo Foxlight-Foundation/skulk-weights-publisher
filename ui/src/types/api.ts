@@ -37,6 +37,28 @@ export interface RegisterResponse {
   entry_block: string;
 }
 
+/** A resolved catalog entry, as serialized by ManifestEntry.to_dict(). */
+export interface CatalogEntry {
+  key: string;
+  source_model: string;
+  quant: string;
+  tier: string;
+  slices: string[];
+  output_name: string;
+  hf_repo: string;
+  hf_collection: string | null;
+  mtp_source_repo: string | null;
+  mtp_sidecar_repo: string | null;
+  mtp_quant: string | null;
+  assistant_model_repo: string | null;
+}
+
+/** Response from POST /api/catalog/find (success) — one-to-many by source model */
+export interface CatalogFindResponse {
+  source_model: string;
+  entries: CatalogEntry[];
+}
+
 /** Error envelope returned by API routes on failure */
 export interface ApiError {
   error: string;

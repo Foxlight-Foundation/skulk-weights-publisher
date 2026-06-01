@@ -6,6 +6,7 @@
  */
 
 import type {
+  CatalogFindResponse,
   ConfigResponse,
   DetectResponse,
   PublishResponse,
@@ -75,6 +76,15 @@ export function startPublish(
  */
 export function registerCatalog(url: string): Promise<RegisterResponse> {
   return _post<RegisterResponse>('/api/register', { url });
+}
+
+/**
+ * Reverse-lookup a catalog entry by its HuggingFace source model (URL or
+ * owner/repo). Read-only — never mutates the catalog. Throws on 404 (no match)
+ * and 400 (unparseable input) with the server's error message.
+ */
+export function findCatalog(url: string): Promise<CatalogFindResponse> {
+  return _post<CatalogFindResponse>('/api/catalog/find', { url });
 }
 
 /**

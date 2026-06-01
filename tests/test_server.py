@@ -154,6 +154,101 @@ def test_ensure_built_honors_dist_override(
     _ensure_built()
 
 
+def test_catalog_find_resolves_builtin_source() -> None:
+    """POST /api/catalog/find returns the entries for a known source model."""
+    resp = client.post("/api/catalog/find", json={"url": "google/gemma-3-4b-it"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source_model"] == "google/gemma-3-4b-it"
+    assert len(body["entries"]) == 1
+    assert body["entries"][0]["key"] == "foxlight/gemma-3-4b-full-q4-k"
+    assert body["entries"][0]["source_model"] == "google/gemma-3-4b-it"
+
+
+def test_catalog_find_returns_all_matches() -> None:
+    """A source model with multiple slices returns every matching entry."""
+    resp = client.post(
+        "/api/catalog/find", json={"url": "google/gemma-4-26b-a4b-it"}
+    )
+
+    assert resp.status_code == 200
+    keys = {e["key"] for e in resp.json()["entries"]}
+    assert keys == {
+        "foxlight/gemma-4-26b-a4b-full-q4-k",
+        "foxlight/gemma-4-26b-a4b-expert-server-q4-k",
+    }
+
+
+def test_catalog_find_accepts_full_url() -> None:
+    """POST /api/catalog/find normalizes a full huggingface.co URL."""
+    resp = client.post(
+        "/api/catalog/find",
+        json={"url": "https://huggingface.co/google/gemma-3-4b-it"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["entries"][0]["key"] == "foxlight/gemma-3-4b-full-q4-k"
+
+
+def test_catalog_find_load_failure_is_500_not_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A malformed catalog is a 500 config error, not a 404 'no entry' miss."""
+    from skulk_weights_publisher.manifest import ManifestError
+
+    def boom() -> None:
+        raise ManifestError("catalog is broken")
+
+    monkeypatch.setattr(app_module, "load_catalogue_view", boom)
+    resp = client.post("/api/catalog/find", json={"url": "google/gemma-3-4b-it"})
+
+    assert resp.status_code == 500
+    assert "catalog failed to load" in resp.json()["error"]
+
+
+def test_catalog_find_non_manifest_load_failure_is_json_500(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-ManifestError (malformed YAML / OSError) still returns the JSON
+    error envelope, not a bare 500 that breaks the UI's res.json()."""
+
+    def boom() -> None:
+        raise OSError("skulk-weights.yaml is unreadable")
+
+    monkeypatch.setattr(app_module, "load_catalogue_view", boom)
+    resp = client.post("/api/catalog/find", json={"url": "google/gemma-3-4b-it"})
+
+    assert resp.status_code == 500
+    assert "catalog failed to load" in resp.json()["error"]
+
+
+def test_catalog_find_unknown_source_returns_404() -> None:
+    """An unmatched source model yields 404 with a clear message."""
+    resp = client.post("/api/catalog/find", json={"url": "does-not/exist"})
+
+    assert resp.status_code == 404
+    body = resp.json()
+    assert "no catalog entry found for source_model" in body["error"]
+    assert body["source_model"] == "does-not/exist"
+
+
+def test_catalog_find_unparseable_input_returns_400() -> None:
+    """An input that is neither owner/repo nor a URL yields 400."""
+    resp = client.post("/api/catalog/find", json={"url": "not-a-valid-id"})
+
+    assert resp.status_code == 400
+    assert "expected owner/repo or a huggingface.co URL" in resp.json()["error"]
+
+
+def test_catalog_find_empty_input_returns_400() -> None:
+    """A blank query yields 400."""
+    resp = client.post("/api/catalog/find", json={"url": "  "})
+
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "url is required"
+
+
 def test_save_token_is_owner_only(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

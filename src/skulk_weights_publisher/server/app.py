@@ -34,8 +34,11 @@ from skulk_weights_publisher.catalog_adder import (
     quant_suffix,
     resolve_base_model,
 )
-from skulk_weights_publisher.catalogue import load_catalogue_view
-from skulk_weights_publisher.manifest import ALLOWED_QUANTS
+from skulk_weights_publisher.catalogue import (
+    find_catalogue_entries_by_source,
+    load_catalogue_view,
+)
+from skulk_weights_publisher.manifest import ALLOWED_QUANTS, ManifestError
 from skulk_weights_publisher.mtp_extractor import MtpExtractionError, extract_mtp
 from skulk_weights_publisher.publisher import default_scratch_root
 
@@ -105,6 +108,12 @@ class RegisterBody(BaseModel):
     url: str
 
 
+class CatalogFindBody(BaseModel):
+    """Request body for POST /api/catalog/find (reverse-lookup by source model)."""
+
+    url: str
+
+
 # ---------------------------------------------------------------------------
 # API routes
 # ---------------------------------------------------------------------------
@@ -141,6 +150,46 @@ async def save_config(body: ConfigBody) -> Any:
         return JSONResponse({"error": "hf_token must not be empty"}, status_code=400)
     _save_token(token)
     return {"ok": True}
+
+
+@app.post("/api/catalog/find")
+async def catalog_find(body: CatalogFindBody) -> Any:
+    """Reverse-lookup catalog entries by their HF source model.
+
+    The GUI counterpart of ``skulk-weights catalog find``: given the upstream
+    source model (URL or ``owner/repo``), return all matching catalog entries
+    (the mapping is one-to-many — e.g. full + expert-server slices), or 404 when
+    none match. Read-only — never mutates the catalog.
+    """
+    query = body.url.strip()
+    if not query:
+        return JSONResponse({"error": "url is required"}, status_code=400)
+    try:
+        source_model = parse_hf_model_id(query)
+    except CatalogAddError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    # Load the catalog OUTSIDE the lookup try: a malformed/unreadable catalog is a
+    # 500 configuration error, not a 404 "no entry" miss. Only the lookup's own
+    # ManifestError (genuinely no match) maps to 404. Catch broadly here —
+    # load_catalogue_view can raise yaml.YAMLError, OSError, etc. (not just
+    # ManifestError) — so every load failure still returns the JSON error
+    # envelope the UI expects instead of a bare 500 that breaks res.json().
+    try:
+        view = load_catalogue_view()
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse(
+            {"error": f"catalog failed to load: {exc}"}, status_code=500
+        )
+    try:
+        entries = find_catalogue_entries_by_source(source_model, view)
+    except ManifestError as exc:
+        return JSONResponse(
+            {"error": str(exc), "source_model": source_model}, status_code=404
+        )
+    return {
+        "source_model": source_model,
+        "entries": [entry.to_dict() for entry in entries],
+    }
 
 
 @app.post("/api/detect")
