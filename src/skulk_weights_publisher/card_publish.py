@@ -80,7 +80,15 @@ def resolve_source_provenance(
         return SourceProvenance()
 
     sha = _as_str(getattr(info, "sha", None))
-    card = getattr(info, "cardData", None)
+    # huggingface_hub>=1.0 exposes parsed card metadata as a ModelCardData object
+    # (under card_data, historically cardData), NOT a plain dict — so normalize via
+    # to_dict() before reading, or the inherited license would be silently dropped.
+    card = getattr(info, "card_data", None)
+    if card is None:
+        card = getattr(info, "cardData", None)
+    to_dict = getattr(card, "to_dict", None)
+    if callable(to_dict):
+        card = to_dict()
     if not isinstance(card, dict):
         return SourceProvenance(revision=sha)
     return SourceProvenance(

@@ -42,6 +42,32 @@ def test_resolve_source_provenance_custom_license_fields() -> None:
     assert prov.license_link == "https://ai.google.dev/gemma/terms"
 
 
+class _ModelCardData:
+    """Mimics huggingface_hub's ModelCardData: a to_dict()-able object, not a dict."""
+
+    def __init__(self, **fields: object) -> None:
+        self._fields = fields
+
+    def to_dict(self) -> dict[str, object]:
+        return dict(self._fields)
+
+
+def test_resolve_source_provenance_reads_modelcarddata_not_just_dict() -> None:
+    # huggingface_hub>=1.0 returns card_data as a ModelCardData object; the
+    # inherited license must still be extracted (regression guard for PR #27).
+    info = SimpleNamespace(
+        sha="sha",
+        card_data=_ModelCardData(license="gemma", license_link="https://x/terms"),
+    )
+    with patch("huggingface_hub.HfApi") as api:
+        api.return_value.model_info.return_value = info
+        prov = resolve_source_provenance("google/gemma-3-4b-it", token=None)
+
+    assert prov.revision == "sha"
+    assert prov.license == "gemma"
+    assert prov.license_link == "https://x/terms"
+
+
 def test_resolve_source_provenance_is_best_effort_on_error() -> None:
     with patch("huggingface_hub.HfApi") as api:
         api.return_value.model_info.side_effect = RuntimeError("offline")
