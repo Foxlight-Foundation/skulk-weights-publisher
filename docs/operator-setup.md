@@ -1,26 +1,47 @@
 # Operator Setup
 
 Real weight publication is designed for a self-hosted runner because extraction
-writes large local files before upload. SWP publishes two artifact types:
+writes large local files before upload. SWP publishes three artifact types:
 
-- **LARQL vindexes** via `larql extract` + `larql publish` — lets Skulk keep
-  expensive GPU memory focused on the attention path while CPU/high-memory LARQL
-  servers host the weight-heavy FFN and expert pieces.
-- **MTP sidecars** — extracts and quantizes native multi-token prediction heads
-  (`mtp.*` tensor keys) from the BF16 checkpoint and publishes them as
-  `mtp.safetensors` to a dedicated Hugging Face repo.
+- **LARQL vindexes** (`--artifact vindex`) via `larql extract` + `larql publish`
+  — lets Skulk keep expensive GPU memory focused on the attention path while
+  CPU/high-memory LARQL servers host the weight-heavy FFN and expert pieces.
+- **MTP sidecars** (`--artifact mtp`) — extracts and quantizes native
+  multi-token prediction heads (`mtp.*` tensor keys) from the BF16 checkpoint
+  and publishes them as `mtp.safetensors` to a dedicated Hugging Face repo.
+- **Vision sidecars** (`--artifact vision`) — mirrors a third-party vision
+  encoder into a Foxlight-owned repo **byte-for-byte** (no quantization, no
+  dtype conversion) so the published encoder is numerically identical to
+  upstream. Configured with the `vision_source_repo` (upstream weights) and
+  `vision_sidecar_repo` (Foxlight-owned mirror) catalog fields, which are set
+  together or not at all.
 
 Use hosted GitHub runners for safe validation: install the package, validate the
 catalog, run tests, and dry-run every entry. Use the self-hosted runner when
 you are ready to perform real extraction and publication.
 
 The Foxlight catalog is included by default and publishes to the `FoxlightAI`
-Hugging Face organization. Successful Foxlight publishes are also added to the
-public `Vindexes` collection:
+Hugging Face organization. Each publish is filed into a per-artifact-type
+Hugging Face collection — `Vindexes`, `MTP Sidecars`, and `Vision Sidecars`.
+The sidecar collections are resolved by title and created if missing; the
+vindex collection is the configured `Vindexes` slug:
 
 ```text
 https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051
 ```
+
+Set `SKULK_WEIGHTS_COLLECTION` to one of `none`, `0`, `false`, `no`, `off`, or
+`disabled` to skip collection filing for a run.
+
+## Self-describing model cards
+
+Every real publish — vindex, MTP, or vision — also uploads a self-describing
+`README.md` model card to the published repo. The card records provenance
+(`base_model` set to the source repo, the pinned source commit SHA, quant,
+catalog key, and `extracted_with`) and the source model's license. The source
+license and commit SHA are resolved best-effort from the Hub using `HF_TOKEN`,
+and published artifacts inherit the source model's license **unchanged** — SWP
+never re-licenses.
 
 If you maintain your own weight library, add a checked-in `skulk-weights.yaml`
 that points at your operator manifest and pass that path through `catalog_config`
@@ -49,7 +70,7 @@ First-publish capacity targets:
   (typically 15–30 GB per model, on top of vindex scratch)
 - `HF_TOKEN` must have read access to the MTP source repo (usually the same
   upstream model as the vindex entry)
-- install the `mtp` extras on the extraction runner: `pip install -e ".[mtp]"`;
+- install the `mtp` extras on the extraction runner: `uv sync --extra mtp`;
   this installs `safetensors` on all platforms and `mlx` on macOS Apple Silicon
   only (platform-gated in pyproject.toml — Linux runners will not get mlx)
 - real MTP extraction requires macOS (Apple Silicon); the standard Linux runner
@@ -81,10 +102,7 @@ Before enabling the scheduled workflow, install the package and run the local
 validation path:
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .
+uv sync --extra dev
 skulk-weights doctor
 skulk-weights catalog validate
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
@@ -110,7 +128,7 @@ runner and does not install `.[mtp]` or support MTP extraction. MTP publication
 is a CLI-only operation until a separate macOS workflow path is added:
 
 ```bash
-pip install -e ".[mtp]"
+uv sync --extra mtp
 skulk-weights publish --model my-org/my-model --artifact mtp
 ```
 

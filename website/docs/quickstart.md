@@ -11,11 +11,19 @@ are for, and why the publisher exists before you run any commands.
 
 If you already have that context, keep the core model in mind:
 
-- SWP publishes two artifact types: **vindexes** (via LARQL) and **MTP sidecars**.
+- SWP publishes three artifact types: **LARQL vindexes**, **MTP sidecars**, and
+  **vision sidecars**.
 - A vindex is a vector-index directory LARQL can query, run, and publish to let
   Skulk split weight-serving work across GPU nodes and CPU/high-memory servers.
 - An MTP sidecar is a separately quantized file (`mtp.safetensors`) extracted
   from the BF16 checkpoint for models with native multi-token prediction heads.
+- A vision sidecar is a byte-for-byte mirror of a VLM's vision-encoder weights,
+  for mlx-community quants that omit them.
+- Some models (e.g. Gemma 4) skip embedded MTP heads entirely and ship a
+  companion `{model}-assistant` drafter model; SWP records the pairing in the
+  catalog instead of extracting tensors.
+- Every real publish also uploads a self-describing `README.md` model card and
+  files the artifact into its per-type Hugging Face collection.
 
 A dry-run is the best first command because it prints the full publication plan
 — source model, output path, target repo, commands — without touching disk or
@@ -24,6 +32,7 @@ network.
 ## Requirements
 
 - Python 3.11 or newer
+- [`uv`](https://docs.astral.sh/uv/) for dependency management
 - this repository checked out locally
 - Node.js 20 or newer only if you are editing the documentation site
 - LARQL and a Hugging Face token when you are ready to publish for real
@@ -31,19 +40,19 @@ network.
 ## 1. Install The CLI
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
-This installs the `skulk-weights` command from the current checkout.
+This installs the `skulk-weights` command from the current checkout. Run it via
+`uv run skulk-weights ...`. Add `--extra mtp` for MTP/vision real-publish
+support and `--extra ui` for the GUI.
 
 ## 2. Validate The Catalog
 
 ```bash
-skulk-weights catalog validate
-skulk-weights catalog sources
-skulk-weights catalog list --tier smoke
+uv run skulk-weights catalog validate
+uv run skulk-weights catalog sources
+uv run skulk-weights catalog list --tier smoke
 ```
 
 The Foxlight catalog is included automatically. The `smoke` tier contains the
@@ -53,7 +62,7 @@ namespaced, so Foxlight entries begin with `foxlight/`.
 To add your own catalog later, create a starter config:
 
 ```bash
-skulk-weights catalog init
+uv run skulk-weights catalog init
 ```
 
 Then add a source file under your own namespace and run commands with
@@ -62,7 +71,7 @@ Then add a source file under your own namespace and run commands with
 ## 3. Check Your Machine
 
 ```bash
-skulk-weights doctor
+uv run skulk-weights doctor
 ```
 
 The doctor command checks the local Python environment, scratch directory, and
@@ -70,13 +79,13 @@ catalog. Use the stricter publishing checks on the machine that will actually
 run LARQL:
 
 ```bash
-skulk-weights doctor --publish
+uv run skulk-weights doctor --publish
 ```
 
 ## 4. Dry-Run One Vindex
 
 ```bash
-skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact vindex --dry-run
+uv run skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact vindex --dry-run
 ```
 
 You should see a summary like:
@@ -108,7 +117,14 @@ separately to verify the source repo, sidecar repo, quantization, and output
 path before any download starts:
 
 ```bash
-skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
+uv run skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
+```
+
+`--artifact` also accepts `vision` (mirror a VLM's vision encoder) and `all`
+(every configured artifact for the entry):
+
+```bash
+uv run skulk-weights publish --model my-org/my-vlm --artifact vision --dry-run
 ```
 
 You should see something like:
@@ -124,7 +140,8 @@ mtp output path:  .scratch/my-org--qwen3-6-7b-mtp-int4-mtp.safetensors
 
 If the built-in Foxlight entries do not have MTP configured yet, the output will
 say `mtp step: not configured for this entry`. Refer to the
-[MTP sidecar guide](guides/mtp-sidecar.md) to add an MTP-capable catalog entry.
+[MTP sidecar guide](guides/mtp-sidecar.md) to add an MTP-capable catalog entry,
+or the [Vision sidecar guide](guides/vision-sidecar.md) for vision encoders.
 
 ## 6. Go Deeper
 

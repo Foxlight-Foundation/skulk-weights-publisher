@@ -46,9 +46,9 @@ and dashes.
 `full` represents the complete vindex. Create a separate manifest entry for an
 `expert-server` slice.
 
-## `larql is required for non-dry-run publishing`
+## `larql is required for vindex publishing`
 
-The command is trying to publish for real. Install LARQL and make sure
+The command is trying to publish a vindex for real. Install LARQL and make sure
 `larql` is on `PATH`, or rerun with `--dry-run`.
 
 ## `HF_TOKEN is required for non-dry-run publishing`
@@ -56,9 +56,51 @@ The command is trying to publish for real. Install LARQL and make sure
 Set `HF_TOKEN` to a Hugging Face token with write access to the target
 repository and collection.
 
+## `no MTP sidecar configured for <key>; add mtp_source_repo, mtp_sidecar_repo, and mtp_quant to the catalog entry`
+
+You ran `--artifact mtp` against an entry that has no MTP sidecar configured.
+Add `mtp_source_repo`, `mtp_sidecar_repo`, and `mtp_quant` to the catalog entry,
+or select a different artifact.
+
+## `no vision sidecar configured for <key>; add vision_source_repo and vision_sidecar_repo to the catalog entry`
+
+You ran `--artifact vision` against an entry that has no vision sidecar
+configured. Add `vision_source_repo` and `vision_sidecar_repo` to the catalog
+entry, or select a different artifact.
+
+## `no mtp.* keys found in <repo>`
+
+The MTP source repo does not contain any `mtp.*` tensor keys to extract. Point
+`mtp_source_repo` at the original PyTorch BF16 release rather than an
+mlx-converted checkpoint, which strips those keys during conversion.
+
+## `mlx is required for MTP weight quantization`
+
+MTP extraction quantizes weights with mlx, which is only available on macOS
+Apple Silicon. Run the `mtp` artifact on an Apple Silicon machine with `mlx`
+installed.
+
+## `no .safetensors weights found in <repo>`
+
+The vision source repo has no `.safetensors` weights to mirror. Confirm
+`vision_source_repo` points at a repo that publishes its weights in
+`safetensors` format.
+
+## `SKULK_WEIGHTS_COLLECTION must look like owner/slug or be 'none'`
+
+`SKULK_WEIGHTS_COLLECTION` was set to something that is neither a valid
+`owner/slug` collection slug nor a disable value. Fix the slug, or set it to one
+of `none`, `0`, `false`, `no`, `off`, or `disabled` to skip collection filing.
+
+## `failed to ensure collection ...`
+
+A sidecar (mtp or vision) was published, but resolving or creating its per-type
+collection (`MTP Sidecars` / `Vision Sidecars`) failed. Check that `HF_TOKEN`
+can create and read collections for the target owner.
+
 ## `failed to add ... to collection ...`
 
-The vindex repo was published, but the follow-up collection update failed.
+The repo was published, but the follow-up collection update failed.
 Check that `HF_TOKEN` can write to the collection and that the collection slug is
 correct.
 

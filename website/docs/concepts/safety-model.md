@@ -41,10 +41,20 @@ The dry-run prints the exact `larql extract` and `larql publish` commands. It
 is the normal review step before a runner starts doing expensive work, and it is
 where you confirm the output will support the intended GPU/CPU placement split.
 
+## Configuration Overrides
+
+Two environment variables adjust where and how a publish runs:
+
+- `SKULK_WEIGHTS_SCRATCH` sets the scratch directory used for extracted vindex
+  output, so you can point heavy extraction at a disk with room for it.
+- `SKULK_WEIGHTS_COLLECTION` overrides the collection a vindex is filed into.
+  Setting it to `none`, `0`, `false`, `no`, `off`, or `disabled` turns
+  collection filing off entirely.
+
 ## Overwrite Protection
 
-Real publication refuses to replace an existing local output directory unless
-you pass `--force`.
+Real publication refuses to replace an existing vindex output directory—the
+local `.vindex` path written under scratch storage—unless you pass `--force`.
 
 Use `--force` only when the previous local extraction output is disposable.
 

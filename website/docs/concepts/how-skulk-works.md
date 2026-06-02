@@ -170,6 +170,29 @@ unambiguous identity and can be updated independently. The Skulk cluster loads
 the sidecar alongside the vindex when speculative decoding is enabled for that
 model.
 
+### The Gemma 4 assistant pattern
+
+Not every model embeds `mtp.*` heads. Gemma 4 ships its draft model as a
+separate companion model—a `{model}-assistant` drafter that Google publishes on
+Hugging Face. SWP does not extract any tensors for it and does not write a model
+card for it: it simply records the companion as `assistant_model_repo`, a
+pointer the cluster resolves at speculative-decoding time. The MTP sidecar and
+the assistant pattern are two ways to supply the same thing—a draft model—and a
+catalog entry uses one or the other, never both.
+
+## Vision sidecars
+
+Some vision-language models are published as an mlx-community checkpoint that
+omits the vision encoder, leaving those weights in a third-party repository
+(Kimi K2.5 is the motivating case). To avoid depending on a third party, SWP can
+publish a **vision sidecar**: a Foxlight-owned mirror of that repository's vision
+weights and configs.
+
+The vision sidecar is a pure mirror—no quantization, no dtype conversion. SWP
+copies the `vision_source_repo` into `vision_sidecar_repo` byte-for-byte using
+`huggingface_hub` (no mlx required). As with every other artifact, the cluster
+gets a stable Foxlight-owned repository name it can pin.
+
 ## Where SWP Fits
 
 Weight publication is expensive and easy to get wrong. A bad `larql extract`
@@ -183,6 +206,9 @@ SWP: Skulk Weights Publisher exists to make both kinds of publication repeatable
 - the catalog records the exact source model, quantization, slice mode, target
   repository, and — where applicable — MTP source repo, sidecar repo, and
   quantization for each entry
+- every real publish uploads a self-describing model card to the published repo,
+  so each artifact carries its own provenance (pinned source commit SHA,
+  inherited license) instead of relying on memory
 - `skulk-weights publish --dry-run` prints the full plan before anything is
   extracted or uploaded
 - the GitHub Actions workflow validates every catalog entry on every pull

@@ -85,7 +85,21 @@ The Foxlight catalog is still included automatically when you pass the config.
 - `slices`: the vindex shape LARQL should publish for the intended runtime role
 - `output_name`: the local vindex directory name created under scratch storage
 - `hf_repo`: the Hugging Face repository that receives the published vindex
-- `hf_collection`: the Hugging Face collection that receives the published repo
+- `hf_collection`: the Hugging Face collection that receives the published vindex
+- `mtp_source_repo`: the BF16 checkpoint the MTP heads are extracted from
+- `mtp_sidecar_repo`: the repository that receives the published `mtp.safetensors`
+- `mtp_quant`: the quantization applied to the extracted MTP tensors (`q4k` or `q8k`)
+- `assistant_model_repo`: the companion `{model}-assistant` drafter model (a
+  pointer to a Google-published model; no tensors are extracted for it)
+- `vision_source_repo`: the third-party repository whose vision weights are mirrored
+- `vision_sidecar_repo`: the Foxlight-owned repository that receives the byte-for-byte mirror
+
+Every real publish (vindex, MTP, or vision) also uploads a self-describing
+`README.md` model card carrying its provenance and the source model's
+license—see [the publishing lifecycle](publishing-lifecycle.md). Each published
+repo is filed into the Hugging Face collection for its artifact type
+(`Vindexes`, `MTP Sidecars`, `Vision Sidecars`); the vindex collection is the
+configured `hf_collection` slug.
 
 ## Tiers
 

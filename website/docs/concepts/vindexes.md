@@ -67,6 +67,10 @@ LARQL extraction levels decide which operations the vindex can support:
 | `inference` | browse operations plus `INFER` | Run inference. This is LARQL's default extraction level. |
 | `all` | inference operations plus `COMPILE` | Bake patch overlays into a new standalone vindex. |
 
+SWP calls `larql extract --quant` without passing `--level`, so extraction uses
+LARQL's own default (`inference`). The level is a property of LARQL, not a flag
+the publisher drives.
+
 The catalog records the production contract around that vindex:
 
 - source model: which upstream Hugging Face model LARQL reads from
@@ -86,3 +90,7 @@ The publisher matters because this split only works when every machine agrees
 on the same extracted and sliced weights. A bad command can waste hours of
 compute, fill scratch storage, or publish a vindex under the wrong name. The
 publisher makes the process repeatable before Skulk depends on the result.
+
+Each real publish also uploads a self-describing `README.md` model card to the
+published repository, recording the vindex's provenance (including the pinned
+source commit SHA) and inheriting the source model's license unchanged.

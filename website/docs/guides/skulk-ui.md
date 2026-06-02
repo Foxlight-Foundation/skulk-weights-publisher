@@ -2,11 +2,22 @@
 title: skulk-ui (Local GUI)
 ---
 
-`skulk-ui` is a local, point-and-click web app for publishing MTP sidecars and
-registering catalog entries — the visual counterpart to the `skulk-weights` CLI.
-Paste a HuggingFace model URL, review what SWP detected, and publish (or register)
-with one click. It is meant for local operator use: it runs on `localhost`, reads
-your HuggingFace token from local config, and needs no accounts.
+`skulk-ui` is a local, point-and-click web app for publishing MTP sidecars,
+registering catalog entries, and looking up what is already cataloged — the
+visual counterpart to the `skulk-weights` CLI. Paste a HuggingFace model URL,
+review what SWP detected, and publish (or register) with one click. It is meant
+for local operator use: it runs on `localhost`, reads your HuggingFace token from
+local config, and needs no accounts.
+
+It surfaces four things:
+
+- **Detect → Publish MTP** — extract and upload an MTP sidecar with a live SSE
+  log.
+- **Register in Catalog** — record a Gemma 4 assistant pairing (synchronous, no
+  upload).
+- **Find in Catalog** — a read-only reverse-lookup card: paste a source model
+  and see every matching catalog entry (one source can map to many entries).
+- **Settings** — store the HuggingFace token.
 
 It wraps the same machinery as the CLI, so anything you do in the GUI produces the
 same catalog entries and sidecar uploads you'd get from `skulk-weights`.
@@ -27,13 +38,8 @@ same catalog entries and sidecar uploads you'd get from `skulk-weights`.
 From the repo root:
 
 ```bash
-# With uv (recommended)
 uv sync --extra ui
 uv run skulk-ui
-
-# Or with pip, from an editable/source install
-pip install -e '.[ui]'
-skulk-ui
 ```
 
 On first launch `skulk-ui` detects that `ui/dist/` is missing, runs
@@ -101,6 +107,19 @@ Clicking **Register in Catalog** appends a catalog entry referencing the
 assistant — nothing is uploaded, because the assistant is already published by
 Google. See [Assistant models](../concepts/assistant-models.md) and the
 [Gemma 4 assistant guide](./gemma4-assistant.md) for the full picture.
+
+## Find a model in the catalog
+
+The **Find in Catalog** card is a read-only reverse lookup: paste a source model
+URL (or `owner/repo`) and SWP lists every catalog entry whose `source_model`
+resolves to it. A single source model can back several entries (different quants,
+slice modes, or tiers), so the result is one-to-many — each match is shown with
+its catalog key and target repo.
+
+This is the GUI equivalent of `skulk-weights catalog find <hf-url-or-owner/repo>`,
+which prints all matches as JSON (one per line) and exits non-zero when there are
+none. Use it to check whether a model is already published before detecting or
+publishing it again.
 
 ## Troubleshooting
 

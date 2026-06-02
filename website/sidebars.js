@@ -22,6 +22,7 @@ module.exports = {
         "guides/add-catalog-entry",
         "guides/first-publish",
         "guides/mtp-sidecar",
+        "guides/vision-sidecar",
         "guides/gemma4-assistant",
         "guides/skulk-ui",
         "guides/runner-setup",

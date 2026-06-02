@@ -7,53 +7,58 @@ or run the publishing workflow on a configured runner. The CLI exists to make
 vindex publication repeatable before Skulk relies on those vindexes for
 GPU/CPU runtime placement.
 
+Dependencies are managed with [`uv`](https://docs.astral.sh/uv/). Commands run
+through `uv run`, which resolves the environment on demand.
+
 ## Local Development Install
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 This installs the CLI plus development tools used by CI: tests, linting, and
-type checking.
+type checking. Add `--extra mtp` for MTP and vision real-publish support
+(`huggingface_hub`, `safetensors`, `mlx`) and `--extra ui` for the local GUI.
 
 ## Runner Install
 
 ```bash
-python3 -m pip install -e .
+uv sync
 ```
 
-Use the runner install on a self-hosted publishing runner that only needs the
-product CLI.
+Use the bare sync on a self-hosted publishing runner that only needs the product
+CLI. A Linux runner can publish vindexes; real MTP and vision publishing also
+needs `--extra mtp` and a macOS Apple Silicon host (see
+[Runner Setup](runner-setup.md)).
 
 ## Check The Install
 
 ```bash
-skulk-weights doctor
-skulk-weights catalog validate
+uv run skulk-weights doctor
+uv run skulk-weights catalog validate
 ```
 
 Then run one dry-run:
 
 ```bash
-skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+uv run skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 To add your own operator catalog, initialize a config after install:
 
 ```bash
-skulk-weights catalog init
+uv run skulk-weights catalog init
 ```
 
 ## Compatibility Wrappers
 
-The repository includes older script names for automation that has not moved to
-the package CLI yet:
+The repository keeps a few wrapper scripts under `scripts/` for automation that
+has not moved to the package CLI yet:
 
 ```bash
 scripts/doctor.sh
 scripts/manifest.py validate
+scripts/publish-vindex.sh --model foxlight/gemma-3-4b-full-q4-k --dry-run
 scripts/publish-weights.sh --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 

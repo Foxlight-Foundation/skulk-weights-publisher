@@ -64,5 +64,20 @@ FoxlightAI/vindexes-6a124406dd5fb439c431b051
 ```
 
 Set this only when you intentionally want all selected entries in that publish
-run to land in a different collection. Set it to `none` to skip collection
-updates for a one-off run.
+run to land in a different collection. A non-disable value must be a valid
+`owner/slug` collection slug — publishing raises an error otherwise.
+
+To skip collection filing for a one-off run, set it to any of the disable
+values (case-insensitive):
+
+```text
+none  0  false  no  off  disabled
+```
+
+## `SKULK_UI_DIST`
+
+Optional.
+
+Overrides the directory that `skulk-ui` serves the built UI from. Set this when
+the UI assets live somewhere other than the default bundled `dist` directory —
+for example when serving a locally rebuilt UI during development.

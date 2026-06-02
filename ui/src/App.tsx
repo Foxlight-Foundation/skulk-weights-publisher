@@ -10,6 +10,8 @@ import { Banner } from '@/components/common/Banner/Banner';
 import { DetectForm } from '@/components/publish/DetectForm/DetectForm';
 import { DetectionResult } from '@/components/publish/DetectionResult/DetectionResult';
 import { PublishLog } from '@/components/publish/PublishLog/PublishLog';
+import { CatalogFindForm } from '@/components/catalog/CatalogFindForm/CatalogFindForm';
+import { CatalogResult } from '@/components/catalog/CatalogResult/CatalogResult';
 import styled from 'styled-components';
 
 const Main = styled.main`
@@ -107,6 +109,12 @@ function AppContent() {
         </Card>
 
         {showLog && <PublishLog phase={phase} lines={logLines} errorMessage={errorMessage} />}
+
+        <Card>
+          <CardTitle>Find in Catalog</CardTitle>
+          <CatalogFindForm />
+          <CatalogResult />
+        </Card>
       </Main>
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />

@@ -26,9 +26,9 @@ of publishable model weights, validates that catalog, prints the exact commands,
 and runs publication from a configured runner.
 
 The Foxlight catalog is included automatically and publishes to the
-`FoxlightAI` Hugging Face organization and the public
-[`Vindexes`](https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051)
-collection. Operators can add their own catalog files with
+`FoxlightAI` Hugging Face organization. Each publish is filed into a
+per-artifact-type Hugging Face collection — `Vindexes`, `MTP Sidecars`, and
+`Vision Sidecars` (see [Collections](#collections)). Operators can add their own catalog files with
 `skulk-weights.yaml`; the merged catalog uses namespaced keys such as
 `foxlight/gemma-3-4b-full-q4-k` and `my-org/my-model-full-q4-k` so shared
 Foxlight entries and local operator entries can coexist safely.
@@ -132,7 +132,7 @@ For MTP sidecar publication (additional):
    the sidecar repo.
 6. Provision additional scratch capacity for the BF16 checkpoint download before
    quantization. Typical BF16 checkpoints run 15–30 GB per model.
-7. Install the `mtp` optional extras: `pip install -e ".[mtp]"`. This installs
+7. Install the `mtp` optional extras: `uv sync --extra mtp`. This installs
    `safetensors` on all platforms; `mlx` is only installed on macOS (Apple
    Silicon) due to a platform marker. The standard Linux runner cannot perform
    real MTP extraction — a macOS Apple Silicon runner is required.
@@ -141,22 +141,19 @@ For MTP sidecar publication (additional):
 
 Use the package CLI for local development, CI validation, and runner operation.
 
-With `uv` (recommended):
+Install with `uv` (extras: `dev`, `ui`, `mtp`):
 
 ```bash
 uv sync --extra dev
 ```
 
-With pip:
+The package exposes two entry points: `skulk-weights` (the CLI) and `skulk-ui`
+(the local GUI, see below).
 
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
-```
-
-The legacy script names remain as compatibility wrappers, but `skulk-weights` is
-the product interface:
+`uv sync` only populates the project's `.venv`; it does not put the entry points
+on your `PATH`. Run the CLI with `uv run skulk-weights …`, or activate the
+environment first (`source .venv/bin/activate`) and call `skulk-weights …`
+directly. The bare `skulk-weights …` examples below assume one of those.
 
 ```bash
 skulk-weights doctor
@@ -166,6 +163,33 @@ skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact vindex --dry-run
 skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
 ```
+
+### Catalog subcommands
+
+`skulk-weights catalog` groups the catalog tooling:
+
+- `validate` — check the merged catalog (shared Foxlight + operator entries).
+- `list` — list every catalog key.
+- `sources` — show which catalog source files are loaded and merged.
+- `show <key>` — print a single entry as JSON.
+- `find <hf-url-or-owner/repo>` — reverse lookup from an upstream source model
+  to its catalog entries (see below).
+- `init` — scaffold an operator `skulk-weights.yaml` manifest.
+- `add <owner/repo>` — add a catalog entry from a HuggingFace model, detecting
+  the Gemma 4 companion assistant automatically.
+
+### doctor and scratch
+
+`skulk-weights doctor` runs base checks: PyYAML is importable, the scratch root
+is writable, and the catalog validates. `skulk-weights doctor --publish` adds
+three publish checks: `larql` is on `PATH`, `HF_TOKEN` is set, and
+`huggingface_hub` is importable. It does **not** verify Hugging Face write
+access, scratch *capacity*, or MTP/vision tooling (`mlx`/`safetensors`), so a
+passing `doctor --publish` does not by itself guarantee a real MTP or vision
+sidecar publish will succeed.
+
+`skulk-weights scratch clean` removes the local scratch extraction output left
+behind by a real publish.
 
 `skulk-weights catalog find <hf-url-or-owner/repo>` is the reverse of
 `catalog show`: given the upstream HuggingFace source model you started from, it
@@ -212,6 +236,44 @@ upstream.
 skulk-weights publish --model foxlight/kimi-k2-5-full-q4-k --artifact vision --dry-run
 ```
 
+## Self-describing model cards
+
+Every real publish — vindex, MTP, or vision — also uploads a `README.md` model
+card to the published repo, so each artifact documents its own provenance. The
+card carries:
+
+- frontmatter `base_model` set to the source repo, `tags`
+  (`[<artifact_type>, skulk, foxlight, <quant>]`), and a `license`
+- a `foxlight:` provenance block: `artifact_type`, `source_repo`,
+  `source_revision` (the pinned source commit SHA), `target_model`, `quant`,
+  `catalog_key`, `extracted_with`, and `generated_at`
+- a body with a what-it-is summary, a Provenance table, Usage, and a License
+  note
+
+The source commit SHA and license are resolved best-effort from the Hub using
+`HF_TOKEN`.
+
+**License inheritance.** Published artifacts inherit the **source model's
+license, unchanged** — SWP never re-licenses. The card's `license` is copied
+from the source model (with `license_name` / `license_link` carried through for
+custom licenses). Everything FoxlightAI publishes here is intended for the
+community and open source.
+
+## Collections
+
+Each publish is filed into a per-artifact-type Hugging Face collection:
+
+| Artifact | Collection |
+|---|---|
+| vindex | the entry's configured slug (catalog `hf_collection`, or `SKULK_WEIGHTS_COLLECTION`) |
+| mtp | `MTP Sidecars` |
+| vision | `Vision Sidecars` |
+
+Sidecar collections (`MTP Sidecars`, `Vision Sidecars`) are resolved by title
+and created if missing. The vindex collection is the configured `Vindexes`
+slug. Set `SKULK_WEIGHTS_COLLECTION` to one of `none`, `0`, `false`, `no`,
+`off`, or `disabled` to skip collection filing entirely for a run.
+
 ## skulk-ui (Local GUI)
 
 `skulk-ui` is a point-and-click interface for publishing MTP sidecars. Paste a
@@ -232,13 +294,8 @@ catalog knowledge required.
 **Run** (from the repo root)
 
 ```bash
-# With uv (recommended)
 uv sync --extra ui
 uv run skulk-ui
-
-# With pip, from an editable/source install
-pip install -e '.[ui]'
-skulk-ui
 ```
 
 On the first run `skulk-ui` detects that `ui/dist/` is missing, runs
@@ -264,17 +321,19 @@ environment; that takes precedence over the saved value.
 Run this on the self-hosted runner before a real publish:
 
 ```bash
-python -m pip install -e .
+uv sync --extra dev
 skulk-weights doctor --publish
 skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Real publication refuses to overwrite an existing scratch output path. Remove
-the output directory manually or rerun with `--force` when you intentionally
-want to replace the local extraction output.
+the output directory with `skulk-weights scratch clean` (or delete it manually),
+or rerun with `--force` when you intentionally want to replace the local
+extraction output.
 
-After `larql publish` succeeds, the publisher adds the model repo to the entry's
-configured Hugging Face collection. The built-in Foxlight entries target:
+After publication succeeds, the publisher files the model repo into its
+per-artifact-type collection (see [Collections](#collections)). The built-in
+Foxlight vindex entries target:
 
 ```text
 https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051

@@ -13,31 +13,39 @@ weight-serving nodes.
 
 ## Python Setup
 
+Dependencies are managed with [`uv`](https://docs.astral.sh/uv/):
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+uv sync --extra dev
 ```
+
+Add `--extra ui` and `--extra mtp` when working on the GUI or the MTP/vision
+extraction paths.
 
 ## Python Checks
 
 Run the same checks used by pull-request validation:
 
 ```bash
-ruff check
-basedpyright
-pytest
-bash -n scripts/doctor.sh scripts/publish-vindex.sh
+uv run ruff check src/ tests/
+uv run --extra dev basedpyright
+uv run pytest tests/
+bash -n scripts/doctor.sh scripts/publish-vindex.sh scripts/publish-weights.sh
+```
+
+The full test suite, including the GUI and MTP paths, is:
+
+```bash
+uv run --extra ui --extra mtp --extra dev pytest tests/
 ```
 
 Then validate the catalog and every dry-run path:
 
 ```bash
-skulk-weights catalog validate
-skulk-weights catalog list --tier all | while IFS= read -r key; do
+uv run skulk-weights catalog validate
+uv run skulk-weights catalog list --tier all | while IFS= read -r key; do
   [ -n "$key" ] || continue
-  skulk-weights publish --model "$key" --dry-run >/dev/null
+  uv run skulk-weights publish --model "$key" --dry-run >/dev/null
 done
 ```
 
@@ -46,6 +54,8 @@ Use `--config skulk-weights.yaml` in both commands when testing operator
 catalog sources.
 
 ## Documentation Setup
+
+The documentation site (this Docusaurus site under `website/`) uses npm:
 
 ```bash
 cd website
@@ -65,7 +75,8 @@ Pushes to `main` publish the production docs root.
 
 ## Compatibility Wrappers
 
-The `scripts/` commands are retained for existing automation. They call the
-same Python package used by `skulk-weights`, so behavior should be tested through
+The `scripts/` commands — `doctor.sh`, `manifest.py`, `publish-vindex.sh`, and
+`publish-weights.sh` — are retained for existing automation. They call the same
+Python package used by `skulk-weights`, so behavior should be tested through
 both the package CLI and at least one wrapper dry-run before changing release
 automation.
