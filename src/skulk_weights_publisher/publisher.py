@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import cast
 
 from skulk_weights_publisher.card_publish import publish_model_card
+from skulk_weights_publisher.collection_publish import (
+    COLLECTION_TITLES,
+    file_artifact_in_collection,
+)
 from skulk_weights_publisher.defaults import COLLECTION_ENV_VAR
 from skulk_weights_publisher.manifest import HF_COLLECTION_PATTERN, ManifestEntry
 
@@ -52,8 +56,11 @@ class PublishPlan:
     def summary_lines(self, *, force: bool, artifact: str = "all") -> tuple[str, ...]:
         """Return the human-readable command summary printed before execution."""
 
+        # The configured slug is the *vindex* collection; sidecars go into their
+        # own per-artifact-type collections (resolved by title), so the dry-run
+        # reports each artifact's destination separately below.
         collection_line = (
-            f"collection: https://huggingface.co/collections/{self.collection_slug}"
+            f"vindex collection: https://huggingface.co/collections/{self.collection_slug}"
             if self.collection_slug
             else "collection: disabled"
         )
@@ -84,6 +91,10 @@ class PublishPlan:
                     f"mtp quant:        {self.mtp_step.mtp_quant}",
                     f"mtp output path:  {mtp_output}",
                 ]
+                if self.collection_slug is not None:
+                    lines.append(
+                        f"mtp collection:   {COLLECTION_TITLES['mtp-sidecar']}"
+                    )
             else:
                 lines.append("mtp step: not configured for this entry")
         if artifact in ("all", "vision"):
@@ -92,6 +103,11 @@ class PublishPlan:
                     f"vision source repo:  hf://{self.vision_step.source_repo}",
                     f"vision sidecar repo: hf://{self.vision_step.sidecar_repo}",
                     "vision step:         mirror weights + configs (no quantization)",
+                    *(
+                        [f"vision collection:   {COLLECTION_TITLES['vision-sidecar']}"]
+                        if self.collection_slug is not None
+                        else []
+                    ),
                 ]
             else:
                 lines.append("vision step: not configured for this entry")
@@ -236,10 +252,13 @@ def execute_publish_plan(
         subprocess.run(plan.extract_command, check=True)
         subprocess.run(plan.publish_command, check=True)
         if plan.collection_slug is not None:
-            add_vindex_to_collection(
-                plan.collection_slug,
+            # Honor the configured/overridden slug exactly (matches the dry-run
+            # plan); ensure-by-title is only for sidecars, which carry no slug.
+            file_artifact_in_collection(
                 plan.entry.hf_repo,
+                "vindex",
                 token=env.get("HF_TOKEN"),
+                collection_slug=plan.collection_slug,
             )
         publish_model_card(
             repo_id=plan.entry.hf_repo,
@@ -271,6 +290,12 @@ def execute_publish_plan(
                 dry_run=False,
                 catalog_key=plan.entry.key,
             )
+            if plan.collection_slug is not None:
+                file_artifact_in_collection(
+                    plan.mtp_step.sidecar_repo,
+                    "mtp-sidecar",
+                    token=env.get("HF_TOKEN"),
+                )
 
     if artifact in ("all", "vision"):
         if plan.vision_step is None:
@@ -294,27 +319,11 @@ def execute_publish_plan(
                 target_model=plan.entry.source_model,
                 catalog_key=plan.entry.key,
             )
+            if plan.collection_slug is not None:
+                file_artifact_in_collection(
+                    plan.vision_step.sidecar_repo,
+                    "vision-sidecar",
+                    token=env.get("HF_TOKEN"),
+                )
 
 
-def add_vindex_to_collection(
-    collection_slug: str,
-    repo_id: str,
-    *,
-    token: str | None,
-) -> None:
-    """Add a published vindex model repo to its Hugging Face collection."""
-
-    try:
-        from huggingface_hub import add_collection_item
-
-        add_collection_item(
-            collection_slug,
-            item_id=repo_id,
-            item_type="model",
-            exists_ok=True,
-            token=token,
-        )
-    except Exception as exc:
-        raise PublishError(
-            f"failed to add {repo_id} to collection {collection_slug}: {exc}"
-        ) from exc

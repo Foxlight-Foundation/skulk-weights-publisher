@@ -15,6 +15,7 @@ from skulk_weights_publisher.catalogue import (
     load_catalogue_view,
     write_default_config,
 )
+from skulk_weights_publisher.collection_publish import CollectionError
 from skulk_weights_publisher.doctor import run_doctor
 from skulk_weights_publisher.manifest import (
     ManifestError,
@@ -488,6 +489,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         MtpExtractionError,
         PublishError,
         VisionExtractionError,
+        CollectionError,
     ) as exc:
         print(str(exc), file=sys.stderr)
         return 1
