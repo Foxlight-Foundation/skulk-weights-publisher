@@ -175,10 +175,13 @@ skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
 
 ### doctor and scratch
 
-`skulk-weights doctor` checks the local environment — Python, the installed
-extras, `larql` on `PATH`, and `HF_TOKEN`. `skulk-weights doctor --publish`
-runs the stricter preflight that also verifies write access and the
-prerequisites a real publish needs (scratch capacity, MTP/vision tooling).
+`skulk-weights doctor` runs base checks: PyYAML is importable, the scratch root
+is writable, and the catalog validates. `skulk-weights doctor --publish` adds
+three publish checks: `larql` is on `PATH`, `HF_TOKEN` is set, and
+`huggingface_hub` is importable. It does **not** verify Hugging Face write
+access, scratch *capacity*, or MTP/vision tooling (`mlx`/`safetensors`), so a
+passing `doctor --publish` does not by itself guarantee a real MTP or vision
+sidecar publish will succeed.
 
 `skulk-weights scratch clean` removes the local scratch extraction output left
 behind by a real publish.
