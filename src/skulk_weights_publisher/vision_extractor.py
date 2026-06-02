@@ -64,6 +64,10 @@ def extract_and_publish_vision(
     Progress lines go through the ``log`` callback, which defaults to stderr (the
     CLI behavior). In dry-run mode prints the plan without downloading or
     uploading anything.
+
+    The local snapshot directory is deleted automatically after a successful
+    upload. Skulk owns the artifact lifecycle; SWP's job ends when the push
+    completes.
     """
 
     emit = log if log is not None else _stderr_log

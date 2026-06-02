@@ -111,6 +111,10 @@ def extract_mtp(
     stderr (the CLI behavior); callers that need per-job routing (e.g. the
     skulk-ui server) pass their own sink instead of relying on a global stream.
 
+    Scratch artifacts (the ``.safetensors`` output file and the ``_hf_cache``
+    shard cache) are deleted automatically after a successful upload. Skulk
+    owns the artifact lifecycle; SWP's job ends when the push completes.
+
     In dry-run mode prints the plan without downloading or uploading anything.
     """
 
