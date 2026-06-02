@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">SWP: Skulk Weights Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-weights-publisher/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="SWP: Skulk Weights Publisher"><meta data-rh="true" name="description" content="SWP: Skulk Weights Publisher publishes model weights for Skulk clusters. It"><meta data-rh="true" property="og:description" content="SWP: Skulk Weights Publisher publishes model weights for Skulk clusters. It"><link data-rh="true" rel="icon" href="/skulk-weights-publisher/img/skulk-logo.svg"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-weights-publisher/"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/" hreflang="x-default"><script data-rh="true">function insertBanner(){var n=document.createElement("div");n.id="__docusaurus-base-url-issue-banner-container";n.innerHTML='\n<div id="__docusaurus-base-url-issue-banner" style="border: thick solid red; background-color: rgb(255, 230, 179); margin: 20px; padding: 20px; font-size: 20px;">\n   <p style="font-weight: bold; font-size: 30px;">Your Docusaurus site did not load properly.</p>\n   <p>A very common reason is a wrong site <a href="https://docusaurus.io/docs/docusaurus.config.js/#baseUrl" style="font-weight: bold;">baseUrl configuration</a>.</p>\n   <p>Current configured baseUrl = <span style="font-weight: bold; color: red;">/skulk-weights-publisher/</span> </p>\n   <p>We suggest trying baseUrl = <span id="__docusaurus-base-url-issue-banner-suggestion-container" style="font-weight: bold; color: green;"></span></p>\n</div>\n',document.body.prepend(n);var e=document.getElementById("__docusaurus-base-url-issue-banner-suggestion-container"),s=window.location.pathname,o="/"===s.substr(-1)?s:s+"/";e.innerHTML=o}document.addEventListener("DOMContentLoaded",function(){void 0===window.docusaurus&&insertBanner()})</script><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"SWP: Skulk Weights Publisher","item":"https://foxlight-foundation.github.io/skulk-weights-publisher/"}]}</script><link rel="stylesheet" href="/skulk-weights-publisher/assets/css/styles.289aaf1c.css">
-<script src="/skulk-weights-publisher/assets/js/runtime~main.716264ce.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/runtime~main.dcf10b17.js" defer="defer"></script>
 <script src="/skulk-weights-publisher/assets/js/main.be00136a.js" defer="defer"></script>
 </head>
 <body>
@@ -20,9 +20,10 @@ weights while GPU nodes handle the latency-sensitive attention path.</p>
 <p><strong>MTP sidecars</strong> — Models with native multi-token prediction heads (Qwen3,
 DeepSeek V3/R1, and others that expose <code>mtp.*</code> tensor keys) need those heads
 published separately. Standard quantization pipelines strip MTP tensors. SWP
-re-extracts them from the original BF16 checkpoint, quantizes, and uploads the
-result as <code>mtp.safetensors</code> to a dedicated repo so Skulk can use speculative
-decoding.</p>
+re-extracts them from the original BF16 checkpoint and uploads them at full
+precision (bf16, unquantized) as <code>mtp.safetensors</code> to a dedicated repo — one
+sidecar per base model, shared across every quantization of it — so Skulk can
+use speculative decoding.</p>
 <p><strong>Vision sidecars</strong> — mlx-community VLM quants frequently omit the vision
 encoder, leaving the vision weights to live in a third-party repository. SWP
 mirrors those encoder weights byte-for-byte into a Foxlight-owned repo so the
@@ -71,9 +72,10 @@ checkpoint. At inference time Skulk can use these heads for speculative
 decoding — drafting multiple tokens in one forward pass and verifying them —
 which substantially increases throughput with no accuracy loss.</p>
 <p>Standard quantization pipelines strip MTP tensors to reduce download size.
-SWP&#x27;s MTP pipeline re-extracts those tensors from the original BF16 checkpoint,
-quantizes them independently, and publishes the result as <code>mtp.safetensors</code> to a
-separate Hugging Face repo. The vindex and the MTP sidecar are versioned
+SWP&#x27;s MTP pipeline re-extracts those tensors from the original BF16 checkpoint
+and publishes them at full precision (bf16, unquantized) as <code>mtp.safetensors</code> to
+a separate Hugging Face repo — one sidecar per base model, shared across every
+quantization of it. The vindex and the MTP sidecar are versioned
 independently so each can be updated or replaced without disturbing the other.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="why-do-this">Why do this?<a href="#why-do-this" class="hash-link" aria-label="Direct link to Why do this?" title="Direct link to Why do this?" translate="no">​</a></h2>
 <p>Weight publication is expensive and easy to get wrong. Bad commands can write

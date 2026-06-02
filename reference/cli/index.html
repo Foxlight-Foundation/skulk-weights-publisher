@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">CLI Reference | SWP: Skulk Weights Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="CLI Reference | SWP: Skulk Weights Publisher"><meta data-rh="true" name="description" content="The skulk-weights CLI has three jobs:"><meta data-rh="true" property="og:description" content="The skulk-weights CLI has three jobs:"><link data-rh="true" rel="icon" href="/skulk-weights-publisher/img/skulk-logo.svg"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"CLI Reference","item":"https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli"}]}</script><link rel="stylesheet" href="/skulk-weights-publisher/assets/css/styles.289aaf1c.css">
-<script src="/skulk-weights-publisher/assets/js/runtime~main.716264ce.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/runtime~main.dcf10b17.js" defer="defer"></script>
 <script src="/skulk-weights-publisher/assets/js/main.be00136a.js" defer="defer"></script>
 </head>
 <body>
@@ -131,9 +131,9 @@ prints the plan. Without <code>--dry-run</code>, it runs the selected artifact s
 <li class=""><code>vindex</code>: runs <code>larql extract</code>, <code>larql publish</code>, and files the repository
 into the configured Hugging Face collection.</li>
 <li class=""><code>mtp</code>: downloads only the shards that contain <code>mtp.*</code> tensor keys from the
-original BF16 checkpoint, quantizes them, and uploads <code>mtp.safetensors</code> to
-the sidecar repository. Requires <code>mtp_source_repo</code>, <code>mtp_sidecar_repo</code>, and
-<code>mtp_quant</code> on the catalog entry.</li>
+original BF16 checkpoint and uploads them at full precision (bf16,
+unquantized) as <code>mtp.safetensors</code> to the sidecar repository. Requires
+<code>mtp_source_repo</code> and <code>mtp_sidecar_repo</code> on the catalog entry.</li>
 <li class=""><code>vision</code>: mirrors the vision source repo&#x27;s weights and configs into the
 vision sidecar repo byte-for-byte — no quantization and no dtype conversion.
 Requires <code>vision_source_repo</code> and <code>vision_sidecar_repo</code> on the catalog entry;
@@ -182,8 +182,8 @@ declared artifacts when omitted.</li>
 <li class="">the vindex collection (<code>vindex collection: &lt;slug&gt;</code>, or <code>collection: disabled</code>)</li>
 <li class=""><code>larql extract</code> command (vindex artifact)</li>
 <li class=""><code>larql publish</code> command (vindex artifact)</li>
-<li class="">MTP source repo, sidecar repo, quant, and output path, plus
-<code>mtp collection: MTP Sidecars</code> (mtp artifact)</li>
+<li class="">MTP source repo, sidecar repo, precision (<code>bf16 (unquantized)</code>), and output
+path, plus <code>mtp collection: MTP Sidecars</code> (mtp artifact)</li>
 <li class="">vision source repo, sidecar repo, the mirror note, plus
 <code>vision collection: Vision Sidecars</code> (vision artifact)</li>
 <li class="">a note when mtp or vision is not configured for the entry</li>
