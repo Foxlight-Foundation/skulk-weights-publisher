@@ -150,6 +150,11 @@ uv sync --extra dev
 The package exposes two entry points: `skulk-weights` (the CLI) and `skulk-ui`
 (the local GUI, see below).
 
+`uv sync` only populates the project's `.venv`; it does not put the entry points
+on your `PATH`. Run the CLI with `uv run skulk-weights …`, or activate the
+environment first (`source .venv/bin/activate`) and call `skulk-weights …`
+directly. The bare `skulk-weights …` examples below assume one of those.
+
 ```bash
 skulk-weights doctor
 skulk-weights catalog validate

@@ -116,7 +116,7 @@ uv run skulk-weights publish --model foxlight/kimi-k2-5-full-q4-k --artifact all
 **Entry has no vision fields:**
 
 ```
-no vision sidecar configured for FoxlightAI/kimi-k2-5-full-q4-k...
+no vision sidecar configured for foxlight/kimi-k2-5-full-q4-k...
 ```
 
 Add `vision_source_repo` and `vision_sidecar_repo` to the catalog entry, or use
