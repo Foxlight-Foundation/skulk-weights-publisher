@@ -115,9 +115,25 @@ def test_resolve_base_model_quant_of_finetune() -> None:
         assert resolve_base_model(mlx_info) == "Qwen/Qwen3.6-35B-A3B"
 
 
-def test_resolve_base_model_no_base_tag_returns_none() -> None:
-    info = {"id": "owner/SomeModel", "tags": ["text-generation"]}
-    assert resolve_base_model(info) is None
+def test_resolve_base_model_plain_base_returns_own_id() -> None:
+    # Pasting a plain base model directly (no base_model:quantized: tag) returns
+    # the model's own ID so MTP detection still runs against it.
+    info = {"id": "Qwen/Qwen3.5-397B-A17B", "tags": ["text-generation"]}
+    assert resolve_base_model(info) == "Qwen/Qwen3.5-397B-A17B"
+
+
+def test_resolve_base_model_direct_quant_of_root_with_no_base_tag() -> None:
+    # Single-hop quant whose root has no base_model: tag — returns root's own ID.
+    mlx_info = {
+        "id": "mlx-community/Qwen3.5-397B-A17B-4bit",
+        "tags": ["base_model:quantized:Qwen/Qwen3.5-397B-A17B"],
+    }
+    root_info = {"id": "Qwen/Qwen3.5-397B-A17B", "tags": []}
+    with patch(
+        "skulk_weights_publisher.catalog_adder.fetch_hf_model_info",
+        return_value=root_info,
+    ):
+        assert resolve_base_model(mlx_info) == "Qwen/Qwen3.5-397B-A17B"
 
 
 def test_resolve_base_model_plain_base_tag_no_fetch() -> None:
