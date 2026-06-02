@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import struct
 import sys
 from collections.abc import Callable
@@ -109,6 +110,10 @@ def extract_mtp(
     Progress lines go through the ``log`` callback. It defaults to writing to
     stderr (the CLI behavior); callers that need per-job routing (e.g. the
     skulk-ui server) pass their own sink instead of relying on a global stream.
+
+    Scratch artifacts (the ``.safetensors`` output file and the ``_hf_cache``
+    shard cache) are deleted automatically after a successful upload. Skulk
+    owns the artifact lifecycle; SWP's job ends when the push completes.
 
     In dry-run mode prints the plan without downloading or uploading anything.
     """
@@ -224,6 +229,12 @@ def extract_mtp(
         commit_message=f"Add MTP sidecar from {source_repo} (bf16, unquantized)",
     )
     emit(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors")
+
+    # Skulk owns artifact lifecycle — discard everything we staged locally.
+    output_path.unlink()
+    hf_cache = scratch_root / "_hf_cache"
+    if hf_cache.exists():
+        shutil.rmtree(hf_cache)
 
     # Publish a self-describing model card so the sidecar carries its provenance
     # (source repo + revision), target, and inherited license.

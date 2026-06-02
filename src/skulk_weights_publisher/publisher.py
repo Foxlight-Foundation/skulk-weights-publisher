@@ -222,7 +222,12 @@ def execute_publish_plan(
     artifact: str = "all",
     environ: Mapping[str, str] | None = None,
 ) -> None:
-    """Execute or dry-run the extraction and publication plan."""
+    """Execute or dry-run the extraction and publication plan.
+
+    After each artifact is successfully uploaded, its local scratch files are
+    deleted. Skulk owns the artifact lifecycle; SWP's job ends when the push
+    completes.
+    """
 
     env = os.environ if environ is None else environ
     if dry_run:
@@ -249,6 +254,8 @@ def execute_publish_plan(
             shutil.rmtree(plan.output_path)
         subprocess.run(plan.extract_command, check=True)
         subprocess.run(plan.publish_command, check=True)
+        # Skulk owns artifact lifecycle — discard the vindex after publish.
+        shutil.rmtree(plan.output_path)
         if plan.collection_slug is not None:
             # Honor the configured/overridden slug exactly (matches the dry-run
             # plan); ensure-by-title is only for sidecars, which carry no slug.

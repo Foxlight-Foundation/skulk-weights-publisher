@@ -64,6 +64,10 @@ def extract_and_publish_vision(
     Progress lines go through the ``log`` callback, which defaults to stderr (the
     CLI behavior). In dry-run mode prints the plan without downloading or
     uploading anything.
+
+    The local snapshot directory is deleted automatically after a successful
+    upload. Skulk owns the artifact lifecycle; SWP's job ends when the push
+    completes.
     """
 
     emit = log if log is not None else _stderr_log
@@ -131,6 +135,9 @@ def extract_and_publish_vision(
         delete_patterns=_VISION_ALLOW_PATTERNS,
     )
     emit(f"vision: published to hf://{sidecar_repo}")
+
+    # Skulk owns artifact lifecycle — discard the local mirror we staged.
+    shutil.rmtree(local_dir)
 
     # Publish a self-describing model card. README.md is not in
     # _VISION_ALLOW_PATTERNS, so a later mirror's delete_patterns never prunes it.
