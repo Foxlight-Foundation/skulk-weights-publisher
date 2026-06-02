@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Publishing Lifecycle | SWP: Skulk Weights Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/concepts/publishing-lifecycle"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Publishing Lifecycle | SWP: Skulk Weights Publisher"><meta data-rh="true" name="description" content="A vindex goes through a build-and-release lifecycle because it is the boundary"><meta data-rh="true" property="og:description" content="A vindex goes through a build-and-release lifecycle because it is the boundary"><link data-rh="true" rel="icon" href="/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/img/skulk-logo.svg"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/concepts/publishing-lifecycle"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/concepts/publishing-lifecycle" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/concepts/publishing-lifecycle" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Publishing Lifecycle","item":"https://foxlight-foundation.github.io/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/concepts/publishing-lifecycle"}]}</script><link rel="stylesheet" href="/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/assets/css/styles.289aaf1c.css">
-<script src="/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/assets/js/runtime~main.9317038c.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/assets/js/runtime~main.9ab3f369.js" defer="defer"></script>
 <script src="/skulk-weights-publisher/previews/feat-one-mtp-sidecar-per-base/assets/js/main.597a4b6d.js" defer="defer"></script>
 </head>
 <body>
@@ -82,8 +82,11 @@ them.</p>
 before any download begins. Real execution downloads only the shards that contain
 <code>mtp.*</code> keys (using the model&#x27;s <code>model.safetensors.index.json</code> to identify them),
 saves the tensors at full precision (bf16, unquantized) as a local
-<code>mtp.safetensors</code>, and uploads it to the sidecar repo. One bf16 sidecar serves
-every quantization of the base model.</p>
+<code>mtp.safetensors</code>, and uploads it to the sidecar repo — alongside its own
+self-describing model card (step 7). One bf16 sidecar serves every quantization
+of the base model; if the sidecar already exists it is skipped (with a message
+saying it already covers this model and all its quantizations) unless <code>--force</code>
+is passed.</p>
 <p>If <code>mtp_source_repo</code> and <code>mtp_sidecar_repo</code> are not set on the catalog entry,
 <code>--artifact mtp</code> raises an error with a clear message rather than silently
 skipping.</p>
@@ -95,7 +98,8 @@ repository. For those models SWP publishes a vision sidecar: a Foxlight-owned
 mirror so the cluster does not depend on a third party.</p>
 <p>Unlike the MTP step, the vision sidecar performs no quantization and no dtype
 conversion. It copies the <code>vision_source_repo</code>&#x27;s weights and configs into
-<code>vision_sidecar_repo</code> <strong>byte-for-byte</strong>. It needs <code>huggingface_hub</code> but not mlx.</p>
+<code>vision_sidecar_repo</code> <strong>byte-for-byte</strong>, alongside its own self-describing model
+card (step 7). It needs <code>huggingface_hub</code> but not mlx.</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-weights publish </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--model</span><span class="token plain"> acme/kimi-k2-5-full-q4-k </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--artifact</span><span class="token plain"> vision --dry-run</span><br></div><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-weights publish </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--model</span><span class="token plain"> acme/kimi-k2-5-full-q4-k </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--artifact</span><span class="token plain"> vision</span><br></div></code></pre></div></div>
 <p>If <code>vision_source_repo</code> and <code>vision_sidecar_repo</code> are not set on the catalog
 entry, <code>--artifact vision</code> raises an error with a clear message rather than
