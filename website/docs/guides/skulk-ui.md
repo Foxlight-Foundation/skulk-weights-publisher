@@ -90,8 +90,9 @@ downloading → extracting → saving → uploading).
 
 :::note
 Real extraction requires `mlx` (Apple Silicon). If `mlx` isn't available the GUI
-shows an error banner and disables publishing — install the extras with
-`uv sync --extra ui --extra mtp`. See the [MTP sidecar guide](./mtp-sidecar.md).
+shows an error banner and disables publishing — install with
+`uv sync --extra ui` (the `ui` extra already includes the mtp deps). See the
+[MTP sidecar guide](./mtp-sidecar.md).
 :::
 
 ## Gemma 4 assistant models

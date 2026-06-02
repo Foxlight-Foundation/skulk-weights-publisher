@@ -12,6 +12,10 @@ one for documentation.
 - `validate`: runs safe checks on hosted GitHub runners
 - `publish`: runs LARQL publication on the self-hosted runner
 
+Triggers: `validate` runs on pull requests and pushes; `publish` runs only on
+`workflow_dispatch` (manual) and on a weekly `schedule` (cron `17 8 * * 1` —
+Mondays at 08:17 UTC).
+
 Manual dispatch inputs:
 
 - `model`: one catalog key or `all`

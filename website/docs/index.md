@@ -14,9 +14,10 @@ weights while GPU nodes handle the latency-sensitive attention path.
 **MTP sidecars** — Models with native multi-token prediction heads (Qwen3,
 DeepSeek V3/R1, and others that expose `mtp.*` tensor keys) need those heads
 published separately. Standard quantization pipelines strip MTP tensors. SWP
-re-extracts them from the original BF16 checkpoint, quantizes, and uploads the
-result as `mtp.safetensors` to a dedicated repo so Skulk can use speculative
-decoding.
+re-extracts them from the original BF16 checkpoint and uploads them at full
+precision (bf16, unquantized) as `mtp.safetensors` to a dedicated repo — one
+sidecar per base model, shared across every quantization of it — so Skulk can
+use speculative decoding.
 
 **Vision sidecars** — mlx-community VLM quants frequently omit the vision
 encoder, leaving the vision weights to live in a third-party repository. SWP

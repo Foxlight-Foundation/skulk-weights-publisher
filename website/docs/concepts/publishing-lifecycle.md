@@ -106,8 +106,11 @@ The dry-run prints the source repo, sidecar repo, precision, and output path
 before any download begins. Real execution downloads only the shards that contain
 `mtp.*` keys (using the model's `model.safetensors.index.json` to identify them),
 saves the tensors at full precision (bf16, unquantized) as a local
-`mtp.safetensors`, and uploads it to the sidecar repo. One bf16 sidecar serves
-every quantization of the base model.
+`mtp.safetensors`, and uploads it to the sidecar repo — alongside its own
+self-describing model card (step 7). One bf16 sidecar serves every quantization
+of the base model; if the sidecar already exists it is skipped (with a message
+saying it already covers this model and all its quantizations) unless `--force`
+is passed.
 
 If `mtp_source_repo` and `mtp_sidecar_repo` are not set on the catalog entry,
 `--artifact mtp` raises an error with a clear message rather than silently
@@ -124,7 +127,8 @@ mirror so the cluster does not depend on a third party.
 
 Unlike the MTP step, the vision sidecar performs no quantization and no dtype
 conversion. It copies the `vision_source_repo`'s weights and configs into
-`vision_sidecar_repo` **byte-for-byte**. It needs `huggingface_hub` but not mlx.
+`vision_sidecar_repo` **byte-for-byte**, alongside its own self-describing model
+card (step 7). It needs `huggingface_hub` but not mlx.
 
 ```bash
 skulk-weights publish --model acme/kimi-k2-5-full-q4-k --artifact vision --dry-run

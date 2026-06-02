@@ -161,9 +161,11 @@ SWP solves this with a separate extraction pipeline. Given a catalog entry with
 MTP fields configured, SWP:
 
 1. Downloads the original BF16 checkpoint (not the quantized one).
-2. Identifies the `mtp.*` tensor keys.
-3. Quantizes only those tensors at the specified precision.
-4. Uploads the result as `mtp.safetensors` to a dedicated sidecar repo.
+2. Identifies and reads only the `mtp.*` tensor keys.
+3. Saves them at full precision (bf16, unquantized) — the heads are the
+   speculative drafter, so they are not quantized.
+4. Uploads the result as `mtp.safetensors` to a dedicated sidecar repo (one
+   sidecar per base model, shared across every quantization of it).
 
 The sidecar repo is separate from the vindex repo so each artifact has a stable,
 unambiguous identity and can be updated independently. The Skulk cluster loads

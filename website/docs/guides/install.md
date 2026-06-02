@@ -17,8 +17,10 @@ uv sync --extra dev
 ```
 
 This installs the CLI plus development tools used by CI: tests, linting, and
-type checking. Add `--extra mtp` for MTP and vision real-publish support
-(`huggingface_hub`, `safetensors`, `mlx`) and `--extra ui` for the local GUI.
+type checking. Add `--extra mtp` for MTP sidecar extraction (`safetensors`,
+`numpy`, `mlx` — Apple Silicon only). Add `--extra ui` for the local GUI (it
+already includes the mtp deps). Vision sidecars and vindex publishing need no
+extra — `huggingface_hub` is a base dependency.
 
 ## Runner Install
 
