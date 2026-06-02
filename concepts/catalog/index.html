@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">The Catalog | SWP: Skulk Weights Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-weights-publisher/concepts/catalog"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="The Catalog | SWP: Skulk Weights Publisher"><meta data-rh="true" name="description" content="The catalog is the library of vindexes the publisher knows how to build for"><meta data-rh="true" property="og:description" content="The catalog is the library of vindexes the publisher knows how to build for"><link data-rh="true" rel="icon" href="/skulk-weights-publisher/img/skulk-logo.svg"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-weights-publisher/concepts/catalog"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/concepts/catalog" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/concepts/catalog" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"The Catalog","item":"https://foxlight-foundation.github.io/skulk-weights-publisher/concepts/catalog"}]}</script><link rel="stylesheet" href="/skulk-weights-publisher/assets/css/styles.289aaf1c.css">
-<script src="/skulk-weights-publisher/assets/js/runtime~main.b22e7c9e.js" defer="defer"></script>
-<script src="/skulk-weights-publisher/assets/js/main.f0bb2ad6.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/runtime~main.716264ce.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/main.be00136a.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -51,8 +51,21 @@ a source entry with <code>key: llama-3-8b-full-q4-k</code> becomes:</p>
 <li class=""><code>slices</code>: the vindex shape LARQL should publish for the intended runtime role</li>
 <li class=""><code>output_name</code>: the local vindex directory name created under scratch storage</li>
 <li class=""><code>hf_repo</code>: the Hugging Face repository that receives the published vindex</li>
-<li class=""><code>hf_collection</code>: the Hugging Face collection that receives the published repo</li>
+<li class=""><code>hf_collection</code>: the Hugging Face collection that receives the published vindex</li>
+<li class=""><code>mtp_source_repo</code>: the BF16 checkpoint the MTP heads are extracted from</li>
+<li class=""><code>mtp_sidecar_repo</code>: the repository that receives the published <code>mtp.safetensors</code></li>
+<li class=""><code>mtp_quant</code>: the quantization applied to the extracted MTP tensors (<code>q4k</code> or <code>q8k</code>)</li>
+<li class=""><code>assistant_model_repo</code>: the companion <code>{model}-assistant</code> drafter model (a
+pointer to a Google-published model; no tensors are extracted for it)</li>
+<li class=""><code>vision_source_repo</code>: the third-party repository whose vision weights are mirrored</li>
+<li class=""><code>vision_sidecar_repo</code>: the Foxlight-owned repository that receives the byte-for-byte mirror</li>
 </ul>
+<p>Every real publish (vindex, MTP, or vision) also uploads a self-describing
+<code>README.md</code> model card carrying its provenance and the source model&#x27;s
+license—see <a class="" href="/skulk-weights-publisher/concepts/publishing-lifecycle">the publishing lifecycle</a>. Each published
+repo is filed into the Hugging Face collection for its artifact type
+(<code>Vindexes</code>, <code>MTP Sidecars</code>, <code>Vision Sidecars</code>); the vindex collection is the
+configured <code>hf_collection</code> slug.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="tiers">Tiers<a href="#tiers" class="hash-link" aria-label="Direct link to Tiers" title="Direct link to Tiers" translate="no">​</a></h2>
 <p>The <code>smoke</code> tier is for the first practical publish path. These entries are
 small enough to validate runner setup and publication behavior.</p>

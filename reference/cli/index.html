@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">CLI Reference | SWP: Skulk Weights Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="CLI Reference | SWP: Skulk Weights Publisher"><meta data-rh="true" name="description" content="The skulk-weights CLI has three jobs:"><meta data-rh="true" property="og:description" content="The skulk-weights CLI has three jobs:"><link data-rh="true" rel="icon" href="/skulk-weights-publisher/img/skulk-logo.svg"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"CLI Reference","item":"https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli"}]}</script><link rel="stylesheet" href="/skulk-weights-publisher/assets/css/styles.289aaf1c.css">
-<script src="/skulk-weights-publisher/assets/js/runtime~main.b22e7c9e.js" defer="defer"></script>
-<script src="/skulk-weights-publisher/assets/js/main.f0bb2ad6.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/runtime~main.716264ce.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/main.be00136a.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -20,8 +20,11 @@
 <p>Those jobs keep publication reviewable before LARQL extracts large weight
 directories. The published artifacts are the stable objects Skulk can later place
 across GPU inference nodes and CPU/high-memory weight-serving nodes.</p>
+<p><code>catalogue</code> is a legacy alias for <code>catalog</code>; every <code>catalog</code> subcommand below
+also works under <code>catalogue</code>.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="global-options">Global Options<a href="#global-options" class="hash-link" aria-label="Direct link to Global Options" title="Direct link to Global Options" translate="no">​</a></h2>
-<p>Global options come before the subcommand.</p>
+<p>Global options come before the subcommand. <code>--config</code> and <code>--manifest</code> are
+mutually exclusive.</p>
 <p><code>--config PATH</code> loads <code>PATH</code> as <code>skulk-weights.yaml</code>. The built-in Foxlight
 catalog is still included, and the config can add operator catalog sources.</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-weights </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--config</span><span class="token plain"> skulk-weights.yaml catalog validate</span><br></div></code></pre></div></div>
@@ -53,6 +56,16 @@ tier.</p>
 what a namespaced key resolves to before publishing.</p>
 <p>Example:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-weights catalog show foxlight/gemma-3-4b-full-q4-k</span><br></div></code></pre></div></div>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="skulk-weights-catalog-find-hf_url_or_ownerrepo"><code>skulk-weights catalog find HF_URL_OR_OWNER/REPO</code><a href="#skulk-weights-catalog-find-hf_url_or_ownerrepo" class="hash-link" aria-label="Direct link to skulk-weights-catalog-find-hf_url_or_ownerrepo" title="Direct link to skulk-weights-catalog-find-hf_url_or_ownerrepo" translate="no">​</a></h2>
+<p>Reverse lookup: given an upstream source model, prints every catalog entry
+whose <code>source_model</code> matches. The lookup is one-to-many — a single source model
+can map to several entries (for example a <code>full</code> slice plus an <code>expert-server</code>
+slice) — so each matching entry is printed as a JSON object, one per line.</p>
+<p>Accepts either a bare <code>owner/repo</code> string or a full <code>https://huggingface.co/...</code>
+URL. Respects <code>--config</code>, so it searches operator sources too.</p>
+<p>Exits 1 with a stderr message when no entry matches the given source model.</p>
+<p>Example:</p>
+<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-weights catalog </span><span class="token function" style="color:rgb(130, 170, 255)">find</span><span class="token plain"> google/gemma-3-4b-it</span><br></div><div class="token-line" style="color:#bfc7d5"><span class="token plain">skulk-weights catalog </span><span class="token function" style="color:rgb(130, 170, 255)">find</span><span class="token plain"> https://huggingface.co/google/gemma-3-4b-it</span><br></div></code></pre></div></div>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="skulk-weights-catalog-init"><code>skulk-weights catalog init</code><a href="#skulk-weights-catalog-init" class="hash-link" aria-label="Direct link to skulk-weights-catalog-init" title="Direct link to skulk-weights-catalog-init" translate="no">​</a></h2>
 <p>Writes a starter <code>skulk-weights.yaml</code>. The generated file is valid immediately
 because the Foxlight catalog is included automatically. Add operator sources
@@ -78,6 +91,9 @@ editing <code>foxlight.yaml</code> by hand.</p>
 <li class="">Resolves the HF model ID (accepts bare <code>owner/repo</code> strings)</li>
 <li class="">Fetches model card tags to detect quant scheme and tier</li>
 <li class="">Checks the base model for <code>mtp.*</code> tensor keys and populates MTP sidecar fields if found</li>
+<li class="">If no <code>mtp.*</code> keys are found, checks for a Gemma-4-style companion model
+named <code>{model}-assistant</code> and, when present, writes <code>assistant_model_repo</code>
+instead of any MTP fields</li>
 <li class="">Derives <code>key</code>, <code>output_name</code>, and <code>hf_repo</code> from the model ID</li>
 <li class="">Validates no key, output name, or repo collisions against the existing catalog</li>
 <li class="">Appends the entry to the built-in <code>foxlight.yaml</code></li>
@@ -112,15 +128,39 @@ scratch directory access, and catalog validity.</p>
 <p>Builds the publish plan for one catalog entry. With <code>--dry-run</code>, it only
 prints the plan. Without <code>--dry-run</code>, it runs the selected artifact step:</p>
 <ul>
-<li class=""><code>vindex</code>: runs <code>larql extract</code>, <code>larql publish</code>, and adds the repository to
-the configured Hugging Face collection.</li>
+<li class=""><code>vindex</code>: runs <code>larql extract</code>, <code>larql publish</code>, and files the repository
+into the configured Hugging Face collection.</li>
 <li class=""><code>mtp</code>: downloads only the shards that contain <code>mtp.*</code> tensor keys from the
 original BF16 checkpoint, quantizes them, and uploads <code>mtp.safetensors</code> to
 the sidecar repository. Requires <code>mtp_source_repo</code>, <code>mtp_sidecar_repo</code>, and
 <code>mtp_quant</code> on the catalog entry.</li>
-<li class=""><code>vision</code>: not yet implemented; raises an error if passed without <code>--dry-run</code>.</li>
-<li class=""><code>all</code> (default): runs <code>vindex</code>, then <code>mtp</code> if configured on the entry.</li>
+<li class=""><code>vision</code>: mirrors the vision source repo&#x27;s weights and configs into the
+vision sidecar repo byte-for-byte — no quantization and no dtype conversion.
+Requires <code>vision_source_repo</code> and <code>vision_sidecar_repo</code> on the catalog entry;
+raises an error only when those are not configured.</li>
+<li class=""><code>all</code> (default): runs <code>vindex</code>, then <code>mtp</code>, then <code>vision</code>, skipping any
+artifact not configured on the entry.</li>
 </ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="model-cards">Model cards<a href="#model-cards" class="hash-link" aria-label="Direct link to Model cards" title="Direct link to Model cards" translate="no">​</a></h3>
+<p>Every real publish (vindex, mtp, or vision) also uploads a self-describing
+<code>README.md</code> model card to the published repo, with frontmatter recording the
+<code>base_model</code>, <code>tags</code>, the inherited source <code>license</code>, and a <code>foxlight:</code> block
+(artifact type, source repo and pinned source revision, target model, quant,
+catalog key, and generation timestamp). The source revision and license are
+resolved best-effort from the Hub using <code>HF_TOKEN</code>. See the
+<a class="" href="/skulk-weights-publisher/reference/manifest">Manifest Reference</a> for the entry fields these cards describe.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="collections">Collections<a href="#collections" class="hash-link" aria-label="Direct link to Collections" title="Direct link to Collections" translate="no">​</a></h3>
+<p>Each artifact is filed into the Hugging Face collection for its type:</p>
+<ul>
+<li class="">the vindex is filed into the configured slug exactly — the entry&#x27;s
+<code>hf_collection</code> or the <code>SKULK_WEIGHTS_COLLECTION</code> override;</li>
+<li class="">mtp and vision sidecars are filed into their per-type collections,
+<code>MTP Sidecars</code> and <code>Vision Sidecars</code>, resolved by title (created if missing,
+reused if present).</li>
+</ul>
+<p>Filing is disabled when no collection is configured for the entry, or when
+<code>SKULK_WEIGHTS_COLLECTION</code> is set to a disable value (see the
+<a class="" href="/skulk-weights-publisher/reference/environment">Environment Reference</a>).</p>
 <p>Options:</p>
 <ul>
 <li class=""><code>--artifact vindex|mtp|vision|all</code>: publish only the named artifact, or all
@@ -139,11 +179,14 @@ declared artifacts when omitted.</li>
 <li class="">source model</li>
 <li class="">local output path</li>
 <li class="">target Hugging Face repository</li>
-<li class="">target Hugging Face collection</li>
+<li class="">the vindex collection (<code>vindex collection: &lt;slug&gt;</code>, or <code>collection: disabled</code>)</li>
 <li class=""><code>larql extract</code> command (vindex artifact)</li>
 <li class=""><code>larql publish</code> command (vindex artifact)</li>
-<li class="">MTP source repo, sidecar repo, quant, and output path (mtp artifact)</li>
-<li class="">note when mtp or vision is not configured for the entry</li>
-</ul></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/skulk-weights-publisher/guides/development"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Development</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/skulk-weights-publisher/reference/manifest"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Manifest Reference</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#global-options" class="table-of-contents__link toc-highlight">Global Options</a></li><li><a href="#skulk-weights-catalog-validate" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog validate</code></a></li><li><a href="#skulk-weights-catalog-sources" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog sources</code></a></li><li><a href="#skulk-weights-catalog-list" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog list</code></a></li><li><a href="#skulk-weights-catalog-show-key" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog show KEY</code></a></li><li><a href="#skulk-weights-catalog-init" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog init</code></a></li><li><a href="#skulk-weights-catalog-add-hf_model_id" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog add HF_MODEL_ID</code></a></li><li><a href="#skulk-weights-scratch-clean" class="table-of-contents__link toc-highlight"><code>skulk-weights scratch clean</code></a></li><li><a href="#skulk-weights-doctor" class="table-of-contents__link toc-highlight"><code>skulk-weights doctor</code></a></li><li><a href="#skulk-weights-doctor---publish" class="table-of-contents__link toc-highlight"><code>skulk-weights doctor --publish</code></a></li><li><a href="#skulk-weights-publish---model-key" class="table-of-contents__link toc-highlight"><code>skulk-weights publish --model KEY</code></a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/skulk-weights-publisher/quickstart">Quickstart</a></li><li class="footer__item"><a class="footer__link-item" href="/skulk-weights-publisher/reference/cli">CLI reference</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/Foxlight-Foundation/skulk-weights-publisher" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 Foxlight Foundation.</div></div></div></footer></div>
+<li class="">MTP source repo, sidecar repo, quant, and output path, plus
+<code>mtp collection: MTP Sidecars</code> (mtp artifact)</li>
+<li class="">vision source repo, sidecar repo, the mirror note, plus
+<code>vision collection: Vision Sidecars</code> (vision artifact)</li>
+<li class="">a note when mtp or vision is not configured for the entry</li>
+</ul></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/skulk-weights-publisher/guides/development"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Development</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/skulk-weights-publisher/reference/manifest"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Manifest Reference</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#global-options" class="table-of-contents__link toc-highlight">Global Options</a></li><li><a href="#skulk-weights-catalog-validate" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog validate</code></a></li><li><a href="#skulk-weights-catalog-sources" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog sources</code></a></li><li><a href="#skulk-weights-catalog-list" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog list</code></a></li><li><a href="#skulk-weights-catalog-show-key" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog show KEY</code></a></li><li><a href="#skulk-weights-catalog-find-hf_url_or_ownerrepo" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog find HF_URL_OR_OWNER/REPO</code></a></li><li><a href="#skulk-weights-catalog-init" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog init</code></a></li><li><a href="#skulk-weights-catalog-add-hf_model_id" class="table-of-contents__link toc-highlight"><code>skulk-weights catalog add HF_MODEL_ID</code></a></li><li><a href="#skulk-weights-scratch-clean" class="table-of-contents__link toc-highlight"><code>skulk-weights scratch clean</code></a></li><li><a href="#skulk-weights-doctor" class="table-of-contents__link toc-highlight"><code>skulk-weights doctor</code></a></li><li><a href="#skulk-weights-doctor---publish" class="table-of-contents__link toc-highlight"><code>skulk-weights doctor --publish</code></a></li><li><a href="#skulk-weights-publish---model-key" class="table-of-contents__link toc-highlight"><code>skulk-weights publish --model KEY</code></a><ul><li><a href="#model-cards" class="table-of-contents__link toc-highlight">Model cards</a></li><li><a href="#collections" class="table-of-contents__link toc-highlight">Collections</a></li></ul></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/skulk-weights-publisher/quickstart">Quickstart</a></li><li class="footer__item"><a class="footer__link-item" href="/skulk-weights-publisher/reference/cli">CLI reference</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/Foxlight-Foundation/skulk-weights-publisher" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 Foxlight Foundation.</div></div></div></footer></div>
 </body>
 </html>
