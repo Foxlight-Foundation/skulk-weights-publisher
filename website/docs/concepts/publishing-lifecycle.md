@@ -88,8 +88,9 @@ are never re-licensed—everything published is for the community.
 
 For models that carry native Multi-Token Prediction heads—Qwen3, DeepSeek V3/R1,
 and similar architectures—a second extraction pass pulls the `mtp.*` tensors from
-the original BF16 checkpoint, quantizes them, and uploads them as `mtp.safetensors`
-to a separate sidecar repository.
+the original BF16 checkpoint and uploads them at full precision (bf16,
+unquantized) as `mtp.safetensors` to a separate sidecar repository — one sidecar
+per base model, shared across every quantization of it.
 
 This step is separate from vindex publication because the MTP weights must come from
 the original PyTorch checkpoint. mlx-lm's `sanitize()` strips `mtp.*` keys during

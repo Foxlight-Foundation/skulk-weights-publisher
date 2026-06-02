@@ -78,9 +78,10 @@ decoding — drafting multiple tokens in one forward pass and verifying them —
 which substantially increases throughput with no accuracy loss.
 
 Standard quantization pipelines strip MTP tensors to reduce download size.
-SWP's MTP pipeline re-extracts those tensors from the original BF16 checkpoint,
-quantizes them independently, and publishes the result as `mtp.safetensors` to a
-separate Hugging Face repo. The vindex and the MTP sidecar are versioned
+SWP's MTP pipeline re-extracts those tensors from the original BF16 checkpoint
+and publishes them at full precision (bf16, unquantized) as `mtp.safetensors` to
+a separate Hugging Face repo — one sidecar per base model, shared across every
+quantization of it. The vindex and the MTP sidecar are versioned
 independently so each can be updated or replaced without disturbing the other.
 
 ## Why do this?

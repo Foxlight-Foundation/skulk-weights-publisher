@@ -17,7 +17,7 @@ inference hot path.
 :::warning Linux runners can publish vindexes only
 The self-hosted Linux `larql` runner can publish **vindexes only**. Real MTP and
 vision publishing requires a **macOS Apple Silicon** host, because `mlx`
-(used for MTP quantization) ships for `darwin`/`arm64` only. A Linux runner has
+(used to read the MTP tensors) ships for `darwin`/`arm64` only. A Linux runner has
 no path to produce an MTP sidecar. Vision sidecars do not need `mlx`, but the
 CI vindex runner is not provisioned for them — run vision publishes from a
 macOS host with the `mtp` extras installed.

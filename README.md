@@ -18,8 +18,9 @@ inference path.
 tensor keys, such as Qwen3 and DeepSeek V3/R1) require those heads to be
 published separately. Standard quantization pipelines (e.g. mlx-lm's
 `sanitize()`) strip MTP tensors. SWP re-extracts them from the original BF16
-checkpoint, quantizes, and publishes the result as `mtp.safetensors` to a
-dedicated Hugging Face repo so Skulk can use speculative decoding.
+checkpoint and publishes them at full precision (bf16, unquantized) as
+`mtp.safetensors` to a dedicated Hugging Face repo — one sidecar per base model,
+shared across every quantization of it — so Skulk can use speculative decoding.
 
 This repository is the controlled publication workflow. It keeps the catalog
 of publishable model weights, validates that catalog, prints the exact commands,
