@@ -13,7 +13,7 @@ beforeEach(() => {
   useCatalogStore.setState({
     phase: 'idle',
     query: '',
-    entry: null,
+    entries: [],
     sourceModel: null,
     errorMessage: null,
   });

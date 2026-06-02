@@ -84,27 +84,7 @@ The source commit SHA and license are resolved best-effort from the Hub using
 `HF_TOKEN`. Published artifacts inherit the source model's license unchanged and
 are never re-licensed—everything published is for the community.
 
-## 8. Mirror And Publish The Vision Sidecar (optional)
-
-Some vision-language models ship an mlx-community checkpoint that omits the
-vision encoder—Kimi K2.5, for example, keeps its vision weights in a third-party
-repository. For those models SWP publishes a vision sidecar: a Foxlight-owned
-mirror so the cluster does not depend on a third party.
-
-Unlike the MTP step, the vision sidecar performs no quantization and no dtype
-conversion. It copies the `vision_source_repo`'s weights and configs into
-`vision_sidecar_repo` **byte-for-byte**. It needs `huggingface_hub` but not mlx.
-
-```bash
-skulk-weights publish --model acme/kimi-k2-5-full-q4-k --artifact vision --dry-run
-skulk-weights publish --model acme/kimi-k2-5-full-q4-k --artifact vision
-```
-
-If `vision_source_repo` and `vision_sidecar_repo` are not set on the catalog
-entry, `--artifact vision` raises an error with a clear message rather than
-silently skipping.
-
-## 9. Extract And Publish The MTP Sidecar (optional)
+## 8. Extract And Publish The MTP Sidecar (optional)
 
 For models that carry native Multi-Token Prediction heads—Qwen3, DeepSeek V3/R1,
 and similar architectures—a second extraction pass pulls the `mtp.*` tensors from
@@ -131,6 +111,26 @@ entry, `--artifact mtp` raises an error with a clear message rather than silentl
 skipping.
 
 See the [MTP Sidecar Guide](../guides/mtp-sidecar.md) for a complete walkthrough.
+
+## 9. Mirror And Publish The Vision Sidecar (optional)
+
+Some vision-language models ship an mlx-community checkpoint that omits the
+vision encoder—Kimi K2.5, for example, keeps its vision weights in a third-party
+repository. For those models SWP publishes a vision sidecar: a Foxlight-owned
+mirror so the cluster does not depend on a third party.
+
+Unlike the MTP step, the vision sidecar performs no quantization and no dtype
+conversion. It copies the `vision_source_repo`'s weights and configs into
+`vision_sidecar_repo` **byte-for-byte**. It needs `huggingface_hub` but not mlx.
+
+```bash
+skulk-weights publish --model acme/kimi-k2-5-full-q4-k --artifact vision --dry-run
+skulk-weights publish --model acme/kimi-k2-5-full-q4-k --artifact vision
+```
+
+If `vision_source_repo` and `vision_sidecar_repo` are not set on the catalog
+entry, `--artifact vision` raises an error with a clear message rather than
+silently skipping.
 
 ## 10. File Into A Collection
 
