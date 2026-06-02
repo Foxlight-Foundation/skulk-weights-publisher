@@ -79,10 +79,10 @@ def resolve_base_model(
     it reaches a model that is not itself a quantization, then returns that
     model's ``base_model:`` target.
 
-    Returns ``None`` when the leaf has no ``base_model:`` tag and is the same as
-    the input model (i.e. the input is already a plain base with nothing to
-    resolve). Only after at least one hop does a leaf's own ID become the
-    answer (an intermediate with no further base tag).
+    When the input model has no ``base_model:quantized:`` tag (i.e. it is
+    already a plain base checkpoint), returns the model's own ID. This covers
+    the case where the user pastes the BF16 base directly — the model is its
+    own ``mtp_source_repo`` and MTP detection should still run against it.
     """
     current = info
     for _ in range(max_depth):
@@ -94,14 +94,14 @@ def resolve_base_model(
                 break
 
         if quantized_from is None:
-            # Leaf node — not a quantization.  Return its own base_model or
-            # (if it has none) its model ID, provided it differs from the
-            # original model we started with.
+            # Leaf node — not a quantization. Return its explicit base_model
+            # tag if present; otherwise return its own ID (the model IS the
+            # base, so it is its own mtp_source_repo).
             base = detect_base_model(current)
             if base is not None:
                 return base
             current_id = current.get("id")
-            if isinstance(current_id, str) and current_id != info.get("id"):
+            if isinstance(current_id, str):
                 return current_id
             return None
 
