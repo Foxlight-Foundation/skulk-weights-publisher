@@ -49,7 +49,6 @@ export interface CatalogEntry {
   hf_collection: string | null;
   mtp_source_repo: string | null;
   mtp_sidecar_repo: string | null;
-  mtp_quant: string | null;
   assistant_model_repo: string | null;
   vision_source_repo: string | null;
   vision_sidecar_repo: string | null;

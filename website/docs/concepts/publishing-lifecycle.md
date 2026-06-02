@@ -101,13 +101,15 @@ skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp --dry-run
 skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp
 ```
 
-The dry-run prints the source repo, sidecar repo, quant, and output path before
-any download begins. Real execution downloads only the shards that contain `mtp.*`
-keys (using the model's `model.safetensors.index.json` to identify them), quantizes
-the tensors, saves a local `mtp.safetensors`, and uploads it to the sidecar repo.
+The dry-run prints the source repo, sidecar repo, precision, and output path
+before any download begins. Real execution downloads only the shards that contain
+`mtp.*` keys (using the model's `model.safetensors.index.json` to identify them),
+saves the tensors at full precision (bf16, unquantized) as a local
+`mtp.safetensors`, and uploads it to the sidecar repo. One bf16 sidecar serves
+every quantization of the base model.
 
-If `mtp_source_repo`, `mtp_sidecar_repo`, and `mtp_quant` are not set on the catalog
-entry, `--artifact mtp` raises an error with a clear message rather than silently
+If `mtp_source_repo` and `mtp_sidecar_repo` are not set on the catalog entry,
+`--artifact mtp` raises an error with a clear message rather than silently
 skipping.
 
 See the [MTP Sidecar Guide](../guides/mtp-sidecar.md) for a complete walkthrough.

@@ -108,8 +108,7 @@ models:
     hf_repo: FoxlightAI/qwen3-5-9b-full-q4-k-vindex
     hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
     mtp_source_repo: Qwen/Qwen3.5-9B
-    mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp-q4-k
-    mtp_quant: q4k
+    mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp
 
   - key: qwen3-6-35b-a3b-full-q4-k
     source_model: mlx-community/Qwen3.6-35B-A3B-4bit
@@ -121,5 +120,4 @@ models:
     hf_repo: FoxlightAI/qwen3-6-35b-a3b-full-q4-k-vindex
     hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
     mtp_source_repo: Qwen/Qwen3.6-35B-A3B
-    mtp_sidecar_repo: FoxlightAI/qwen3-6-35b-a3b-mtp-q4-k
-    mtp_quant: q4k
+    mtp_sidecar_repo: FoxlightAI/qwen3-6-35b-a3b-mtp

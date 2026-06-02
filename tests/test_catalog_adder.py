@@ -270,8 +270,10 @@ def test_build_entry_block_with_mtp() -> None:
         mtp_keys=["mtp.fc.weight"],
     )
     assert "mtp_source_repo: Qwen/Qwen3.5-9B" in block
-    assert "mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp-q4-k" in block
-    assert "mtp_quant: q4k" in block
+    # One bf16 sidecar per base — quant-independent, no quant suffix.
+    assert "mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp\n" in block
+    assert "mtp_quant" not in block
+    assert "-mtp-q4-k" not in block
 
 
 def test_build_entry_block_starts_with_blank_line() -> None:

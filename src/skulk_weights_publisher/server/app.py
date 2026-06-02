@@ -31,7 +31,6 @@ from skulk_weights_publisher.catalog_adder import (
     find_assistant_model,
     find_builtin_catalog_path,
     parse_hf_model_id,
-    quant_suffix,
     resolve_base_model,
 )
 from skulk_weights_publisher.catalogue import (
@@ -99,7 +98,6 @@ class PublishBody(BaseModel):
 
     base_model: str
     sidecar_repo: str
-    quant: str
 
 
 class RegisterBody(BaseModel):
@@ -215,9 +213,9 @@ async def detect(body: DetectBody) -> Any:
             # to publish — otherwise the response is self-contradictory
             # (can_publish False but sidecar_repo populated).
             if mtp_keys:
+                # One bf16 sidecar per base model — quant-independent.
                 sidecar_repo = (
-                    f"{_FOXLIGHT_HF_OWNER}/{base_model_slug(base_model)}"
-                    f"-mtp-{quant_suffix(quant)}"
+                    f"{_FOXLIGHT_HF_OWNER}/{base_model_slug(base_model)}-mtp"
                 )
         # If no MTP tensors, check for a Gemma 4-style companion assistant.
         # The assistant is named after the instruct model the user pasted, so
@@ -264,7 +262,6 @@ async def publish(body: PublishBody) -> Any:
             extract_mtp(
                 source_repo=body.base_model,
                 sidecar_repo=body.sidecar_repo,
-                mtp_quant=body.quant,
                 scratch_root=scratch,
                 token=token,
                 log=q.put,

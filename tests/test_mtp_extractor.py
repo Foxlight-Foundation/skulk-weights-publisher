@@ -10,29 +10,39 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import skulk_weights_publisher.mtp_extractor as mtp_mod
 from skulk_weights_publisher.mtp_extractor import (
-    MtpExtractionError,
     _print_dry_run_plan,
-    _quant_bits,
     _sidecar_filename,
+    extract_mtp,
 )
 
 # ---------------------------------------------------------------------------
-# _quant_bits
+# extract_mtp — sidecar-exists skip (one sidecar per base, quant-independent)
 # ---------------------------------------------------------------------------
 
 
-def test_quant_bits_q4k() -> None:
-    assert _quant_bits("q4k") == 4
+def test_extract_mtp_skips_when_sidecar_already_published(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # When the sidecar exists, extract_mtp informs the operator that it already
+    # covers the model (and all its quantizations) and skips — no re-extraction.
+    monkeypatch.setattr(mtp_mod, "_sidecar_already_published", lambda *a, **k: True)
+    logs: list[str] = []
 
+    extract_mtp(
+        "Qwen/Qwen3.6-35B-A3B",
+        "FoxlightAI/qwen3-6-35b-a3b-mtp",
+        tmp_path,
+        token="hf_tok",
+        log=logs.append,
+    )
 
-def test_quant_bits_q8k() -> None:
-    assert _quant_bits("q8k") == 8
-
-
-def test_quant_bits_unknown_raises() -> None:
-    with pytest.raises(MtpExtractionError, match="unsupported mtp_quant"):
-        _quant_bits("q99z")
+    joined = "\n".join(logs)
+    assert "already exists" in joined
+    assert "every quantization" in joined
+    # It returned before doing any extraction work — no shards downloaded.
+    assert not (tmp_path / "_hf_cache").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -41,8 +51,8 @@ def test_quant_bits_unknown_raises() -> None:
 
 
 def test_sidecar_filename_replaces_slash() -> None:
-    expected = "acme--model-mtp-int4-mtp.safetensors"
-    assert _sidecar_filename("acme/model-mtp-int4") == expected
+    expected = "acme--model-mtp-mtp.safetensors"
+    assert _sidecar_filename("acme/model-mtp") == expected
 
 
 def test_sidecar_filename_no_slash() -> None:
@@ -57,14 +67,14 @@ def test_sidecar_filename_no_slash() -> None:
 def test_print_dry_run_plan_output(capsys: pytest.CaptureFixture[str]) -> None:
     _print_dry_run_plan(
         "owner/source-bf16",
-        "owner/sidecar-int4",
-        "q4k",
+        "owner/sidecar",
         Path("/scratch/sidecar.safetensors"),
     )
     out = capsys.readouterr().out
     assert "owner/source-bf16" in out
-    assert "owner/sidecar-int4" in out
-    assert "q4k" in out
+    assert "owner/sidecar" in out
+    # Heads ship unquantized at full precision — the plan must say so.
+    assert "bf16" in out
     assert "/scratch/sidecar.safetensors" in out
 
 

@@ -73,7 +73,7 @@ export const usePublishStore = create<PublishState>()((set, get) => ({
 
     let jobId: string;
     try {
-      const res = await startPublish(detection.base_model, detection.sidecar_repo, detection.quant);
+      const res = await startPublish(detection.base_model, detection.sidecar_repo);
       jobId = res.job_id;
     } catch (err) {
       set({

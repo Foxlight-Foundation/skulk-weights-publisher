@@ -129,8 +129,9 @@ Beyond the vindex fields above, an entry can carry optional fields that describe
 companion artifacts. These are mutually exclusive groups — set a full group or
 none of it:
 
-- `mtp_source_repo` / `mtp_sidecar_repo` / `mtp_quant` — an MTP sidecar
-  extracted and quantized from the BF16 checkpoint. See the
+- `mtp_source_repo` / `mtp_sidecar_repo` — an MTP sidecar extracted from the
+  BF16 checkpoint and published at full precision (bf16, unquantized). One
+  sidecar per base model, shared across every quantization. See the
   [MTP sidecar guide](mtp-sidecar.md).
 - `vision_source_repo` / `vision_sidecar_repo` — a byte-for-byte mirror of a
   VLM's vision encoder. See the [Vision sidecar guide](vision-sidecar.md).

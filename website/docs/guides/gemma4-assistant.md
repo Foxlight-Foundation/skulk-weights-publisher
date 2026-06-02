@@ -80,8 +80,7 @@ The JSON output should include:
 {
   "assistant_model_repo": "google/gemma-4-27b-it-assistant",
   "mtp_source_repo": null,
-  "mtp_sidecar_repo": null,
-  "mtp_quant": null
+  "mtp_sidecar_repo": null
 }
 ```
 

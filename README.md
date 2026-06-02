@@ -65,8 +65,10 @@ Vindex entries (all entries currently in the Foxlight catalog):
 | `foxlight/mixtral-8x22b-expert-server-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `expert-server` |
 
 Catalog entries can additionally declare MTP fields (`mtp_source_repo`,
-`mtp_sidecar_repo`, `mtp_quant`) to enable sidecar extraction for models with
-native prediction heads. See the [MTP sidecar guide](https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar)
+`mtp_sidecar_repo`) to enable sidecar extraction for models with native
+prediction heads. The sidecar ships at full precision (bf16, unquantized) — one
+per base model, shared across every quantization. See the
+[MTP sidecar guide](https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar)
 for catalog entry format and prerequisites.
 
 ## Gemma 4 Assistant Models

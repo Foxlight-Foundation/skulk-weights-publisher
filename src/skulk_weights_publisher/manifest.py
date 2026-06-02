@@ -12,7 +12,6 @@ import yaml
 
 DEFAULT_MANIFEST_PATH = Path("models.yaml")
 ALLOWED_QUANTS = {"q4k"}
-ALLOWED_MTP_QUANTS = {"q4k", "q8k"}
 ALLOWED_SLICES = {"full", "expert-server"}
 ALLOWED_TIERS = {"smoke", "moe"}
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -43,7 +42,6 @@ class ManifestEntry:
     hf_collection: str | None = None
     mtp_source_repo: str | None = None
     mtp_sidecar_repo: str | None = None
-    mtp_quant: str | None = None
     assistant_model_repo: str | None = None
     vision_source_repo: str | None = None
     vision_sidecar_repo: str | None = None
@@ -204,17 +202,14 @@ def validate_manifest_payload(
 
         mtp_source_repo = _optional_string(entry, "mtp_source_repo", effective_key)
         mtp_sidecar_repo = _optional_string(entry, "mtp_sidecar_repo", effective_key)
-        mtp_quant_raw = _optional_string(entry, "mtp_quant", effective_key)
 
         mtp_fields_set = sum(
-            1
-            for f in (mtp_source_repo, mtp_sidecar_repo, mtp_quant_raw)
-            if f is not None
+            1 for f in (mtp_source_repo, mtp_sidecar_repo) if f is not None
         )
-        if 0 < mtp_fields_set < 3:
+        if 0 < mtp_fields_set < 2:
             raise ManifestError(
-                f"{effective_key}: mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
-                " must all be set together or not at all"
+                f"{effective_key}: mtp_source_repo and mtp_sidecar_repo"
+                " must both be set together or not at all"
             )
         if mtp_source_repo is not None:
             if not HF_REPO_PATTERN.fullmatch(mtp_source_repo):
@@ -230,10 +225,6 @@ def validate_manifest_payload(
             if sidecar_owner != hf_repo_owner:
                 raise ManifestError(
                     f"{effective_key}: mtp_sidecar_repo owner must be {hf_repo_owner!r}"
-                )
-            if mtp_quant_raw not in ALLOWED_MTP_QUANTS:
-                raise ManifestError(
-                    f"{effective_key}: unsupported mtp_quant {mtp_quant_raw!r}"
                 )
 
         assistant_model_repo = _optional_string(
@@ -292,7 +283,6 @@ def validate_manifest_payload(
                 hf_collection=entry_hf_collection,
                 mtp_source_repo=mtp_source_repo,
                 mtp_sidecar_repo=mtp_sidecar_repo,
-                mtp_quant=mtp_quant_raw,
                 assistant_model_repo=assistant_model_repo,
                 vision_source_repo=vision_source_repo,
                 vision_sidecar_repo=vision_sidecar_repo,

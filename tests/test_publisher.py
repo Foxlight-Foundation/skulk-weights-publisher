@@ -203,8 +203,7 @@ def _make_mtp_entry() -> object:
         output_name="qwen3-6-7b-full-q4-k.vindex",
         hf_repo="acme/qwen3-6-7b-full-q4-k-vindex",
         mtp_source_repo="Qwen/Qwen3-6-7B",
-        mtp_sidecar_repo="acme/qwen3-6-7b-mtp-int4",
-        mtp_quant="q4k",
+        mtp_sidecar_repo="acme/qwen3-6-7b-mtp",
     )
 
 
@@ -216,8 +215,7 @@ def test_build_publish_plan_populates_mtp_step(tmp_path: Path) -> None:
 
     assert plan.mtp_step == MtpSidecarStep(
         source_repo="Qwen/Qwen3-6-7B",
-        sidecar_repo="acme/qwen3-6-7b-mtp-int4",
-        mtp_quant="q4k",
+        sidecar_repo="acme/qwen3-6-7b-mtp",
     )
 
 
@@ -234,8 +232,9 @@ def test_summary_lines_includes_mtp_details(tmp_path: Path) -> None:
     summary = "\n".join(plan.summary_lines(force=False, artifact="mtp"))
 
     assert "Qwen/Qwen3-6-7B" in summary
-    assert "acme/qwen3-6-7b-mtp-int4" in summary
-    assert "q4k" in summary
+    assert "acme/qwen3-6-7b-mtp" in summary
+    # Heads ship unquantized — the summary reports precision, not a quant tier.
+    assert "bf16" in summary
 
 
 def test_summary_lines_mtp_not_configured_note(tmp_path: Path) -> None:
@@ -269,19 +268,19 @@ def test_execute_publish_plan_mtp_calls_extractor(
 
     entry = _make_mtp_entry()
     plan = build_publish_plan(entry, scratch_root=tmp_path)  # type: ignore[arg-type]
-    extract_calls: list[tuple[str, str, str, Path]] = []
+    extract_calls: list[tuple[str, str, Path]] = []
 
     def fake_extract_mtp(
         source_repo: str,
         sidecar_repo: str,
-        mtp_quant: str,
         scratch_root: Path,
         *,
         token: str | None,
         dry_run: bool = False,
+        force: bool = False,
         catalog_key: str | None = None,
     ) -> None:
-        extract_calls.append((source_repo, sidecar_repo, mtp_quant, scratch_root))
+        extract_calls.append((source_repo, sidecar_repo, scratch_root))
 
     monkeypatch.setattr(pub_mod.shutil, "which", lambda _name: "/usr/bin/larql")
     monkeypatch.setattr(pub_mod.subprocess, "run", lambda *a, **kw: None)
@@ -298,10 +297,9 @@ def test_execute_publish_plan_mtp_calls_extractor(
     )
 
     assert len(extract_calls) == 1
-    assert extract_calls[0][:3] == (
+    assert extract_calls[0][:2] == (
         "Qwen/Qwen3-6-7B",
-        "acme/qwen3-6-7b-mtp-int4",
-        "q4k",
+        "acme/qwen3-6-7b-mtp",
     )
 
 
@@ -443,5 +441,5 @@ def test_summary_lines_includes_mtp_output_path(tmp_path: Path) -> None:
     plan = build_publish_plan(entry, scratch_root=tmp_path)  # type: ignore[arg-type]
     summary = "\n".join(plan.summary_lines(force=False, artifact="mtp"))
 
-    expected_path = tmp_path / "acme--qwen3-6-7b-mtp-int4-mtp.safetensors"
+    expected_path = tmp_path / "acme--qwen3-6-7b-mtp-mtp.safetensors"
     assert str(expected_path) in summary

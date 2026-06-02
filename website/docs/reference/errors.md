@@ -56,11 +56,11 @@ The command is trying to publish a vindex for real. Install LARQL and make sure
 Set `HF_TOKEN` to a Hugging Face token with write access to the target
 repository and collection.
 
-## `no MTP sidecar configured for <key>; add mtp_source_repo, mtp_sidecar_repo, and mtp_quant to the catalog entry`
+## `no MTP sidecar configured for <key>; add mtp_source_repo and mtp_sidecar_repo to the catalog entry`
 
 You ran `--artifact mtp` against an entry that has no MTP sidecar configured.
-Add `mtp_source_repo`, `mtp_sidecar_repo`, and `mtp_quant` to the catalog entry,
-or select a different artifact.
+Add `mtp_source_repo` and `mtp_sidecar_repo` to the catalog entry, or select a
+different artifact.
 
 ## `no vision sidecar configured for <key>; add vision_source_repo and vision_sidecar_repo to the catalog entry`
 
@@ -74,11 +74,10 @@ The MTP source repo does not contain any `mtp.*` tensor keys to extract. Point
 `mtp_source_repo` at the original PyTorch BF16 release rather than an
 mlx-converted checkpoint, which strips those keys during conversion.
 
-## `mlx is required for MTP weight quantization`
+## `mlx is required for reading MTP weights`
 
-MTP extraction quantizes weights with mlx, which is only available on macOS
-Apple Silicon. Run the `mtp` artifact on an Apple Silicon machine with `mlx`
-installed.
+MTP extraction uses mlx to read the `mtp.*` tensors out of the source shards.
+Run the `mtp` artifact on a host with `mlx` installed (`uv sync --extra mtp`).
 
 ## `no .safetensors weights found in <repo>`
 

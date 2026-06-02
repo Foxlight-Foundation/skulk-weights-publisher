@@ -57,15 +57,10 @@ export function detectModel(url: string): Promise<DetectResponse> {
 }
 
 /** Start an async MTP extraction job and return the job ID. */
-export function startPublish(
-  baseModel: string,
-  sidecarRepo: string,
-  quant: string,
-): Promise<PublishResponse> {
+export function startPublish(baseModel: string, sidecarRepo: string): Promise<PublishResponse> {
   return _post<PublishResponse>('/api/publish', {
     base_model: baseModel,
     sidecar_repo: sidecarRepo,
-    quant,
   });
 }
 

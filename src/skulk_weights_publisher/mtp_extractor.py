@@ -19,6 +19,22 @@ def _stderr_log(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _sidecar_already_published(sidecar_repo: str, *, token: str | None) -> bool:
+    """Return True if ``sidecar_repo`` already has ``mtp.safetensors`` on the Hub.
+
+    Best-effort: any lookup failure (repo absent, no network, hub unavailable)
+    is treated as "not published" so extraction proceeds normally.
+    """
+    try:
+        from huggingface_hub import HfApi
+    except ImportError:
+        return False
+    try:
+        return bool(HfApi().file_exists(sidecar_repo, "mtp.safetensors", token=token))
+    except Exception:  # noqa: BLE001 - existence check is best-effort
+        return False
+
+
 def _is_mtp_key(key: str) -> bool:
     return key.startswith("mtp.") or ".mtp." in key
 
@@ -68,20 +84,27 @@ def _read_mtp_tensors(shard_path: Path, *, mx: Any) -> dict[str, Any]:
 def extract_mtp(
     source_repo: str,
     sidecar_repo: str,
-    mtp_quant: str,
     scratch_root: Path,
     *,
     token: str | None,
     dry_run: bool = False,
+    force: bool = False,
     catalog_key: str | None = None,
     log: Callable[[str], None] | None = None,
 ) -> None:
-    """Extract MTP weights from source_repo, quantize, and publish to sidecar_repo.
+    """Extract MTP weights from source_repo and publish them to sidecar_repo.
 
     Downloads only the safetensors shards that contain ``mtp.*`` keys, reads only
-    the ``mtp.*`` tensors out of each shard (never the full shard), quantizes them
-    to the specified quant scheme, saves as ``mtp.safetensors``, and uploads to
+    the ``mtp.*`` tensors out of each shard (never the full shard), saves them at
+    full precision (bf16, **unquantized**) as ``mtp.safetensors``, and uploads to
     ``sidecar_repo`` on Hugging Face.
+
+    The heads are deliberately **not quantized**. They are the speculative
+    drafter, whose sole job is draft acceptance, so quantizing them would degrade
+    the very thing the sidecar exists to provide — to save only tens of MB on a
+    multi-GB model. They are also independent of the target's quantization (the
+    Skulk runtime loads them through its own path, not the model's), so **one
+    bf16 sidecar per base model serves every quantization of that model**.
 
     Progress lines go through the ``log`` callback. It defaults to writing to
     stderr (the CLI behavior); callers that need per-job routing (e.g. the
@@ -95,14 +118,25 @@ def extract_mtp(
     output_path = scratch_root / _sidecar_filename(sidecar_repo)
 
     if dry_run:
-        _print_dry_run_plan(source_repo, sidecar_repo, mtp_quant, output_path)
+        _print_dry_run_plan(source_repo, sidecar_repo, output_path)
+        return
+
+    # The heads belong to the base model, so one sidecar serves every
+    # quantization of it. If it's already published, don't silently re-extract —
+    # tell the operator it already covers this model and skip.
+    if not force and _sidecar_already_published(sidecar_repo, token=token):
+        emit(
+            f"mtp: sidecar already exists at hf://{sidecar_repo}/mtp.safetensors "
+            f"— it already covers {source_repo} and every quantization of it. "
+            "Skipping (pass --force to re-extract)."
+        )
         return
 
     try:
         import mlx.core as mx  # type: ignore[import-not-found]
     except ImportError as exc:
         raise MtpExtractionError(
-            "mlx is required for MTP weight quantization"
+            "mlx is required for reading MTP weights"
         ) from exc
 
     try:
@@ -116,7 +150,7 @@ def extract_mtp(
             "huggingface_hub is required for MTP extraction"
         ) from exc
 
-    # Verify/create the sidecar repo before the expensive download+quantize work.
+    # Verify/create the sidecar repo before the expensive download work.
     create_repo(
         sidecar_repo, repo_type="model", private=False, exist_ok=True, token=token
     )
@@ -164,14 +198,20 @@ def extract_mtp(
 
     emit(f"mtp: extracted {len(mtp_tensors)} tensor(s)")
 
-    # Quantize.
-    quant_bits = _quant_bits(mtp_quant)
-    quantized = _quantize(mtp_tensors, bits=quant_bits, mx=mx)
-    emit(f"mtp: quantized to {quant_bits}-bit")
+    # Ship the heads UNQUANTIZED at full precision (bf16). They are the
+    # speculative drafter — quantizing them would cost draft acceptance (the
+    # whole point) to save only tens of MB, and the Skulk runtime consumes bf16
+    # heads via its plain-matmul path.
+    sidecar_tensors = {
+        name: arr.astype(mx.bfloat16) for name, arr in mtp_tensors.items()
+    }
 
     # Save.
-    mx.save_safetensors(str(output_path), quantized)
-    emit(f"mtp: saved to {output_path}")
+    mx.save_safetensors(str(output_path), sidecar_tensors)
+    emit(
+        f"mtp: saved {len(sidecar_tensors)} tensor(s) at bf16 (unquantized) "
+        f"to {output_path}"
+    )
 
     # Upload.
     emit(f"mtp: uploading to hf://{sidecar_repo}/mtp.safetensors")
@@ -181,12 +221,12 @@ def extract_mtp(
         repo_id=sidecar_repo,
         repo_type="model",
         token=token,
-        commit_message=f"Add MTP sidecar from {source_repo} ({mtp_quant})",
+        commit_message=f"Add MTP sidecar from {source_repo} (bf16, unquantized)",
     )
     emit(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors")
 
     # Publish a self-describing model card so the sidecar carries its provenance
-    # (source repo + revision), target, quant, and inherited license.
+    # (source repo + revision), target, and inherited license.
     from skulk_weights_publisher.card_publish import publish_model_card
 
     publish_model_card(
@@ -195,7 +235,6 @@ def extract_mtp(
         source_repo=source_repo,
         token=token,
         target_model=source_repo,
-        quant=mtp_quant,
         catalog_key=catalog_key,
         weight_filename="mtp.safetensors",
         log=emit,
@@ -260,50 +299,6 @@ def _find_mtp_shards(
     return []
 
 
-def _quantize(
-    tensors: dict[str, Any],
-    *,
-    bits: int,
-    mx: Any,
-) -> dict[str, Any]:
-    """Quantize a dict of mlx arrays to the given bit width.
-
-    Linear (weight-only) tensors are group-quantized; small tensors (biases,
-    norms, embeddings) are kept in float16 to preserve accuracy.
-    """
-    import mlx.core as _mx  # type: ignore[import-not-found]
-
-    result: dict[str, Any] = {}
-    group_size = 64
-
-    for name, arr in tensors.items():
-        a = _mx.array(arr) if not isinstance(arr, _mx.array) else arr
-        # Only quantize 2-D weight matrices whose last dim is divisible by group_size;
-        # keep everything else in fp16 to avoid MLX quantize shape errors.
-        if (
-            a.ndim == 2
-            and a.shape[0] >= group_size
-            and a.shape[1] >= group_size
-            and a.shape[1] % group_size == 0
-        ):
-            q, scales, biases = _mx.quantize(a, bits=bits, group_size=group_size)
-            result[name] = q
-            result[f"{name}_scales"] = scales
-            result[f"{name}_biases"] = biases
-        else:
-            result[name] = a.astype(_mx.float16)
-
-    return result
-
-
-def _quant_bits(mtp_quant: str) -> int:
-    """Map a quant scheme string to an integer bit width."""
-    mapping = {"q4k": 4, "q8k": 8}
-    if mtp_quant not in mapping:
-        raise MtpExtractionError(f"unsupported mtp_quant for extraction: {mtp_quant!r}")
-    return mapping[mtp_quant]
-
-
 def _sidecar_filename(sidecar_repo: str) -> str:
     return sidecar_repo.replace("/", "--") + "-mtp.safetensors"
 
@@ -311,14 +306,13 @@ def _sidecar_filename(sidecar_repo: str) -> str:
 def _print_dry_run_plan(
     source_repo: str,
     sidecar_repo: str,
-    mtp_quant: str,
     output_path: Path,
 ) -> None:
     lines = [
         f"mtp source repo:  hf://{source_repo}",
         f"mtp sidecar repo: hf://{sidecar_repo}/mtp.safetensors",
-        f"mtp quant:        {mtp_quant}",
+        "mtp precision:    bf16 (unquantized)",
         f"mtp output path:  {output_path}",
-        "mtp step:         extract mtp.* tensors → quantize → upload",
+        "mtp step:         extract mtp.* tensors → upload (bf16, unquantized)",
     ]
     print("\n".join(lines))
