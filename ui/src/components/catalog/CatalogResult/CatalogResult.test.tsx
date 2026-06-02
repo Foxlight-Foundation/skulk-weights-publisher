@@ -23,6 +23,8 @@ const ENTRY: CatalogEntry = {
   mtp_sidecar_repo: null,
   mtp_quant: null,
   assistant_model_repo: null,
+  vision_source_repo: null,
+  vision_sidecar_repo: null,
 };
 
 beforeEach(() => {
@@ -68,13 +70,14 @@ describe('CatalogResult', () => {
     expect(screen.getByText('foxlight/gemma-3-4b-expert-server-q4-k')).toBeInTheDocument();
   });
 
-  it('shows MTP sidecar and assistant rows only when present', () => {
+  it('shows MTP, vision, and assistant rows only when present', () => {
     useCatalogStore.setState({
       phase: 'found',
       entries: [
         {
           ...ENTRY,
           mtp_sidecar_repo: 'FoxlightAI/some-mtp',
+          vision_sidecar_repo: 'FoxlightAI/some-vision',
           assistant_model_repo: 'google/gemma-4-27b-it-assistant',
         },
       ],
@@ -82,6 +85,7 @@ describe('CatalogResult', () => {
     });
     renderWithTheme(<CatalogResult />);
     expect(screen.getByText('FoxlightAI/some-mtp')).toBeInTheDocument();
+    expect(screen.getByText('FoxlightAI/some-vision')).toBeInTheDocument();
     expect(screen.getByText('google/gemma-4-27b-it-assistant')).toBeInTheDocument();
   });
 

@@ -51,6 +51,8 @@ export interface CatalogEntry {
   mtp_sidecar_repo: string | null;
   mtp_quant: string | null;
   assistant_model_repo: string | null;
+  vision_source_repo: string | null;
+  vision_sidecar_repo: string | null;
 }
 
 /** Response from POST /api/catalog/find (success) — one-to-many by source model */

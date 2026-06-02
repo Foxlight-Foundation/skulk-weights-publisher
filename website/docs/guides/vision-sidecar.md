@@ -57,10 +57,12 @@ The conventional name is `<source-slug>-vision`.
 
 ## Dry Run
 
-Preview what the step will do without downloading anything:
+Preview what the step will do without downloading anything. `--model` takes the
+**catalog key** (e.g. `foxlight/kimi-k2-5-full-q4-k`), not a HuggingFace repo
+name:
 
 ```bash
-uv run skulk-weights publish --model FoxlightAI/kimi-k2-5-full-q4-k --artifact vision --dry-run
+uv run skulk-weights publish --model foxlight/kimi-k2-5-full-q4-k --artifact vision --dry-run
 ```
 
 Output:
@@ -74,7 +76,7 @@ vision sidecar repo: hf://FoxlightAI/kimi-k2-5-vision
 
 ```bash
 uv run skulk-weights publish \
-  --model FoxlightAI/kimi-k2-5-full-q4-k \
+  --model foxlight/kimi-k2-5-full-q4-k \
   --artifact vision
 ```
 
@@ -99,14 +101,14 @@ only need to add the vision sidecar:
 
 ```bash
 # vindex already published, add the vision sidecar
-uv run skulk-weights publish --model FoxlightAI/kimi-k2-5-full-q4-k --artifact vision
+uv run skulk-weights publish --model foxlight/kimi-k2-5-full-q4-k --artifact vision
 ```
 
 Compare with:
 
 ```bash
 # publish every configured artifact for the entry in one run
-uv run skulk-weights publish --model FoxlightAI/kimi-k2-5-full-q4-k --artifact all
+uv run skulk-weights publish --model foxlight/kimi-k2-5-full-q4-k --artifact all
 ```
 
 ## Error Cases

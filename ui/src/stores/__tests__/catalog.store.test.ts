@@ -20,6 +20,8 @@ const ENTRY: CatalogEntry = {
   mtp_sidecar_repo: null,
   mtp_quant: null,
   assistant_model_repo: null,
+  vision_source_repo: null,
+  vision_sidecar_repo: null,
 };
 
 beforeEach(() => {

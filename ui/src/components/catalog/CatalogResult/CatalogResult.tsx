@@ -98,6 +98,7 @@ const EntryGrid = ({ entry }: { entry: CatalogEntry }) => (
 
     <Row label="Vindex repo" value={entry.hf_repo} />
     {entry.mtp_sidecar_repo && <Row label="MTP sidecar" value={entry.mtp_sidecar_repo} />}
+    {entry.vision_sidecar_repo && <Row label="Vision sidecar" value={entry.vision_sidecar_repo} />}
     {entry.assistant_model_repo && <Row label="Assistant" value={entry.assistant_model_repo} />}
     {entry.hf_collection && <Row label="Collection" value={entry.hf_collection} />}
   </Grid>
