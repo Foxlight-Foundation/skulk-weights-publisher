@@ -16,7 +16,7 @@ The built-in Foxlight catalog does not need a config file. You only need
 `--config`, make sure the path exists:
 
 ```bash
-skulk-weights --config skulk-weights.yaml catalog validate
+uv run skulk-weights --config skulk-weights.yaml catalog validate
 ```
 
 ## `models.yaml not found`
@@ -33,13 +33,13 @@ publication, not for normal validation or dry-runs.
 Run the safe command first:
 
 ```bash
-skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+uv run skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
 ```
 
 Then run the publishing preflight on the runner:
 
 ```bash
-skulk-weights doctor --publish
+uv run skulk-weights doctor --publish
 ```
 
 ## `HF_TOKEN is not set`
@@ -78,7 +78,7 @@ servers.
 Use a different scratch root when you want to keep the old output:
 
 ```bash
-skulk-weights publish \
+uv run skulk-weights publish \
   --model foxlight/gemma-3-4b-full-q4-k \
   --scratch /fast/scratch/skulk-weights-2
 ```
@@ -115,3 +115,21 @@ means either:
 Confirm that the source repo contains the original checkpoint (usually the
 upstream model card on Hugging Face will say so) and update `mtp_source_repo`
 accordingly.
+
+## `no vision sidecar configured for ...`
+
+This error occurs during real (non-dry-run) publishing. You ran
+`--artifact vision` on an entry that does not have both `vision_source_repo` and
+`vision_sidecar_repo` set in the catalog. The two fields are both-or-none.
+
+Either add those fields to the entry or use `--artifact vindex` to publish only
+the vindex. See the [Vision sidecar guide](guides/vision-sidecar.md) for the
+required catalog fields and how to structure the entry.
+
+## `no .safetensors weights found in ...`
+
+SWP resolved the `vision_source_repo` but found no `.safetensors` files to
+mirror. A vision sidecar mirrors the encoder weights byte-for-byte, so the
+source repo must actually contain `.safetensors` weights. Confirm that
+`vision_source_repo` points at the repository that holds the vision-encoder
+weights (often a third-party repo, not the mlx-community quant that omits them).

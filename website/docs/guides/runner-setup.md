@@ -14,7 +14,16 @@ placement: it creates the published vindex that later lets CPU/high-memory
 LARQL servers host weight-heavy FFN or expert pieces while GPU nodes handle the
 inference hot path.
 
-Required labels:
+:::warning Linux runners can publish vindexes only
+The self-hosted Linux `larql` runner can publish **vindexes only**. Real MTP and
+vision publishing requires a **macOS Apple Silicon** host, because `mlx`
+(used for MTP quantization) ships for `darwin`/`arm64` only. A Linux runner has
+no path to produce an MTP sidecar. Vision sidecars do not need `mlx`, but the
+CI vindex runner is not provisioned for them — run vision publishes from a
+macOS host with the `mtp` extras installed.
+:::
+
+Required labels (the CI vindex runner):
 
 ```text
 self-hosted
@@ -50,7 +59,14 @@ them as explicit operator actions, not background validation.
 Run this on the runner before dispatching a real publish:
 
 ```bash
-python3 -m pip install -e .
-skulk-weights doctor --publish
-skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+uv sync
+uv run skulk-weights doctor --publish
+uv run skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --dry-run
+```
+
+On a macOS Apple Silicon host that also publishes MTP or vision sidecars, sync
+the `mtp` extras instead:
+
+```bash
+uv sync --extra mtp
 ```

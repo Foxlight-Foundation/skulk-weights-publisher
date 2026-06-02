@@ -14,11 +14,16 @@ independently, and publishes them as `mtp.safetensors` to a separate HF reposito
 
 ## Prerequisites
 
-The same prerequisites as regular vindex publishing apply, plus:
+The same prerequisites as regular vindex publishing apply, plus the `mtp`
+extras (`huggingface_hub`, `safetensors`, `mlx`):
+
+```bash
+uv sync --extra mtp
+```
 
 - `huggingface_hub` Python package
 - `safetensors` Python package
-- `mlx` Python package (used for quantization)
+- `mlx` Python package (used for quantization; macOS Apple Silicon only)
 - Read access to the source BF16 checkpoint on Hugging Face
 - Write access to the sidecar repository on Hugging Face
 
@@ -54,7 +59,7 @@ release. For DeepSeek V3/R1, this is the `deepseek-ai/` namespace release.
 Preview what the step will do without downloading anything:
 
 ```bash
-skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp --dry-run
+uv run skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp --dry-run
 ```
 
 Output:
@@ -69,7 +74,7 @@ mtp output path:  /path/to/scratch/acme--qwen3-6b-mtp-q4k-mtp.safetensors
 ## Extract And Publish
 
 ```bash
-skulk-weights publish \
+uv run skulk-weights publish \
   --model acme/qwen3-6b-full-q4-k \
   --artifact mtp
 ```
@@ -87,7 +92,11 @@ The extractor:
    Small tensors—biases, norms, embeddings—are cast to float16 rather than
    quantized to preserve accuracy.
 5. Saves the result as a single `mtp.safetensors` file in scratch storage.
-6. Uploads it to `mtp_sidecar_repo` on Hugging Face.
+6. Uploads it to `mtp_sidecar_repo` on Hugging Face, alongside a self-describing
+   `README.md` model card. The card inherits the source model's license
+   unchanged and carries a Foxlight provenance block pinning the source SHA.
+7. Files the repo into the `MTP Sidecars` Hugging Face collection (unless
+   `SKULK_WEIGHTS_COLLECTION` is set to a disabling value).
 
 ## Publishing Only The MTP Sidecar
 
@@ -97,14 +106,14 @@ and you only need to add the sidecar:
 
 ```bash
 # vindex already published, add the MTP sidecar
-skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp
+uv run skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp
 ```
 
 Compare with:
 
 ```bash
-# publish both vindex and MTP sidecar in one run
-skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact all
+# publish every configured artifact for the entry in one run
+uv run skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact all
 ```
 
 ## Error Cases
@@ -119,8 +128,7 @@ add mtp_source_repo, mtp_sidecar_repo, and mtp_quant to the catalog entry
 **No `mtp.*` keys found in source repo:**
 
 ```
-MtpExtractionError: no mtp.* keys found in Qwen/Qwen3-6B;
-confirm this model has native MTP heads
+no mtp.* keys found in Qwen/Qwen3-6B; confirm this model has native MTP heads
 ```
 
 This happens when `mtp_source_repo` points to an mlx-converted checkpoint instead
@@ -129,11 +137,13 @@ of the original BF16 release, or when the model genuinely does not have MTP head
 **Missing Python dependencies:**
 
 ```
-MtpExtractionError: huggingface_hub and safetensors are required for MTP extraction
-MtpExtractionError: mlx is required for MTP weight quantization
+huggingface_hub is required for MTP extraction
+safetensors is required for single-file model inspection
+mlx is required for MTP weight quantization
 ```
 
-Install with `pip install huggingface_hub safetensors mlx`.
+Install the extras with `uv sync --extra mtp`. Note that `mlx` is macOS Apple
+Silicon only, so MTP quantization cannot run on a Linux host.
 
 ## Scratch Storage
 

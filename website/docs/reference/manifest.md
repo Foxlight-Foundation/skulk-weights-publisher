@@ -67,6 +67,26 @@ The `mtp_source_repo` is often different from `source_model`. `source_model` is 
 mlx-converted or community checkpoint; `mtp_source_repo` must be the original PyTorch BF16 release
 because mlx-lm's `sanitize()` strips `mtp.*` keys during conversion.
 
+### Assistant model field
+
+| Field | Meaning |
+|---|---|
+| `assistant_model_repo` | Optional Hugging Face model ID (`owner/name`) of a Gemma-4-style companion assistant used for speculative decoding. Mutually exclusive with the MTP sidecar fields |
+
+A model uses either an MTP sidecar or a companion assistant for speculative
+decoding, never both. `catalog add` writes `assistant_model_repo` automatically
+when the base model has no `mtp.*` keys but a `{model}-assistant` companion
+exists.
+
+### Vision sidecar fields
+
+These two fields must both be set together or both omitted.
+
+| Field | Meaning |
+|---|---|
+| `vision_source_repo` | Hugging Face model ID whose vision weights and configs are mirrored byte-for-byte |
+| `vision_sidecar_repo` | Hugging Face repository where the mirrored vision weights are uploaded |
+
 Example entry with MTP sidecar:
 
 ```yaml
@@ -82,6 +102,24 @@ models:
     mtp_source_repo: Qwen/Qwen3-6B
     mtp_sidecar_repo: acme/qwen3-6b-mtp-q4k
     mtp_quant: q4k
+    vision_source_repo: acme/qwen3-6b-vl
+    vision_sidecar_repo: acme/qwen3-6b-vision
+```
+
+A model that uses a companion assistant instead of an MTP sidecar declares
+`assistant_model_repo` on its own:
+
+```yaml
+models:
+  - key: gemma-3-4b-full-q4-k
+    source_model: google/gemma-3-4b-it
+    quant: q4k
+    tier: smoke
+    slices:
+      - full
+    output_name: gemma-3-4b-it-full-q4-k.vindex
+    hf_repo: FoxlightAI/gemma-3-4b-it-full-q4-k-vindex
+    assistant_model_repo: google/gemma-3-4b-it-assistant
 ```
 
 ## Validation Rules
@@ -92,6 +130,7 @@ models:
 - `quant` currently supports `q4k`
 - `tier` must be `smoke` or `moe`
 - `slices` must be non-empty
+- each slice must be one of `full` or `expert-server`
 - `full` cannot be combined with other slices
 - `output_name` must be a `.vindex` basename and unique in the merged catalog
 - `hf_repo` must look like `owner/name` and be unique in the merged catalog
@@ -101,6 +140,12 @@ models:
 - `mtp_source_repo` and `mtp_sidecar_repo` must look like `owner/name`
 - `mtp_quant` currently supports `q4k` and `q8k`
 - `mtp_source_repo`, `mtp_sidecar_repo`, and `mtp_quant` must all be set together or all omitted
+- `mtp_sidecar_repo` owner must match the `hf_repo` owner
+- `assistant_model_repo` must look like `owner/name`
+- `assistant_model_repo` is mutually exclusive with `mtp_source_repo` (a model uses an MTP sidecar or a companion assistant, never both)
+- `vision_source_repo` and `vision_sidecar_repo` must look like `owner/name`
+- `vision_source_repo` and `vision_sidecar_repo` must both be set together or both omitted
+- `vision_sidecar_repo` owner must match the `hf_repo` owner
 
 ## Generated Commands
 

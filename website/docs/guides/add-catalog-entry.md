@@ -13,7 +13,7 @@ than setting up an operator-owned catalog, use `catalog add` instead of editing
 `foxlight.yaml` by hand:
 
 ```bash
-skulk-weights catalog add mlx-community/Qwen3-6B-4bit --dry-run
+uv run skulk-weights catalog add mlx-community/Qwen3-6B-4bit --dry-run
 ```
 
 See the [`catalog add` CLI reference](../reference/cli.md) for details. The
@@ -27,7 +27,7 @@ source alongside the built-in Foxlight entries.
 Start with a config file:
 
 ```bash
-skulk-weights catalog init
+uv run skulk-weights catalog init
 ```
 
 Edit `skulk-weights.yaml` so it points at your operator source:
@@ -123,15 +123,33 @@ If the source config sets `hf_collection`, the published repo is added to that
 collection after `larql publish` succeeds. You can also set `hf_collection` on a
 single manifest entry when one entry needs a different collection.
 
+## Optional Sidecar Fields
+
+Beyond the vindex fields above, an entry can carry optional fields that describe
+companion artifacts. These are mutually exclusive groups — set a full group or
+none of it:
+
+- `mtp_source_repo` / `mtp_sidecar_repo` / `mtp_quant` — an MTP sidecar
+  extracted and quantized from the BF16 checkpoint. See the
+  [MTP sidecar guide](mtp-sidecar.md).
+- `vision_source_repo` / `vision_sidecar_repo` — a byte-for-byte mirror of a
+  VLM's vision encoder. See the [Vision sidecar guide](vision-sidecar.md).
+- `assistant_model_repo` — a companion `{model}-assistant` drafter model (the
+  Gemma 4 pattern), recorded rather than extracted. Cannot be combined with any
+  `mtp_*` field. See the [Gemma 4 assistant guide](gemma4-assistant.md).
+
+`skulk-weights catalog add` auto-detects which of these applies when you add a
+model, so you usually do not write them by hand.
+
 ## 7. Validate And Dry-Run
 
 After editing the operator source, run:
 
 ```bash
-skulk-weights --config skulk-weights.yaml catalog validate
-skulk-weights --config skulk-weights.yaml catalog show \
+uv run skulk-weights --config skulk-weights.yaml catalog validate
+uv run skulk-weights --config skulk-weights.yaml catalog show \
   my-org/llama-3-8b-full-q4-k
-skulk-weights --config skulk-weights.yaml publish \
+uv run skulk-weights --config skulk-weights.yaml publish \
   --model my-org/llama-3-8b-full-q4-k \
   --dry-run
 ```

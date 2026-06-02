@@ -4,7 +4,7 @@ title: "SWP: Skulk Weights Publisher"
 ---
 
 SWP: Skulk Weights Publisher publishes model weights for Skulk clusters. It
-handles two distinct artifact types:
+handles three distinct artifact types:
 
 **LARQL vindexes** — LARQL decompiles transformer weights into a queryable
 vindex format so Skulk does not have to keep every weight resident in expensive
@@ -17,6 +17,24 @@ published separately. Standard quantization pipelines strip MTP tensors. SWP
 re-extracts them from the original BF16 checkpoint, quantizes, and uploads the
 result as `mtp.safetensors` to a dedicated repo so Skulk can use speculative
 decoding.
+
+**Vision sidecars** — mlx-community VLM quants frequently omit the vision
+encoder, leaving the vision weights to live in a third-party repository. SWP
+mirrors those encoder weights byte-for-byte into a Foxlight-owned repo so the
+multimodal path has no external dependency. See the
+[Vision sidecar guide](guides/vision-sidecar.md).
+
+Not every model embeds MTP heads. Gemma 4, for example, ships a separate
+companion `{model}-assistant` drafter model for speculative decoding rather
+than `mtp.*` tensors. SWP detects this pattern and records the pairing in the
+catalog — no tensor extraction is needed. See the
+[Gemma 4 assistant guide](guides/gemma4-assistant.md).
+
+Every real publish also uploads a self-describing `README.md` model card: the
+source model's license is inherited unchanged, with a Foxlight provenance block
+pinning the exact source SHA, plus usage notes. Each artifact is filed into its
+per-artifact-type Hugging Face collection (Vindexes, MTP Sidecars, or Vision
+Sidecars).
 
 SWP keeps the list of models Skulk wants, validates how each one should be
 extracted and sliced or quantized, shows the exact commands that will run, and

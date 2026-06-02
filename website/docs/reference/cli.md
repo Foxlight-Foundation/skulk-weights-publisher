@@ -12,9 +12,13 @@ Those jobs keep publication reviewable before LARQL extracts large weight
 directories. The published artifacts are the stable objects Skulk can later place
 across GPU inference nodes and CPU/high-memory weight-serving nodes.
 
+`catalogue` is a legacy alias for `catalog`; every `catalog` subcommand below
+also works under `catalogue`.
+
 ## Global Options
 
-Global options come before the subcommand.
+Global options come before the subcommand. `--config` and `--manifest` are
+mutually exclusive.
 
 `--config PATH` loads `PATH` as `skulk-weights.yaml`. The built-in Foxlight
 catalog is still included, and the config can add operator catalog sources.
@@ -80,6 +84,25 @@ Example:
 skulk-weights catalog show foxlight/gemma-3-4b-full-q4-k
 ```
 
+## `skulk-weights catalog find HF_URL_OR_OWNER/REPO`
+
+Reverse lookup: given an upstream source model, prints every catalog entry
+whose `source_model` matches. The lookup is one-to-many — a single source model
+can map to several entries (for example a `full` slice plus an `expert-server`
+slice) — so each matching entry is printed as a JSON object, one per line.
+
+Accepts either a bare `owner/repo` string or a full `https://huggingface.co/...`
+URL. Respects `--config`, so it searches operator sources too.
+
+Exits 1 with a stderr message when no entry matches the given source model.
+
+Example:
+
+```bash
+skulk-weights catalog find google/gemma-3-4b-it
+skulk-weights catalog find https://huggingface.co/google/gemma-3-4b-it
+```
+
 ## `skulk-weights catalog init`
 
 Writes a starter `skulk-weights.yaml`. The generated file is valid immediately
@@ -113,9 +136,12 @@ What it does:
 1. Resolves the HF model ID (accepts bare `owner/repo` strings)
 2. Fetches model card tags to detect quant scheme and tier
 3. Checks the base model for `mtp.*` tensor keys and populates MTP sidecar fields if found
-4. Derives `key`, `output_name`, and `hf_repo` from the model ID
-5. Validates no key, output name, or repo collisions against the existing catalog
-6. Appends the entry to the built-in `foxlight.yaml`
+4. If no `mtp.*` keys are found, checks for a Gemma-4-style companion model
+   named `{model}-assistant` and, when present, writes `assistant_model_repo`
+   instead of any MTP fields
+5. Derives `key`, `output_name`, and `hf_repo` from the model ID
+6. Validates no key, output name, or repo collisions against the existing catalog
+7. Appends the entry to the built-in `foxlight.yaml`
 
 Examples:
 
@@ -168,14 +194,42 @@ Adds publication-specific checks for `larql`, `HF_TOKEN`, and the
 Builds the publish plan for one catalog entry. With `--dry-run`, it only
 prints the plan. Without `--dry-run`, it runs the selected artifact step:
 
-- `vindex`: runs `larql extract`, `larql publish`, and adds the repository to
-  the configured Hugging Face collection.
+- `vindex`: runs `larql extract`, `larql publish`, and files the repository
+  into the configured Hugging Face collection.
 - `mtp`: downloads only the shards that contain `mtp.*` tensor keys from the
   original BF16 checkpoint, quantizes them, and uploads `mtp.safetensors` to
   the sidecar repository. Requires `mtp_source_repo`, `mtp_sidecar_repo`, and
   `mtp_quant` on the catalog entry.
-- `vision`: not yet implemented; raises an error if passed without `--dry-run`.
-- `all` (default): runs `vindex`, then `mtp` if configured on the entry.
+- `vision`: mirrors the vision source repo's weights and configs into the
+  vision sidecar repo byte-for-byte — no quantization and no dtype conversion.
+  Requires `vision_source_repo` and `vision_sidecar_repo` on the catalog entry;
+  raises an error only when those are not configured.
+- `all` (default): runs `vindex`, then `mtp`, then `vision`, skipping any
+  artifact not configured on the entry.
+
+### Model cards
+
+Every real publish (vindex, mtp, or vision) also uploads a self-describing
+`README.md` model card to the published repo, with frontmatter recording the
+`base_model`, `tags`, the inherited source `license`, and a `foxlight:` block
+(artifact type, source repo and pinned source revision, target model, quant,
+catalog key, and generation timestamp). The source revision and license are
+resolved best-effort from the Hub using `HF_TOKEN`. See the
+[Manifest Reference](./manifest.md) for the entry fields these cards describe.
+
+### Collections
+
+Each artifact is filed into the Hugging Face collection for its type:
+
+- the vindex is filed into the configured slug exactly — the entry's
+  `hf_collection` or the `SKULK_WEIGHTS_COLLECTION` override;
+- mtp and vision sidecars are filed into their per-type collections,
+  `MTP Sidecars` and `Vision Sidecars`, resolved by title (created if missing,
+  reused if present).
+
+Filing is disabled when no collection is configured for the entry, or when
+`SKULK_WEIGHTS_COLLECTION` is set to a disable value (see the
+[Environment Reference](./environment.md)).
 
 Options:
 
@@ -205,8 +259,11 @@ Expected dry-run output includes:
 - source model
 - local output path
 - target Hugging Face repository
-- target Hugging Face collection
+- the vindex collection (`vindex collection: <slug>`, or `collection: disabled`)
 - `larql extract` command (vindex artifact)
 - `larql publish` command (vindex artifact)
-- MTP source repo, sidecar repo, quant, and output path (mtp artifact)
-- note when mtp or vision is not configured for the entry
+- MTP source repo, sidecar repo, quant, and output path, plus
+  `mtp collection: MTP Sidecars` (mtp artifact)
+- vision source repo, sidecar repo, the mirror note, plus
+  `vision collection: Vision Sidecars` (vision artifact)
+- a note when mtp or vision is not configured for the entry

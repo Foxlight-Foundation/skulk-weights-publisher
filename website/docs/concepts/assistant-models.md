@@ -53,10 +53,14 @@ assistant_model_repo: google/gemma-4-27b-it-assistant
 `mtp_sidecar_repo`, and `mtp_quant`. Setting both on the same entry is a
 validation error.
 
-Detection: `skulk-weights catalog add` automatically tries `{immediate_base}-assistant`
-and `{resolved_base}-assistant` via a HEAD request against the HuggingFace API.
-If the candidate repository exists (HTTP 200), it is written to the catalog entry.
-No download occurs.
+Detection: `find_assistant_model` checks three candidates in order via a HEAD
+request against the HuggingFace API—`{model}-assistant` for the pasted model
+itself, then `{immediate_base}-assistant`, then `{resolved_base}-assistant` for
+the resolved BF16 root. The first candidate that exists (HTTP 200) is written to
+the catalog entry. No download occurs.
+
+When an assistant is found, the written entry uses `assistant_model_repo` and
+omits the `mtp_*` fields—assistant presence takes priority at write time.
 
 ## Choosing between the two patterns
 
