@@ -10,12 +10,38 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import skulk_weights_publisher.mtp_extractor as mtp_mod
 from skulk_weights_publisher.mtp_extractor import (
     MtpExtractionError,
     _print_dry_run_plan,
     _quant_bits,
     _sidecar_filename,
+    extract_mtp,
 )
+
+
+def test_extract_mtp_skips_when_sidecar_already_published(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # When the sidecar exists, extract_mtp informs the operator that it already
+    # covers the model (and all its quantizations) and skips — no re-extraction.
+    monkeypatch.setattr(mtp_mod, "_sidecar_already_published", lambda *a, **k: True)
+    logs: list[str] = []
+
+    extract_mtp(
+        "Qwen/Qwen3.6-35B-A3B",
+        "FoxlightAI/qwen3-6-35b-a3b-mtp-q4-k",
+        "q4k",
+        tmp_path,
+        token="hf_tok",
+        log=logs.append,
+    )
+
+    joined = "\n".join(logs)
+    assert "already exists" in joined
+    assert "every quantization" in joined
+    # It returned before doing any extraction work — no shards downloaded.
+    assert not (tmp_path / "_hf_cache").exists()
 
 # ---------------------------------------------------------------------------
 # _quant_bits

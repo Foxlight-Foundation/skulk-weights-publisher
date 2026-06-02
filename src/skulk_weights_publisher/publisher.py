@@ -288,6 +288,7 @@ def execute_publish_plan(
                 plan.scratch_root,
                 token=env.get("HF_TOKEN"),
                 dry_run=False,
+                force=force,
                 catalog_key=plan.entry.key,
             )
             if plan.collection_slug is not None:

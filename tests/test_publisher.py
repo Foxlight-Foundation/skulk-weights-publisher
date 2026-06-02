@@ -279,6 +279,7 @@ def test_execute_publish_plan_mtp_calls_extractor(
         *,
         token: str | None,
         dry_run: bool = False,
+        force: bool = False,
         catalog_key: str | None = None,
     ) -> None:
         extract_calls.append((source_repo, sidecar_repo, mtp_quant, scratch_root))

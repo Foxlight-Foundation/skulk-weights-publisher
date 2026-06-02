@@ -19,6 +19,24 @@ def _stderr_log(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _sidecar_already_published(sidecar_repo: str, *, token: str | None) -> bool:
+    """Return True if ``sidecar_repo`` already has ``mtp.safetensors`` on the Hub.
+
+    Best-effort: any lookup failure (repo absent, no network, hub unavailable)
+    is treated as "not published" so extraction proceeds normally.
+    """
+    try:
+        from huggingface_hub import HfApi
+    except ImportError:
+        return False
+    try:
+        return bool(
+            HfApi().file_exists(sidecar_repo, "mtp.safetensors", token=token)
+        )
+    except Exception:  # noqa: BLE001 - existence check is best-effort
+        return False
+
+
 def _is_mtp_key(key: str) -> bool:
     return key.startswith("mtp.") or ".mtp." in key
 
@@ -73,6 +91,7 @@ def extract_mtp(
     *,
     token: str | None,
     dry_run: bool = False,
+    force: bool = False,
     catalog_key: str | None = None,
     log: Callable[[str], None] | None = None,
 ) -> None:
@@ -96,6 +115,17 @@ def extract_mtp(
 
     if dry_run:
         _print_dry_run_plan(source_repo, sidecar_repo, mtp_quant, output_path)
+        return
+
+    # The MTP heads belong to the base model, so one sidecar serves every
+    # quantization of it. If it's already published, don't silently re-extract —
+    # tell the operator it already covers this model and skip.
+    if not force and _sidecar_already_published(sidecar_repo, token=token):
+        emit(
+            f"mtp: sidecar already exists at hf://{sidecar_repo}/mtp.safetensors "
+            f"— it already covers {source_repo} and every quantization of it. "
+            "Skipping (pass --force to re-extract)."
+        )
         return
 
     try:

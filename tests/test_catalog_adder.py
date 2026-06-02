@@ -157,6 +157,26 @@ def test_detect_quant_q8k_tag_keyword() -> None:
     assert detect_quant({"id": "mlx-community/Foo", "tags": ["q8"]}) == "q8k"
 
 
+def test_detect_quant_recognizes_fp8() -> None:
+    # mxfp8/fp8 are 8-bit float formats — must map to q8k, not the q4k default.
+    mxfp8 = {"id": "mlx-community/Qwen3.6-35B-A3B-mxfp8", "tags": []}
+    assert detect_quant(mxfp8) == "q8k"
+    assert detect_quant({"id": "org/Foo-FP8", "tags": []}) == "q8k"
+
+
+def test_detect_quant_recognizes_int8_and_w8a() -> None:
+    assert detect_quant({"id": "org/Foo-int8", "tags": []}) == "q8k"
+    assert detect_quant({"id": "org/Foo", "tags": ["w8a8"]}) == "q8k"
+
+
+def test_detect_quant_four_bit_variants_default_q4k() -> None:
+    # Distinct-looking 4-bit variants of one base all bucket to q4k.
+    optiq = {"id": "mlx-community/Qwen3.6-35B-A3B-OptiQ-4bit", "tags": []}
+    ud_mlx = {"id": "unsloth/Qwen3.6-35B-A3B-UD-MLX-4bit", "tags": []}
+    assert detect_quant(optiq) == "q4k"
+    assert detect_quant(ud_mlx) == "q4k"
+
+
 # ── detect_tier ──────────────────────────────────────────────────────────────
 
 

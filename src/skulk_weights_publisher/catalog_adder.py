@@ -114,12 +114,29 @@ def resolve_base_model(
     return detect_base_model(current)
 
 
+# 8-bit-family quant markers seen in HF model ids/tags. Anything not matching
+# (4-bit, nf4, awq/gptq, mxfp4, unquantized, …) buckets to the q4k default.
+# Note: mxfp8 / fp8 are 8-bit float formats and must map to q8k, not silently
+# fall through to q4k — see test_detect_quant_recognizes_fp8.
+_EIGHT_BIT_MARKERS = ("8-bit", "8bit", "int8", "fp8", "q8", "w8a")
+
+
 def detect_quant(info: dict[str, Any]) -> str:
-    """Infer quant scheme from tags or model name. Returns 'q4k' or 'q8k'."""
+    """Infer the **sidecar** quant scheme from the model's tags or name.
+
+    Buckets into the two supported sidecar quants: ``q8k`` for 8-bit-family
+    formats (8bit / int8 / fp8 / mxfp8 / q8 / w8a*), else ``q4k``.
+
+    The sidecar's quant intentionally tracks the *model's* quant tier — users
+    expect "the sidecar matches my model" — even though the MTP heads are
+    extracted from the base. So different quantizations of one base map to one
+    sidecar *per quant tier* (e.g. all 4-bit variants share ``…-mtp-q4-k``; all
+    8-bit variants share ``…-mtp-q8-k``).
+    """
     model_id: str = info.get("id", "")
     tags: list[str] = info.get("tags", [])
     combined = " ".join(tags).lower() + " " + model_id.lower()
-    if "8-bit" in combined or "-8bit" in combined or "q8" in combined:
+    if any(marker in combined for marker in _EIGHT_BIT_MARKERS):
         return "q8k"
     return "q4k"
 
