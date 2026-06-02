@@ -56,7 +56,7 @@ class CardInfo:
 
     artifact_type: ArtifactType
     repo_id: str
-    """The repo being published, e.g. ``FoxlightAI/qwen3-6-35b-a3b-mtp-q4k``."""
+    """The repo being published, e.g. ``FoxlightAI/qwen3-6-35b-a3b-mtp``."""
     source_repo: str
     """Upstream repo the artifact was derived from (the provenance link)."""
     source_revision: str | None = None
@@ -174,7 +174,11 @@ def _summary(info: CardInfo, label: str) -> str:
             "It is **not a standalone model** — it provides the multi-token-"
             "prediction heads used by "
             "[Skulk](https://github.com/Foxlight-Foundation/Skulk) "
-            f"to speculatively decode for the target model **`{target}`**{quant}."
+            f"to speculatively decode for the target model **`{target}`**{quant}. "
+            "The heads ship at full precision (**bf16, unquantized**) — they are "
+            "the speculative drafter, where precision drives draft acceptance — so "
+            "there is **one sidecar per base model** and it serves **every "
+            "quantization** of the target."
         )
     if info.artifact_type == "vindex":
         return (

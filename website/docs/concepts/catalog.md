@@ -87,8 +87,8 @@ The Foxlight catalog is still included automatically when you pass the config.
 - `hf_repo`: the Hugging Face repository that receives the published vindex
 - `hf_collection`: the Hugging Face collection that receives the published vindex
 - `mtp_source_repo`: the BF16 checkpoint the MTP heads are extracted from
-- `mtp_sidecar_repo`: the repository that receives the published `mtp.safetensors`
-- `mtp_quant`: the quantization applied to the extracted MTP tensors (`q4k` or `q8k`)
+- `mtp_sidecar_repo`: the repository that receives the published bf16
+  `mtp.safetensors` (one sidecar per base model, shared across all quantizations)
 - `assistant_model_repo`: the companion `{model}-assistant` drafter model (a
   pointer to a Google-published model; no tensors are extracted for it)
 - `vision_source_repo`: the third-party repository whose vision weights are mirrored

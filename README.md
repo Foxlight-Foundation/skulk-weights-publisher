@@ -18,8 +18,9 @@ inference path.
 tensor keys, such as Qwen3 and DeepSeek V3/R1) require those heads to be
 published separately. Standard quantization pipelines (e.g. mlx-lm's
 `sanitize()`) strip MTP tensors. SWP re-extracts them from the original BF16
-checkpoint, quantizes, and publishes the result as `mtp.safetensors` to a
-dedicated Hugging Face repo so Skulk can use speculative decoding.
+checkpoint and publishes them at full precision (bf16, unquantized) as
+`mtp.safetensors` to a dedicated Hugging Face repo — one sidecar per base model,
+shared across every quantization of it — so Skulk can use speculative decoding.
 
 This repository is the controlled publication workflow. It keeps the catalog
 of publishable model weights, validates that catalog, prints the exact commands,
@@ -65,8 +66,10 @@ Vindex entries (all entries currently in the Foxlight catalog):
 | `foxlight/mixtral-8x22b-expert-server-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `expert-server` |
 
 Catalog entries can additionally declare MTP fields (`mtp_source_repo`,
-`mtp_sidecar_repo`, `mtp_quant`) to enable sidecar extraction for models with
-native prediction heads. See the [MTP sidecar guide](https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar)
+`mtp_sidecar_repo`) to enable sidecar extraction for models with native
+prediction heads. The sidecar ships at full precision (bf16, unquantized) — one
+per base model, shared across every quantization. See the
+[MTP sidecar guide](https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar)
 for catalog entry format and prerequisites.
 
 ## Gemma 4 Assistant Models

@@ -15,7 +15,6 @@ const SAMPLE: CatalogEntry = {
   hf_collection: 'FoxlightAI/vindexes-6a124406dd5fb439c431b051',
   mtp_source_repo: null,
   mtp_sidecar_repo: null,
-  mtp_quant: null,
   assistant_model_repo: null,
   vision_source_repo: null,
   vision_sidecar_repo: null,

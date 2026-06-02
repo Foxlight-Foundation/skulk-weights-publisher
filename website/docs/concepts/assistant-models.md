@@ -12,15 +12,16 @@ ship their draft-model weights in different ways — SWP handles both.
 Qwen3 and DeepSeek V3/R1 embed multi-token prediction (MTP) heads directly as
 `mtp.*` tensor keys inside the BF16 checkpoint. Standard quantization pipelines
 (mlx-lm's `sanitize()`) strip these keys when converting the model. SWP
-re-extracts them from the original BF16 checkpoint, quantizes them, and publishes
-the result as `mtp.safetensors` to a separate Hugging Face repository.
+re-extracts them from the original BF16 checkpoint and publishes the result at
+full precision (bf16, unquantized) as `mtp.safetensors` to a separate Hugging
+Face repository. One bf16 sidecar serves every quantization of the base model,
+so there is one sidecar per base model.
 
 Catalog fields for this pattern:
 
 ```yaml
-mtp_source_repo: Qwen/Qwen3.5-9B          # BF16 source to extract from
-mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp-q4-k  # where mtp.safetensors lands
-mtp_quant: q4k
+mtp_source_repo: Qwen/Qwen3.5-9B        # BF16 source to extract from
+mtp_sidecar_repo: FoxlightAI/qwen3-5-9b-mtp  # where mtp.safetensors lands
 ```
 
 Detection: `skulk-weights catalog add` fetches `model.safetensors.index.json`
@@ -49,9 +50,8 @@ Catalog field for this pattern:
 assistant_model_repo: google/gemma-4-27b-it-assistant
 ```
 
-`assistant_model_repo` is mutually exclusive with `mtp_source_repo`,
-`mtp_sidecar_repo`, and `mtp_quant`. Setting both on the same entry is a
-validation error.
+`assistant_model_repo` is mutually exclusive with `mtp_source_repo` and
+`mtp_sidecar_repo`. Setting both on the same entry is a validation error.
 
 Detection: `find_assistant_model` checks three candidates in order via a HEAD
 request against the HuggingFace API—`{model}-assistant` for the pasted model
@@ -78,10 +78,9 @@ tree is:
 ## Catalog schema summary
 
 ```yaml
-# Embedded MTP heads (Qwen3, DeepSeek)
+# Embedded MTP heads (Qwen3, DeepSeek) — sidecar ships bf16, one per base model
 mtp_source_repo: owner/model-bf16
-mtp_sidecar_repo: FoxlightAI/model-mtp-q4-k
-mtp_quant: q4k   # "q4k" or "q8k"
+mtp_sidecar_repo: FoxlightAI/model-mtp
 
 # Companion assistant (Gemma 4)
 assistant_model_repo: google/gemma-4-27b-it-assistant

@@ -55,13 +55,17 @@ my-org/gemma-3-4b-full-q4-k
 
 ### MTP sidecar fields
 
-These three fields must all be set together or all omitted.
+These two fields must both be set together or both omitted.
 
 | Field | Meaning |
 |---|---|
 | `mtp_source_repo` | Hugging Face model ID of the original BF16 checkpoint that contains `mtp.*` tensor keys |
-| `mtp_sidecar_repo` | Hugging Face repository where `mtp.safetensors` will be uploaded |
-| `mtp_quant` | Quantization scheme for the extracted MTP weights, currently `q4k` or `q8k` |
+| `mtp_sidecar_repo` | Hugging Face repository where the bf16 `mtp.safetensors` will be uploaded |
+
+The MTP heads ship at full precision (bf16, unquantized): they are the
+speculative drafter, and one bf16 sidecar serves every quantization of the base
+model. There is one sidecar per base model, so `mtp_sidecar_repo` carries no
+quant suffix.
 
 The `mtp_source_repo` is often different from `source_model`. `source_model` is typically an
 mlx-converted or community checkpoint; `mtp_source_repo` must be the original PyTorch BF16 release
@@ -100,8 +104,7 @@ models:
     output_name: qwen3-6b-full-q4-k.vindex
     hf_repo: acme/qwen3-6b-full-q4-k-vindex
     mtp_source_repo: Qwen/Qwen3-6B
-    mtp_sidecar_repo: acme/qwen3-6b-mtp-q4k
-    mtp_quant: q4k
+    mtp_sidecar_repo: acme/qwen3-6b-mtp
     vision_source_repo: acme/qwen3-6b-vl
     vision_sidecar_repo: acme/qwen3-6b-vision
 ```
@@ -138,8 +141,7 @@ models:
 - `hf_collection` must look like `owner/slug`
 - operator `hf_collection` owners must match the source `hf_owner` in `skulk-weights.yaml`
 - `mtp_source_repo` and `mtp_sidecar_repo` must look like `owner/name`
-- `mtp_quant` currently supports `q4k` and `q8k`
-- `mtp_source_repo`, `mtp_sidecar_repo`, and `mtp_quant` must all be set together or all omitted
+- `mtp_source_repo` and `mtp_sidecar_repo` must both be set together or both omitted
 - `mtp_sidecar_repo` owner must match the `hf_repo` owner
 - `assistant_model_repo` must look like `owner/name`
 - `assistant_model_repo` is mutually exclusive with `mtp_source_repo` (a model uses an MTP sidecar or a companion assistant, never both)

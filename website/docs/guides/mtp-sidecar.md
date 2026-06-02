@@ -9,8 +9,17 @@ MTP heads as `mtp.*` tensor keys baked into the BF16 checkpoint.
 
 mlx-lm's `sanitize()` strips `mtp.*` keys during conversion, so the converted
 checkpoint used for vindex publication does not contain them. The MTP sidecar
-step re-extracts them from the original BF16 checkpoint, quantizes them
-independently, and publishes them as `mtp.safetensors` to a separate HF repository.
+step re-extracts them from the original BF16 checkpoint and publishes them at
+**full precision (bf16, unquantized)** as `mtp.safetensors` to a separate HF
+repository.
+
+The heads are **not** quantized. They are the speculative *drafter*, and their
+only job is to maximize draft *acceptance*—the entire point of the feature.
+Quantizing them would degrade acceptance to save only tens of MB on a multi-GB
+model, a bad trade. The heads are also independent of the target model's
+quantization: the Skulk runtime loads the sidecar through its own path, so
+**one bf16 sidecar serves every quantization of the base model**. There is one
+sidecar per base model, quant-independent.
 
 ## Prerequisites
 
@@ -23,14 +32,14 @@ uv sync --extra mtp
 
 - `huggingface_hub` Python package
 - `safetensors` Python package
-- `mlx` Python package (used for quantization; macOS Apple Silicon only)
+- `mlx` Python package (used for safetensors I/O)
 - Read access to the source BF16 checkpoint on Hugging Face
 - Write access to the sidecar repository on Hugging Face
 
 ## Catalog Entry
 
-Add three fields to the catalog entry. All three must be present or all three
-must be absent:
+Add two fields to the catalog entry. Both must be present or both must be
+absent:
 
 ```yaml
 models:
@@ -42,17 +51,19 @@ models:
       - full
     output_name: qwen3-6b-full-q4-k.vindex
     hf_repo: acme/qwen3-6b-full-q4-k-vindex
-    mtp_source_repo: Qwen/Qwen3-6B          # original BF16 checkpoint
-    mtp_sidecar_repo: acme/qwen3-6b-mtp-q4k # where mtp.safetensors lands
-    mtp_quant: q4k                           # quant applied to the extracted tensors
+    mtp_source_repo: Qwen/Qwen3-6B       # original BF16 checkpoint
+    mtp_sidecar_repo: acme/qwen3-6b-mtp  # where mtp.safetensors lands
 ```
 
 `mtp_source_repo` is typically the canonical model owner's BF16 release, not an
 mlx-converted community checkpoint. For Qwen3 models, this is the `Qwen/` namespace
 release. For DeepSeek V3/R1, this is the `deepseek-ai/` namespace release.
 
-`mtp_quant` is independent of the vindex `quant`. Use `q4k` for Apple Silicon and
-`q8k` if you need higher fidelity (e.g., for AMD hardware or evaluation runs).
+The sidecar repo carries no quant suffix. Because the bf16 sidecar is shared
+across every quantization of the base model, the name is `<owner>/<base-slug>-mtp`
+(here `acme/qwen3-6b-mtp`)—there is one sidecar per base model, not one per
+quant tier. Every vindex entry for the same base model points at the same
+`mtp_sidecar_repo`.
 
 ## Dry Run
 
@@ -66,9 +77,9 @@ Output:
 
 ```
 mtp source repo:  hf://Qwen/Qwen3-6B
-mtp sidecar repo: hf://acme/qwen3-6b-mtp-q4k/mtp.safetensors
-mtp quant:        q4k
-mtp output path:  /path/to/scratch/acme--qwen3-6b-mtp-q4k-mtp.safetensors
+mtp sidecar repo: hf://acme/qwen3-6b-mtp/mtp.safetensors
+mtp precision:    bf16 (unquantized)
+mtp output path:  /path/to/scratch/acme--qwen3-6b-mtp-mtp.safetensors
 ```
 
 ## Extract And Publish
@@ -88,9 +99,8 @@ The extractor:
    by default). Large models ship dozens of shards; the extractor avoids downloading
    the entire 60–70 GB by filtering on the index.
 3. Reads all tensors whose key starts with `mtp.` or contains `.mtp.`.
-4. Quantizes 2D weight matrices using the scheme set in `mtp_quant` (group-size 64).
-   Small tensors—biases, norms, embeddings—are cast to float16 rather than
-   quantized to preserve accuracy.
+4. Saves the heads at full precision (bf16, unquantized). Nothing is quantized:
+   preserving the drafter's fidelity is what keeps draft acceptance high.
 5. Saves the result as a single `mtp.safetensors` file in scratch storage.
 6. Uploads it to `mtp_sidecar_repo` on Hugging Face, alongside a self-describing
    `README.md` model card. The card inherits the source model's license
@@ -122,7 +132,7 @@ uv run skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact all
 
 ```
 PublishError: no MTP sidecar configured for acme/qwen3-6b-full-q4-k;
-add mtp_source_repo, mtp_sidecar_repo, and mtp_quant to the catalog entry
+add mtp_source_repo and mtp_sidecar_repo to the catalog entry
 ```
 
 **No `mtp.*` keys found in source repo:**
@@ -139,11 +149,10 @@ of the original BF16 release, or when the model genuinely does not have MTP head
 ```
 huggingface_hub is required for MTP extraction
 safetensors is required for single-file model inspection
-mlx is required for MTP weight quantization
+mlx is required for reading MTP weights
 ```
 
-Install the extras with `uv sync --extra mtp`. Note that `mlx` is macOS Apple
-Silicon only, so MTP quantization cannot run on a Linux host.
+Install the extras with `uv sync --extra mtp`.
 
 ## Scratch Storage
 
@@ -153,10 +162,10 @@ Sidecar output lands in `SKULK_WEIGHTS_SCRATCH` (or `.scratch/` by default) as:
 <sidecar_repo_with_slashes_replaced_by_dashes>-mtp.safetensors
 ```
 
-For `mtp_sidecar_repo: acme/qwen3-6b-mtp-q4k` that is:
+For `mtp_sidecar_repo: acme/qwen3-6b-mtp` that is:
 
 ```
-acme--qwen3-6b-mtp-q4k-mtp.safetensors
+acme--qwen3-6b-mtp-mtp.safetensors
 ```
 
 The file is not removed after upload. Delete it manually if scratch disk is

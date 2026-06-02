@@ -18,7 +18,6 @@ const ENTRY: CatalogEntry = {
   hf_collection: null,
   mtp_source_repo: null,
   mtp_sidecar_repo: null,
-  mtp_quant: null,
   assistant_model_repo: null,
   vision_source_repo: null,
   vision_sidecar_repo: null,

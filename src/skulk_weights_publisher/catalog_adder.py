@@ -115,7 +115,12 @@ def resolve_base_model(
 
 
 def detect_quant(info: dict[str, Any]) -> str:
-    """Infer quant scheme from tags or model name. Returns 'q4k' or 'q8k'."""
+    """Infer the **vindex** quant scheme from tags or model name ('q4k' or 'q8k').
+
+    Drives the full-model vindex tier only — it does **not** feed MTP sidecar
+    naming. MTP sidecars are quant-independent: one bf16 sidecar per base model
+    serves every quantization of it (see :func:`mtp_extractor.extract_mtp`).
+    """
     model_id: str = info.get("id", "")
     tags: list[str] = info.get("tags", [])
     combined = " ".join(tags).lower() + " " + model_id.lower()
@@ -295,11 +300,11 @@ def build_entry_block(
     if assistant_model_repo:
         lines.append(f"    assistant_model_repo: {assistant_model_repo}")
     elif mtp_keys and base_model:
-        sidecar = f"{hf_owner}/{base_model_slug(base_model)}-mtp-{quant_suffix(quant)}"
+        # One bf16 sidecar per base model — quant-independent, no quant suffix.
+        sidecar = f"{hf_owner}/{base_model_slug(base_model)}-mtp"
         lines += [
             f"    mtp_source_repo: {base_model}",
             f"    mtp_sidecar_repo: {sidecar}",
-            f"    mtp_quant: {quant}",
         ]
     return "\n" + "\n".join(lines) + "\n"
 

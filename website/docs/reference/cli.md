@@ -197,9 +197,9 @@ prints the plan. Without `--dry-run`, it runs the selected artifact step:
 - `vindex`: runs `larql extract`, `larql publish`, and files the repository
   into the configured Hugging Face collection.
 - `mtp`: downloads only the shards that contain `mtp.*` tensor keys from the
-  original BF16 checkpoint, quantizes them, and uploads `mtp.safetensors` to
-  the sidecar repository. Requires `mtp_source_repo`, `mtp_sidecar_repo`, and
-  `mtp_quant` on the catalog entry.
+  original BF16 checkpoint and uploads them at full precision (bf16,
+  unquantized) as `mtp.safetensors` to the sidecar repository. Requires
+  `mtp_source_repo` and `mtp_sidecar_repo` on the catalog entry.
 - `vision`: mirrors the vision source repo's weights and configs into the
   vision sidecar repo byte-for-byte — no quantization and no dtype conversion.
   Requires `vision_source_repo` and `vision_sidecar_repo` on the catalog entry;
@@ -262,8 +262,8 @@ Expected dry-run output includes:
 - the vindex collection (`vindex collection: <slug>`, or `collection: disabled`)
 - `larql extract` command (vindex artifact)
 - `larql publish` command (vindex artifact)
-- MTP source repo, sidecar repo, quant, and output path, plus
-  `mtp collection: MTP Sidecars` (mtp artifact)
+- MTP source repo, sidecar repo, precision (`bf16 (unquantized)`), and output
+  path, plus `mtp collection: MTP Sidecars` (mtp artifact)
 - vision source repo, sidecar repo, the mirror note, plus
   `vision collection: Vision Sidecars` (vision artifact)
 - a note when mtp or vision is not configured for the entry

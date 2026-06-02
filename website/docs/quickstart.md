@@ -15,8 +15,9 @@ If you already have that context, keep the core model in mind:
   **vision sidecars**.
 - A vindex is a vector-index directory LARQL can query, run, and publish to let
   Skulk split weight-serving work across GPU nodes and CPU/high-memory servers.
-- An MTP sidecar is a separately quantized file (`mtp.safetensors`) extracted
-  from the BF16 checkpoint for models with native multi-token prediction heads.
+- An MTP sidecar is a full-precision (bf16, unquantized) file (`mtp.safetensors`)
+  extracted from the BF16 checkpoint for models with native multi-token
+  prediction heads. One sidecar per base model serves every quantization.
 - A vision sidecar is a byte-for-byte mirror of a VLM's vision-encoder weights,
   for mlx-community quants that omit them.
 - Some models (e.g. Gemma 4) skip embedded MTP heads entirely and ship a
@@ -113,7 +114,7 @@ is `full`; the LARQL flag is `none`. They refer to the same thing.
 ## 5. Dry-Run One MTP Sidecar
 
 For catalog entries that have MTP fields configured, dry-run the sidecar step
-separately to verify the source repo, sidecar repo, quantization, and output
+separately to verify the source repo, sidecar repo, precision, and output
 path before any download starts:
 
 ```bash
@@ -133,9 +134,9 @@ You should see something like:
 model key: my-org/my-model
 artifact: mtp
 mtp source repo:  hf://Qwen/Qwen3-6-7B
-mtp sidecar repo: hf://my-org/qwen3-6-7b-mtp-int4/mtp.safetensors
-mtp quant:        q4k
-mtp output path:  .scratch/my-org--qwen3-6-7b-mtp-int4-mtp.safetensors
+mtp sidecar repo: hf://my-org/qwen3-6-7b-mtp/mtp.safetensors
+mtp precision:    bf16 (unquantized)
+mtp output path:  .scratch/my-org--qwen3-6-7b-mtp-mtp.safetensors
 ```
 
 If the built-in Foxlight entries do not have MTP configured yet, the output will

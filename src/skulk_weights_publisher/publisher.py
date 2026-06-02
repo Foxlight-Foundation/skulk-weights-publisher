@@ -29,7 +29,6 @@ class MtpSidecarStep:
 
     source_repo: str
     sidecar_repo: str
-    mtp_quant: str
 
 
 @dataclass(frozen=True)
@@ -88,7 +87,7 @@ class PublishPlan:
                 lines += [
                     f"mtp source repo:  hf://{self.mtp_step.source_repo}",
                     f"mtp sidecar repo: hf://{self.mtp_step.sidecar_repo}/mtp.safetensors",
-                    f"mtp quant:        {self.mtp_step.mtp_quant}",
+                    "mtp precision:    bf16 (unquantized)",
                     f"mtp output path:  {mtp_output}",
                 ]
                 if self.collection_slug is not None:
@@ -160,7 +159,6 @@ def build_publish_plan(
         MtpSidecarStep(
             source_repo=entry.mtp_source_repo,
             sidecar_repo=cast(str, entry.mtp_sidecar_repo),
-            mtp_quant=cast(str, entry.mtp_quant),
         )
         if entry.mtp_source_repo is not None
         else None
@@ -275,7 +273,7 @@ def execute_publish_plan(
             if artifact == "mtp":
                 raise PublishError(
                     f"no MTP sidecar configured for {plan.entry.key}; "
-                    "add mtp_source_repo, mtp_sidecar_repo, and mtp_quant"
+                    "add mtp_source_repo and mtp_sidecar_repo"
                     " to the catalog entry"
                 )
         else:
@@ -284,10 +282,10 @@ def execute_publish_plan(
             extract_mtp(
                 plan.mtp_step.source_repo,
                 plan.mtp_step.sidecar_repo,
-                plan.mtp_step.mtp_quant,
                 plan.scratch_root,
                 token=env.get("HF_TOKEN"),
                 dry_run=False,
+                force=force,
                 catalog_key=plan.entry.key,
             )
             if plan.collection_slug is not None:

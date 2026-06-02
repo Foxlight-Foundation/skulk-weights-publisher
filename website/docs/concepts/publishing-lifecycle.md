@@ -88,8 +88,9 @@ are never re-licensed—everything published is for the community.
 
 For models that carry native Multi-Token Prediction heads—Qwen3, DeepSeek V3/R1,
 and similar architectures—a second extraction pass pulls the `mtp.*` tensors from
-the original BF16 checkpoint, quantizes them, and uploads them as `mtp.safetensors`
-to a separate sidecar repository.
+the original BF16 checkpoint and uploads them at full precision (bf16,
+unquantized) as `mtp.safetensors` to a separate sidecar repository — one sidecar
+per base model, shared across every quantization of it.
 
 This step is separate from vindex publication because the MTP weights must come from
 the original PyTorch checkpoint. mlx-lm's `sanitize()` strips `mtp.*` keys during
@@ -101,13 +102,18 @@ skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp --dry-run
 skulk-weights publish --model acme/qwen3-6b-full-q4-k --artifact mtp
 ```
 
-The dry-run prints the source repo, sidecar repo, quant, and output path before
-any download begins. Real execution downloads only the shards that contain `mtp.*`
-keys (using the model's `model.safetensors.index.json` to identify them), quantizes
-the tensors, saves a local `mtp.safetensors`, and uploads it to the sidecar repo.
+The dry-run prints the source repo, sidecar repo, precision, and output path
+before any download begins. Real execution downloads only the shards that contain
+`mtp.*` keys (using the model's `model.safetensors.index.json` to identify them),
+saves the tensors at full precision (bf16, unquantized) as a local
+`mtp.safetensors`, and uploads it to the sidecar repo — alongside its own
+self-describing model card (step 7). One bf16 sidecar serves every quantization
+of the base model; if the sidecar already exists it is skipped (with a message
+saying it already covers this model and all its quantizations) unless `--force`
+is passed.
 
-If `mtp_source_repo`, `mtp_sidecar_repo`, and `mtp_quant` are not set on the catalog
-entry, `--artifact mtp` raises an error with a clear message rather than silently
+If `mtp_source_repo` and `mtp_sidecar_repo` are not set on the catalog entry,
+`--artifact mtp` raises an error with a clear message rather than silently
 skipping.
 
 See the [MTP Sidecar Guide](../guides/mtp-sidecar.md) for a complete walkthrough.
@@ -121,7 +127,8 @@ mirror so the cluster does not depend on a third party.
 
 Unlike the MTP step, the vision sidecar performs no quantization and no dtype
 conversion. It copies the `vision_source_repo`'s weights and configs into
-`vision_sidecar_repo` **byte-for-byte**. It needs `huggingface_hub` but not mlx.
+`vision_sidecar_repo` **byte-for-byte**, alongside its own self-describing model
+card (step 7). It needs `huggingface_hub` but not mlx.
 
 ```bash
 skulk-weights publish --model acme/kimi-k2-5-full-q4-k --artifact vision --dry-run

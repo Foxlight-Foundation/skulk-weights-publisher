@@ -76,21 +76,23 @@ through community MLX quants — and inspects it for native MTP heads.
 ![Detection result for an MTP model](/img/skulk-ui/03-detect-mtp.png)
 
 The result shows the resolved base model, detected quant and tier, how many
-`mtp.*` tensors were found, and the target sidecar repo (quant-qualified, e.g.
-`…-mtp-q4-k`, so quant variants never collide).
+`mtp.*` tensors were found, and the target sidecar repo. The sidecar is one per
+base model (e.g. `…-mtp`), not quant-qualified — the bf16 heads are shared
+across every quantization of the base model.
 
 ## Publish an MTP sidecar
 
 When MTP tensors are found, click **Publish MTP**. SWP downloads only the
-shards that contain `mtp.*` keys, reads only those tensors, quantizes them, and
-uploads `mtp.safetensors` to the target repo. Progress streams live in the log
-panel, stage by stage (finding shards → downloading → extracting → quantizing →
-saving → uploading).
+shards that contain `mtp.*` keys, reads only those tensors, and uploads them at
+full precision (bf16, unquantized) as `mtp.safetensors` to the target repo.
+Progress streams live in the log panel, stage by stage (finding shards →
+downloading → extracting → saving → uploading).
 
 :::note
 Real extraction requires `mlx` (Apple Silicon). If `mlx` isn't available the GUI
-shows an error banner and disables publishing — install the extras with
-`uv sync --extra ui --extra mtp`. See the [MTP sidecar guide](./mtp-sidecar.md).
+shows an error banner and disables publishing — install with
+`uv sync --extra ui` (the `ui` extra already includes the mtp deps). See the
+[MTP sidecar guide](./mtp-sidecar.md).
 :::
 
 ## Gemma 4 assistant models
