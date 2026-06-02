@@ -132,6 +132,9 @@ def extract_and_publish_vision(
     )
     emit(f"vision: published to hf://{sidecar_repo}")
 
+    # Skulk owns artifact lifecycle — discard the local mirror we staged.
+    shutil.rmtree(local_dir)
+
     # Publish a self-describing model card. README.md is not in
     # _VISION_ALLOW_PATTERNS, so a later mirror's delete_patterns never prunes it.
     from skulk_weights_publisher.card_publish import publish_model_card

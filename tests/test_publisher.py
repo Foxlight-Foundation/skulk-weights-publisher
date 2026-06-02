@@ -106,6 +106,9 @@ def test_execute_publish_plan_adds_repo_to_collection(
     ) -> subprocess.CompletedProcess[tuple[str, ...]]:
         assert check
         commands.append(command)
+        # Simulate larql extract creating the output directory on disk.
+        if command == plan.extract_command:
+            plan.output_path.mkdir(parents=True, exist_ok=True)
         return subprocess.CompletedProcess(command, 0)
 
     def fake_file_in_collection(
@@ -136,6 +139,7 @@ def test_execute_publish_plan_adds_repo_to_collection(
     )
 
     assert commands == [plan.extract_command, plan.publish_command]
+    assert not plan.output_path.exists()
     # The vindex is filed into the configured collection slug (honored exactly).
     assert collection_calls == [
         ("vindex", entry.hf_repo, DEFAULT_FOXLIGHT_VINDEX_COLLECTION)

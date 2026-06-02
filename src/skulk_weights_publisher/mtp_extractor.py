@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import struct
 import sys
 from collections.abc import Callable
@@ -224,6 +225,12 @@ def extract_mtp(
         commit_message=f"Add MTP sidecar from {source_repo} (bf16, unquantized)",
     )
     emit(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors")
+
+    # Skulk owns artifact lifecycle — discard everything we staged locally.
+    output_path.unlink()
+    hf_cache = scratch_root / "_hf_cache"
+    if hf_cache.exists():
+        shutil.rmtree(hf_cache)
 
     # Publish a self-describing model card so the sidecar carries its provenance
     # (source repo + revision), target, and inherited license.

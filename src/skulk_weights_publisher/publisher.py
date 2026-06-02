@@ -249,6 +249,8 @@ def execute_publish_plan(
             shutil.rmtree(plan.output_path)
         subprocess.run(plan.extract_command, check=True)
         subprocess.run(plan.publish_command, check=True)
+        # Skulk owns artifact lifecycle — discard the vindex after publish.
+        shutil.rmtree(plan.output_path)
         if plan.collection_slug is not None:
             # Honor the configured/overridden slug exactly (matches the dry-run
             # plan); ensure-by-title is only for sidecars, which carry no slug.
