@@ -149,7 +149,7 @@ of the original BF16 release, or when the model genuinely does not have MTP head
 ```
 huggingface_hub is required for MTP extraction
 safetensors is required for single-file model inspection
-mlx is required for MTP safetensors I/O
+mlx is required for reading MTP weights
 ```
 
 Install the extras with `uv sync --extra mtp`.
