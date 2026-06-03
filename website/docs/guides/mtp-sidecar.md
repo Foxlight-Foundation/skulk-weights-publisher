@@ -4,14 +4,19 @@ title: MTP Sidecar Guide
 
 Multi-Token Prediction (MTP) heads allow a model to draft multiple tokens in a
 single forward pass, which Skulk uses to accelerate speculative decoding. Some
-model families—Qwen3, DeepSeek V3/R1, and similar architectures—ship native
-MTP heads as `mtp.*` tensor keys baked into the BF16 checkpoint.
+model families ship native MTP heads baked into the base checkpoint:
 
-mlx-lm's `sanitize()` strips `mtp.*` keys during conversion, so the converted
+- **Qwen3, DeepSeek V4-Flash, and similar**: heads stored as `mtp.*` tensor keys.
+- **DeepSeek V3 / V3-0324**: heads stored as `model.layers.{num_hidden_layers}.*`
+  (one extra transformer layer beyond the main stack); SWP detects this
+  automatically by reading `config.json`.
+
+mlx-lm's `sanitize()` strips MTP tensors during conversion, so the converted
 checkpoint used for vindex publication does not contain them. The MTP sidecar
-step re-extracts them from the original BF16 checkpoint and publishes them at
+step re-extracts them from the original checkpoint and publishes them at
 **full precision (bf16, unquantized)** as `mtp.safetensors` to a separate HF
-repository.
+repository. Tensors stored in quantised formats (FP8/INT8) are dequantised to
+BF16 during extraction.
 
 The heads are **not** quantized. They are the speculative *drafter*, and their
 only job is to maximize draft *acceptance*—the entire point of the feature.
@@ -92,21 +97,29 @@ uv run skulk-weights publish \
 
 The extractor:
 
-1. Fetches `model.safetensors.index.json` from `mtp_source_repo` and reads the
-   `weight_map` to identify which shard files contain `mtp.*` keys. For single-file
-   checkpoints it falls back to checking `model.safetensors` directly.
+1. Fetches `model.safetensors.index.json` from `mtp_source_repo` and scans the
+   `weight_map` for MTP tensors using two detection strategies:
+   - **New-style**: looks for `mtp.*` or `.mtp.*` keys directly.
+   - **Old-style** (DeepSeek V3/V3-0324): if no `mtp.*` keys are found, fetches
+     `config.json` and checks `num_nextn_predict_layers > 0`; if set, treats
+     `model.layers.{num_hidden_layers}.*` as the MTP layer.
+   For single-file checkpoints it falls back to checking `model.safetensors` directly
+   (new-style keys only).
 2. Downloads only those shards into the scratch directory (`.scratch/_hf_cache/`
    by default). Large models ship dozens of shards; the extractor avoids downloading
    the entire 60–70 GB by filtering on the index.
-3. Reads all tensors whose key starts with `mtp.` or contains `.mtp.`.
-4. Saves the heads at full precision (bf16, unquantized). Nothing is quantized:
-   preserving the drafter's fidelity is what keeps draft acceptance high.
-5. Saves the result as a single `mtp.safetensors` file in scratch storage.
-6. Uploads it to `mtp_sidecar_repo` on Hugging Face, alongside a self-describing
+3. Reads the MTP tensors out of each shard. Tensors in quantised formats (FP8 E4M3
+   with E8M0 or F32 block scales, INT8 with E8M0 scales) are dequantised to BF16
+   on the fly. BF16, F16, and F32 tensors are passed through directly.
+4. Saves the result as a single `mtp.safetensors` file at full precision (bf16,
+   unquantized). Preserving fidelity is what keeps draft acceptance high.
+5. Uploads it to `mtp_sidecar_repo` on Hugging Face, alongside a self-describing
    `README.md` model card. The card inherits the source model's license
    unchanged and carries a Foxlight provenance block pinning the source SHA.
-7. Files the repo into the `MTP Sidecars` Hugging Face collection (unless
+6. Files the repo into the `MTP Sidecars` Hugging Face collection (unless
    `SKULK_WEIGHTS_COLLECTION` is set to a disabling value).
+7. Deletes the local `.safetensors` file and shard cache from scratch. Skulk
+   owns the artifact lifecycle; SWP's job ends when the push completes.
 
 ## Publishing Only The MTP Sidecar
 
@@ -135,14 +148,16 @@ PublishError: no MTP sidecar configured for acme/qwen3-6b-full-q4-k;
 add mtp_source_repo and mtp_sidecar_repo to the catalog entry
 ```
 
-**No `mtp.*` keys found in source repo:**
+**No MTP head tensors found in source repo:**
 
 ```
-no mtp.* keys found in Qwen/Qwen3-6B; confirm this model has native MTP heads
+no MTP head tensors found in Qwen/Qwen3-6B; confirm this model has native MTP heads
+(checked for mtp.* keys and model.layers.{N}.* via config.json)
 ```
 
 This happens when `mtp_source_repo` points to an mlx-converted checkpoint instead
-of the original BF16 release, or when the model genuinely does not have MTP heads.
+of the original BF16/FP8 release (mlx-lm strips MTP tensors during conversion),
+or when the model genuinely does not have MTP heads.
 
 **Missing Python dependencies:**
 
@@ -156,17 +171,11 @@ Install the extras with `uv sync --extra mtp`.
 
 ## Scratch Storage
 
-Sidecar output lands in `SKULK_WEIGHTS_SCRATCH` (or `.scratch/` by default) as:
+Sidecar output and the shard cache are created in `SKULK_WEIGHTS_SCRATCH`
+(or `.scratch/` by default) during extraction, then **deleted automatically
+after a successful upload**. Skulk owns the artifact lifecycle; SWP does not
+retain local copies.
 
-```
-<sidecar_repo_with_slashes_replaced_by_dashes>-mtp.safetensors
-```
-
-For `mtp_sidecar_repo: acme/qwen3-6b-mtp` that is:
-
-```
-acme--qwen3-6b-mtp-mtp.safetensors
-```
-
-The file is not removed after upload. Delete it manually if scratch disk is
-constrained.
+If extraction fails before the upload completes, the scratch files are left in
+place for inspection and retry. Use `skulk-weights scratch clean` to remove
+them manually if needed.
