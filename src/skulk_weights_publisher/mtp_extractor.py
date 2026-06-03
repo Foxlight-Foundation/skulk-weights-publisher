@@ -148,6 +148,20 @@ def _decode_bf16_as_f32(raw: bytes) -> Any:
     return (u16 << 16).view(np.float32)
 
 
+def _f32_to_bf16_bytes(arr: Any) -> bytes:
+    """Encode a float32 array as raw BF16 bytes using round-to-nearest-even.
+
+    Shifting bits off with >> 16 truncates the mantissa. The correct conversion
+    adds a rounding bias of 0x7FFF plus the LSB of the BF16 result, which
+    implements round-to-nearest-even per IEEE 754.
+    """
+    import numpy as np
+
+    u32 = np.asarray(arr, dtype=np.float32).view(np.uint32).copy()
+    u32 += np.uint32(0x7FFF) + ((u32 >> np.uint32(16)) & np.uint32(1))
+    return (u32 >> np.uint32(16)).astype(np.uint16).tobytes()
+
+
 def _apply_block_scale(
     weights_f32: Any,
     scales_f32: Any,
@@ -544,15 +558,11 @@ def _write_mtp_streaming(
 
                 elif src_dtype == "F16":
                     f32 = np.frombuffer(raw, dtype=np.float16).astype(np.float32)
-                    out_fh.write(
-                        (f32.view(np.uint32) >> 16).astype(np.uint16).tobytes()
-                    )
+                    out_fh.write(_f32_to_bf16_bytes(f32))
 
                 elif src_dtype == "F32":
                     f32 = np.frombuffer(raw, dtype=np.float32)
-                    out_fh.write(
-                        (f32.view(np.uint32) >> 16).astype(np.uint16).tobytes()
-                    )
+                    out_fh.write(_f32_to_bf16_bytes(f32))
 
                 elif src_dtype in ("F8_E4M3", "I8"):
                     result = _find_scale_key(key, shard_hdr)
@@ -592,9 +602,7 @@ def _write_mtp_streaming(
                         scales_f32 = 1.0 / scales_f32
 
                     dequant = _apply_block_scale(weights_f32, scales_f32, shape)
-                    out_fh.write(
-                        (dequant.view(np.uint32) >> 16).astype(np.uint16).tobytes()
-                    )
+                    out_fh.write(_f32_to_bf16_bytes(dequant))
 
                 else:
                     raise MtpExtractionError(

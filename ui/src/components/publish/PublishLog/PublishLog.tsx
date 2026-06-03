@@ -10,7 +10,11 @@ import type { PublishLogProps, Stage, StageStatus } from './PublishLog.types';
 const STAGE_DEFS: { id: Stage; label: string; trigger: RegExp }[] = [
   { id: 'finding', label: 'Finding MTP shards', trigger: /mtp: found mtp\.\* keys/ },
   { id: 'downloading', label: 'Downloading shards', trigger: /mtp: downloading shard/ },
-  { id: 'extracting', label: 'Extracting tensors', trigger: /mtp: extracted/ },
+  {
+    id: 'extracting',
+    label: 'Extracting tensors',
+    trigger: /mtp: extracted|mtp: streaming tensors/,
+  },
   { id: 'quantizing', label: 'Quantizing', trigger: /mtp: quantized/ },
   { id: 'saving', label: 'Saving locally', trigger: /mtp: saved/ },
   { id: 'uploading', label: 'Uploading to HuggingFace', trigger: /mtp: uploading/ },
@@ -60,7 +64,8 @@ function deriveStages(
       if (lastDownload) detail = lastDownload.replace('mtp: ', '');
     }
     if (def.id === 'extracting' && status === 'done') {
-      const line = lines.find((l) => /mtp: extracted/.test(l));
+      const line =
+        lines.find((l) => /mtp: extracted/.test(l)) ?? lines.find((l) => /mtp: saved/.test(l));
       if (line) detail = line.replace('mtp: ', '');
     }
     if (def.id === 'quantizing' && status === 'done') {

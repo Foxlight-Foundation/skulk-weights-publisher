@@ -504,6 +504,37 @@ def test_read_mtp_tensors_old_style_key_prefix(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# _f32_to_bf16_bytes
+# ---------------------------------------------------------------------------
+
+
+def test_f32_to_bf16_bytes_rounds_not_truncates() -> None:
+    """Conversion must round to nearest even, not truncate.
+
+    1.0 in float32 is 0x3F800000. The next BF16 value up is 0x3F81 (≈1.0078).
+    A value halfway between them is 0x3F8080xx. Truncation gives 0x3F80 (1.0);
+    round-to-nearest gives 0x3F81 (the closer value when the low bits push past
+    the midpoint).
+    """
+    from skulk_weights_publisher.mtp_extractor import _f32_to_bf16_bytes
+
+    def _bf16(b: bytes) -> int:
+        raw = np.frombuffer(b, dtype=np.float32)
+        return int(np.frombuffer(_f32_to_bf16_bytes(raw), dtype=np.uint16)[0])
+
+    # 0x3F808000: halfway between BF16 0x3F80 and 0x3F81.
+    # BF16 LSB is 0 (even) → round down → 0x3F80.
+    assert _bf16(b'\x00\x80\x80\x3f') == 0x3F80
+
+    # 0x3F818000: halfway between BF16 0x3F81 and 0x3F82.
+    # BF16 LSB is 1 (odd) → round up to even → 0x3F82.
+    assert _bf16(b'\x00\x80\x81\x3f') == 0x3F82
+
+    # Just past midpoint: always round up regardless of LSB.
+    assert _bf16(b'\x01\x80\x80\x3f') == 0x3F81
+
+
+# ---------------------------------------------------------------------------
 # _ProgressFile
 # ---------------------------------------------------------------------------
 
