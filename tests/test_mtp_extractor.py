@@ -374,6 +374,39 @@ def test_find_scale_key_none_when_missing() -> None:
     assert _find_scale_key("mtp.0.norm.weight", header) is None
 
 
+def test_apply_block_scale_2d_partial_col_block() -> None:
+    """2D tiling where the last column block is partial (V3.2 MTP style).
+
+    Mirrors the real failure: weight [7168, 576] with ceil(7168/128)*ceil(576/128)
+    = 56*5 = 280 scales but 576 % 128 == 64 (non-zero). We use [96, 65] with
+    block_size=32 (tried last in the B list) to keep data small:
+      Rb=3, Cb=3, 9 scales, 6240 elements, 6240%9 != 0 → forces 2D path.
+    """
+    weights = np.ones(96 * 65, dtype=np.float32)
+    scales = np.arange(1, 10, dtype=np.float32)  # 1..9
+    result = _apply_block_scale(weights, scales, [96, 65])
+
+    assert result.shape == (96, 65)
+    # tile (0,0): row 0, col 0 → scale[0]=1
+    assert result[0, 0] == pytest.approx(1.0)
+    # tile (0,1): row 0, col 32 → scale[1]=2
+    assert result[0, 32] == pytest.approx(2.0)
+    # tile (0,2): row 0, col 64 (partial, only 1 element wide) → scale[2]=3
+    assert result[0, 64] == pytest.approx(3.0)
+    # tile (2,2): row 64, col 64 → scale[8]=9
+    assert result[64, 64] == pytest.approx(9.0)
+
+
+def test_apply_block_scale_2d_v32_shape() -> None:
+    """Smoke test with the exact element counts from the V3.2 MTP failure."""
+    # [7168, 576] with 280 scales must not raise.
+    weights = np.ones(7168 * 576, dtype=np.float32)
+    scales = np.full(280, 2.0, dtype=np.float32)
+    result = _apply_block_scale(weights, scales, [7168, 576])
+    assert result.shape == (7168, 576)
+    np.testing.assert_allclose(result, 2.0)
+
+
 def _make_shard(
     tmp_path: Path, tensors: list[tuple[str, str, list[int], bytes]]
 ) -> Path:
@@ -743,3 +776,29 @@ def test_write_mtp_streaming_multi_shard(tmp_path: Path) -> None:
     assert set(tensors) == {"mtp.a.weight", "mtp.b.weight"}
     np.testing.assert_allclose(tensors["mtp.a.weight"], [1.0, 2.0], rtol=0.01)
     np.testing.assert_allclose(tensors["mtp.b.weight"], [3.0, 4.0], rtol=0.01)
+
+
+def test_write_mtp_streaming_2d_block_scale(tmp_path: Path) -> None:
+    """I8 weight with 2D block scale (non-divisible dims, V3.2 MTP style).
+
+    Uses [96, 65] with block_size=32 (Rb=3, Cb=3, 9 E8M0 scales) — the same
+    shape class as DeepSeek-V3.2-Exp-Base [7168, 576] / 280 scales.
+    """
+    from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
+
+    R, C = 96, 65
+    # All I8 weights = 1; all E8M0 scales = byte 127 → 2^0 = 1.0
+    weight_bytes = struct.pack(f"<{R * C}b", *([1] * (R * C)))
+    scale_bytes = bytes([127] * 9)  # 9 scales (Rb*Cb=3*3), each = 1.0
+    shard = _make_shard(tmp_path, [
+        ("model.layers.61.w.weight", "I8",      [R, C], weight_bytes),
+        ("model.layers.61.w.weight_scale_inv", "F8_E8M0", [9], scale_bytes),
+    ])
+    out = tmp_path / "out.safetensors"
+
+    n = _write_mtp_streaming([shard], out, "model.layers.61.", [].append)
+
+    assert n == 1
+    tensors = _decode_bf16_output(out)
+    assert tensors["model.layers.61.w.weight"].shape == (R, C)
+    np.testing.assert_allclose(tensors["model.layers.61.w.weight"], 1.0, rtol=0.05)
