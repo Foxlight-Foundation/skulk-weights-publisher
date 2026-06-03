@@ -551,6 +551,31 @@ def test_progress_file_is_buffered_io_base(tmp_path: Path) -> None:
         assert isinstance(pf, io.BufferedIOBase)
 
 
+def test_progress_file_only_emits_on_second_read_pass(tmp_path: Path) -> None:
+    """Progress must be silent during the hash pass and active during upload.
+
+    HF Hub calls seek(0) before hashing (pass 1) and again before the LFS PUT
+    (pass 2). Emitting during the fast CPU hash would show near-complete progress
+    before the real upload even starts; _last_pct = 99 then prevents the upload
+    pass from emitting any progress at all.
+    """
+    from skulk_weights_publisher.mtp_extractor import _ProgressFile
+
+    p = tmp_path / "f.bin"
+    p.write_bytes(b"\xff" * 1024)
+    logs: list[str] = []
+
+    with _ProgressFile(p, logs.append, pct_step=1) as pf:
+        # Simulate HF Hub: seek(0) → hash read → seek(0) → upload read
+        pf.seek(0)
+        pf.read()   # hash pass — must emit nothing
+        assert logs == [], "no progress should fire during the hash pass"
+
+        pf.seek(0)
+        pf.read()   # upload pass — must emit progress
+        assert any("mtp: uploading" in line for line in logs)
+
+
 # ---------------------------------------------------------------------------
 # _write_mtp_streaming
 # ---------------------------------------------------------------------------

@@ -25,11 +25,11 @@ class _ProgressFile(io.BufferedIOBase):
     """BufferedIOBase that emits byte-level progress during the LFS upload pass.
 
     Inheriting from io.BufferedIOBase satisfies the isinstance check that
-    huggingface_hub performs before computing UploadInfo. HF Hub makes two
-    sequential reads of the same file object: one for SHA-256 hashing (fast,
-    CPU-bound) and one for the actual LFS HTTP upload (slow, network-bound).
-    The first seek(0) between them marks the start of the upload pass; only
-    from that point do we emit progress lines.
+    huggingface_hub performs before computing UploadInfo. HF Hub's upload path
+    calls seek(0) twice: once before hashing the file (UploadInfo.from_fileobj)
+    and once before the actual LFS HTTP PUT. We count seek(0) calls and only
+    arm progress emission on the second rewind, so the UI tracks the real network
+    transfer rather than the fast CPU hash pass that completes in seconds.
     """
 
     def __init__(
@@ -40,6 +40,7 @@ class _ProgressFile(io.BufferedIOBase):
         self._size = path.stat().st_size
         self._emit = emit
         self._pct_step = pct_step
+        self._seek_zero_count = 0
         self._in_upload_pass = False
         self._last_pct = -1
 
@@ -62,9 +63,11 @@ class _ProgressFile(io.BufferedIOBase):
 
     def seek(self, offset: int, whence: int = 0) -> int:
         result = self._f.seek(offset, whence)
-        # First rewind to start signals the transition from hash pass → upload pass.
-        if offset == 0 and whence == 0 and not self._in_upload_pass:
-            self._in_upload_pass = True
+        if offset == 0 and whence == 0:
+            self._seek_zero_count += 1
+            # Second seek(0) = start of LFS upload; first = start of hash pass.
+            # Always reset _last_pct so any later pass starts progress from 0.
+            self._in_upload_pass = self._seek_zero_count >= 2
             self._last_pct = -1
         return result
 
