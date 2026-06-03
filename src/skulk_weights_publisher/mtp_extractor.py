@@ -10,8 +10,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 
 class MtpExtractionError(RuntimeError):
     """Raised when MTP extraction or publishing fails."""
@@ -49,35 +47,49 @@ def _build_fp8_e4m3fn_lut() -> list[float]:
 
 
 _FP8_E4M3FN_LUT: list[float] = _build_fp8_e4m3fn_lut()
-_FP8_E4M3FN_TABLE: np.ndarray = np.array(_FP8_E4M3FN_LUT, dtype=np.float32)
 
 
-def _decode_fp8_e4m3fn(raw: bytes) -> np.ndarray:
-    """Decode raw F8_E4M3FN bytes to a flat float32 numpy array."""
-    return _FP8_E4M3FN_TABLE[np.frombuffer(raw, dtype=np.uint8)]
+def _decode_fp8_e4m3fn(raw: bytes) -> Any:
+    """Decode raw F8_E4M3FN bytes to a flat float32 numpy array.
+
+    numpy is imported lazily so that importing this module does not require
+    numpy in base (non-mtp) installs.
+    """
+    import numpy as np
+
+    table = np.array(_FP8_E4M3FN_LUT, dtype=np.float32)
+    return table[np.frombuffer(raw, dtype=np.uint8)]
 
 
-def _decode_e8m0(raw: bytes) -> np.ndarray:
+def _decode_e8m0(raw: bytes) -> Any:
     """Decode F8_E8M0 block-exponent bytes to float32 scale values (2^(b−127))."""
-    return np.power(2.0, np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 127.0)
+    import numpy as np
+
+    return np.power(
+        2.0, np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 127.0
+    )
 
 
-def _decode_bf16_as_f32(raw: bytes) -> np.ndarray:
+def _decode_bf16_as_f32(raw: bytes) -> Any:
     """Reinterpret raw BF16 bytes as float32 (zero-extend upper 16 bits)."""
+    import numpy as np
+
     u16 = np.frombuffer(raw, dtype=np.uint16).astype(np.uint32)
     return (u16 << 16).view(np.float32)
 
 
 def _apply_block_scale(
-    weights_f32: np.ndarray,
-    scales_f32: np.ndarray,
+    weights_f32: Any,
+    scales_f32: Any,
     shape: list[int],
-) -> np.ndarray:
+) -> Any:
     """Apply per-block MX scales to a flat weight array, inferring block size.
 
     Block size is derived from the ratio of weight elements to scale elements,
     so the caller does not need to hard-code 128 (or any other block size).
     """
+    import numpy as np
+
     n_weight = int(np.prod(shape)) if shape else 1
     n_scale = scales_f32.size
     if n_scale == 0 or n_weight == 0:
@@ -265,10 +277,17 @@ def _read_mtp_tensors(
         header: dict[str, Any] = json.loads(fh.read(header_len).decode("utf-8"))
         data_base = 8 + header_len
 
+        def _in_mtp_namespace(key: str) -> bool:
+            """Return True if key belongs to the MTP namespace for this prefix."""
+            if key_prefix == "mtp.":
+                # Use _is_mtp_key so both mtp.* and .mtp.* (embedded) are covered.
+                return _is_mtp_key(key)
+            return key.startswith(key_prefix)
+
         # Identify scale-companion keys so we can skip them as primary tensors.
         scale_keys: set[str] = set()
         for key, meta in header.items():
-            if key == "__metadata__" or not key.startswith(key_prefix):
+            if key == "__metadata__" or not _in_mtp_namespace(key):
                 continue
             dtype = meta["dtype"]
             if dtype in scale_dtypes or key.endswith("_scale_inv"):
@@ -282,7 +301,7 @@ def _read_mtp_tensors(
         tensors: dict[str, Any] = {}
 
         for key, meta in header.items():
-            if key == "__metadata__" or not key.startswith(key_prefix):
+            if key == "__metadata__" or not _in_mtp_namespace(key):
                 continue
             if key in scale_keys:
                 continue  # consumed alongside the paired weight tensor
@@ -318,6 +337,8 @@ def _read_mtp_tensors(
                 scale_raw = _raw(scale_key)
 
                 # Decode weights to float32.
+                import numpy as np  # lazy: only needed for FP8/I8 paths
+
                 if dtype_name == "F8_E4M3":
                     weights_f32 = _decode_fp8_e4m3fn(raw)
                 else:  # I8
