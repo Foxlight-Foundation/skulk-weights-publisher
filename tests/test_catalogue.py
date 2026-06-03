@@ -54,7 +54,7 @@ def test_default_catalog_loads_packaged_foxlight_entries(
     assert view.sources[0].namespace == "foxlight"
     assert view.sources[0].hf_owner == DEFAULT_FOXLIGHT_HF_OWNER
     assert view.sources[0].hf_collection == DEFAULT_FOXLIGHT_VINDEX_COLLECTION
-    assert len(view.entries) == 11
+    assert len(view.entries) == 12
     assert view.entries[0].key == "foxlight/gemma-3-4b-full-q4-k"
     assert view.entries[0].hf_repo.startswith("FoxlightAI/")
     assert view.entries[0].hf_collection == DEFAULT_FOXLIGHT_VINDEX_COLLECTION
@@ -63,6 +63,7 @@ def test_default_catalog_loads_packaged_foxlight_entries(
         "foxlight/llama-3-2-3b-full-q4-k",
         "foxlight/qwen-2-5-7b-full-q4-k",
         "foxlight/qwen3-5-9b-full-q4-k",
+        "foxlight/gemma-4-31b-full-q4-k",
     ]
 
 
@@ -86,7 +87,7 @@ catalogs:
     entry = find_catalog_entry("acme/local-7b-full-q4-k", view)
 
     assert [source.name for source in view.sources] == ["foxlight", "acme"]
-    assert len(view.entries) == 12
+    assert len(view.entries) == 13
     assert entry.hf_repo == "acme/local-7b-full-q4-k-vindex"
     assert entry.hf_collection is None
 
@@ -141,7 +142,7 @@ def test_empty_config_is_valid_because_foxlight_is_automatic(
 
     view = load_catalog_view(config_path=config)
 
-    assert len(view.entries) == 11
+    assert len(view.entries) == 12
     assert view.sources[0].name == "foxlight"
     with pytest.raises(ManifestError, match="already exists"):
         write_default_config(config)

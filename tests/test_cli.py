@@ -15,7 +15,7 @@ def test_cli_catalog_validate(capsys: CaptureFixture[str]) -> None:
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "catalog valid: 11 entries from 1 sources" in captured.out
+    assert "catalog valid: 12 entries from 1 sources" in captured.out
 
 
 def test_cli_catalog_sources(capsys: CaptureFixture[str]) -> None:
@@ -83,7 +83,7 @@ def test_cli_legacy_catalogue_alias_still_works(
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "catalog valid: 11 entries from 1 sources" in captured.out
+    assert "catalog valid: 12 entries from 1 sources" in captured.out
 
 
 def test_cli_publish_dry_run(capsys: CaptureFixture[str]) -> None:

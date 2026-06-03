@@ -10,6 +10,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 
 class MtpExtractionError(RuntimeError):
     """Raised when MTP extraction or publishing fails."""
@@ -18,6 +20,77 @@ class MtpExtractionError(RuntimeError):
 def _stderr_log(message: str) -> None:
     """Default log sink — writes a progress line to stderr (CLI behavior)."""
     print(message, file=sys.stderr)
+
+
+# ── FP8 / quantised-dtype decoding ───────────────────────────────────────────
+# MLX 0.31.x has no float8 dtype, so we decode FP8 via a precomputed lookup
+# table and numpy, then hand the result to MLX as float32/bfloat16.
+
+
+def _build_fp8_e4m3fn_lut() -> list[float]:
+    """Build a 256-entry F8_E4M3FN → float32 lookup table.
+
+    E4M3FN spec (OCP MX): bias=7, no infinity, NaN only at exp=0b1111 man=0b111.
+    All other exp=15 values are valid finite numbers (max ≈ 448).
+    """
+    lut: list[float] = []
+    for byte in range(256):
+        sign = (byte >> 7) & 1
+        exp = (byte >> 3) & 0xF
+        man = byte & 0x7
+        if exp == 0xF and man == 0x7:
+            val: float = float("nan")
+        elif exp == 0:
+            val = (man / 8.0) * (2.0 ** -6)
+        else:
+            val = (1.0 + man / 8.0) * (2.0 ** (exp - 7))
+        lut.append(-val if sign else val)
+    return lut
+
+
+_FP8_E4M3FN_LUT: list[float] = _build_fp8_e4m3fn_lut()
+_FP8_E4M3FN_TABLE: np.ndarray = np.array(_FP8_E4M3FN_LUT, dtype=np.float32)
+
+
+def _decode_fp8_e4m3fn(raw: bytes) -> np.ndarray:
+    """Decode raw F8_E4M3FN bytes to a flat float32 numpy array."""
+    return _FP8_E4M3FN_TABLE[np.frombuffer(raw, dtype=np.uint8)]
+
+
+def _decode_e8m0(raw: bytes) -> np.ndarray:
+    """Decode F8_E8M0 block-exponent bytes to float32 scale values (2^(b−127))."""
+    return np.power(2.0, np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 127.0)
+
+
+def _decode_bf16_as_f32(raw: bytes) -> np.ndarray:
+    """Reinterpret raw BF16 bytes as float32 (zero-extend upper 16 bits)."""
+    u16 = np.frombuffer(raw, dtype=np.uint16).astype(np.uint32)
+    return (u16 << 16).view(np.float32)
+
+
+def _apply_block_scale(
+    weights_f32: np.ndarray,
+    scales_f32: np.ndarray,
+    shape: list[int],
+) -> np.ndarray:
+    """Apply per-block MX scales to a flat weight array, inferring block size.
+
+    Block size is derived from the ratio of weight elements to scale elements,
+    so the caller does not need to hard-code 128 (or any other block size).
+    """
+    n_weight = int(np.prod(shape)) if shape else 1
+    n_scale = scales_f32.size
+    if n_scale == 0 or n_weight == 0:
+        return weights_f32.reshape(shape).astype(np.float32)
+    block_size = n_weight // n_scale
+    if block_size < 1:
+        block_size = 1
+    w = weights_f32.reshape(n_scale, block_size)
+    s = scales_f32.reshape(n_scale, 1)
+    return (w * s).reshape(shape).astype(np.float32)
+
+
+# ── Sidecar existence check ───────────────────────────────────────────────────
 
 
 def _sidecar_already_published(sidecar_repo: str, *, token: str | None) -> bool:
@@ -36,50 +109,250 @@ def _sidecar_already_published(sidecar_repo: str, *, token: str | None) -> bool:
         return False
 
 
+# ── Shard detection ───────────────────────────────────────────────────────────
+
+
 def _is_mtp_key(key: str) -> bool:
     return key.startswith("mtp.") or ".mtp." in key
 
 
-def _read_mtp_tensors(shard_path: Path, *, mx: Any) -> dict[str, Any]:
-    """Return the mtp.* tensors from a safetensors shard, reading only their bytes.
+def _find_mtp_shards(
+    source_repo: str,
+    *,
+    token: str | None,
+    cache_dir: str | None = None,
+) -> tuple[list[str], str]:
+    """Return ``(shard_filenames, key_prefix)`` for the MTP tensors in source_repo.
 
-    Parses the safetensors header and reads each mtp.* tensor's byte range
-    directly, so the (potentially multi-GB) non-MTP weights are never read.
-    bf16/f16 are bitcast through uint16 because numpy — which mlx/safetensors
-    would otherwise route through — has no bfloat16 dtype.
+    Two layouts are supported:
+
+    * **New style** (e.g. DeepSeek V4-Flash): ``mtp.*`` tensor keys.
+      ``key_prefix`` is ``"mtp."``.
+    * **Old style** (e.g. DeepSeek V3 / V3-0324): MTP heads are stored as the
+      extra transformer layer beyond ``num_hidden_layers``.  Detected by reading
+      ``config.json`` and checking ``num_nextn_predict_layers > 0``, then looking
+      for ``model.layers.{num_hidden_layers}.*`` keys in the weight map.
+      ``key_prefix`` is ``"model.layers.{N}."``.
+
+    Falls back to the single-file ``model.safetensors`` layout for new-style keys
+    only.  Returns ``([], "mtp.")`` when no MTP tensors are found.
     """
-    dtype_map = {
-        "BF16": mx.bfloat16,
-        "F16": mx.float16,
-        "F32": mx.float32,
-    }
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import EntryNotFoundError
+
+    # ── sharded index path ────────────────────────────────────────────────────
+    try:
+        index_path = hf_hub_download(
+            repo_id=source_repo,
+            filename="model.safetensors.index.json",
+            token=token,
+            cache_dir=cache_dir,
+        )
+        with open(index_path, encoding="utf-8") as fh:
+            index = json.load(fh)
+        weight_map: dict[str, str] = index.get("weight_map", {})
+
+        # New style: mtp.* keys.
+        shards: set[str] = set()
+        for tensor_key, shard_file in weight_map.items():
+            if tensor_key.startswith("mtp.") or ".mtp." in tensor_key:
+                shards.add(shard_file)
+        if shards:
+            return sorted(shards), "mtp."
+
+        # Old style: model.layers.{num_hidden_layers}.* extra MTP layer.
+        try:
+            config_path = hf_hub_download(
+                repo_id=source_repo,
+                filename="config.json",
+                token=token,
+                cache_dir=cache_dir,
+            )
+            with open(config_path, encoding="utf-8") as fh:
+                config = json.load(fh)
+        except (EntryNotFoundError, Exception):  # noqa: BLE001
+            return [], "mtp."
+
+        num_hidden: int = config.get("num_hidden_layers", 0)
+        num_nextn: int = config.get("num_nextn_predict_layers", 0)
+        if num_nextn <= 0 or num_hidden <= 0:
+            return [], "mtp."
+
+        prefix = f"model.layers.{num_hidden}."
+        for tensor_key, shard_file in weight_map.items():
+            if tensor_key.startswith(prefix):
+                shards.add(shard_file)
+        return (sorted(shards), prefix) if shards else ([], "mtp.")
+
+    except EntryNotFoundError:
+        pass
+
+    # ── single-file fallback (new-style keys only) ────────────────────────────
+    try:
+        from safetensors import safe_open  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise MtpExtractionError(
+            "safetensors is required for single-file model inspection"
+        ) from exc
+
+    try:
+        single_path = hf_hub_download(
+            repo_id=source_repo,
+            filename="model.safetensors",
+            token=token,
+            cache_dir=cache_dir,
+        )
+    except EntryNotFoundError:
+        return [], "mtp."
+
+    with safe_open(single_path, framework="numpy") as f:
+        if any(k.startswith("mtp.") or ".mtp." in k for k in f.keys()):  # noqa: SIM118
+            return ["model.safetensors"], "mtp."
+    return [], "mtp."
+
+
+# ── Tensor reading ────────────────────────────────────────────────────────────
+
+
+def _find_scale_key(
+    weight_key: str, header: dict[str, Any]
+) -> tuple[str, bool] | None:
+    """Return ``(scale_key, is_inverse)`` for a quantised weight tensor, or None.
+
+    Two pairing conventions:
+
+    * **V3 style** (``weight_scale_inv`` suffix): the stored value is ``1/scale``,
+      so ``is_inverse=True`` — the caller must take the reciprocal before multiplying.
+    * **V4-Flash style** (``.scale`` sibling key, dtype F8_E8M0): the stored value
+      IS the scale, so ``is_inverse=False``.
+    """
+    # V3: weight_key ends with ".weight"; scale is weight_key + "_scale_inv"
+    candidate_v3 = weight_key + "_scale_inv"
+    if candidate_v3 in header:
+        return candidate_v3, True
+    # V4-Flash: weight_key ends with ".weight"; scale is base + ".scale"
+    if weight_key.endswith(".weight"):
+        candidate_v4 = weight_key[: -len(".weight")] + ".scale"
+        if candidate_v4 in header:
+            return candidate_v4, False
+    return None
+
+
+def _read_mtp_tensors(
+    shard_path: Path,
+    *,
+    mx: Any,
+    key_prefix: str = "mtp.",
+) -> dict[str, Any]:
+    """Return MTP tensors from a safetensors shard, dequantising FP8/I8 to BF16.
+
+    Reads only tensors whose keys start with ``key_prefix``.  Scale companion
+    tensors (``*_scale_inv`` or ``*.scale``) are consumed during dequantisation
+    and excluded from the output dict.
+
+    Supported dtypes
+    ----------------
+    * BF16, F16, F32 — passed through directly.
+    * F8_E4M3 + paired scale (F8_E8M0 or F32 ``_scale_inv``) — MX-FP8 block
+      dequantisation → BF16.
+    * I8 + paired F8_E8M0 scale — block dequantisation → BF16.
+    """
+    quantised_dtypes = {"F8_E4M3", "I8"}
+    scale_dtypes = {"F8_E8M0"}
+
     with open(shard_path, "rb") as fh:
         (header_len,) = struct.unpack("<Q", fh.read(8))
-        header = json.loads(fh.read(header_len).decode("utf-8"))
+        header: dict[str, Any] = json.loads(fh.read(header_len).decode("utf-8"))
         data_base = 8 + header_len
 
-        tensors: dict[str, Any] = {}
+        # Identify scale-companion keys so we can skip them as primary tensors.
+        scale_keys: set[str] = set()
         for key, meta in header.items():
-            if key == "__metadata__" or not _is_mtp_key(key):
+            if key == "__metadata__" or not key.startswith(key_prefix):
                 continue
-            dtype_name = meta["dtype"]
-            if dtype_name not in dtype_map:
+            dtype = meta["dtype"]
+            if dtype in scale_dtypes or key.endswith("_scale_inv"):
+                scale_keys.add(key)
+
+        def _raw(key: str) -> bytes:
+            start, end = header[key]["data_offsets"]
+            fh.seek(data_base + start)
+            return fh.read(end - start)
+
+        tensors: dict[str, Any] = {}
+
+        for key, meta in header.items():
+            if key == "__metadata__" or not key.startswith(key_prefix):
+                continue
+            if key in scale_keys:
+                continue  # consumed alongside the paired weight tensor
+
+            dtype_name: str = meta["dtype"]
+            shape: list[int] = meta["shape"]
+            raw = _raw(key)
+
+            if dtype_name == "BF16":
+                arr = mx.array(memoryview(raw).cast("H"), dtype=mx.uint16)
+                arr = arr.view(mx.bfloat16)
+                tensors[key] = arr.reshape(shape) if shape else arr
+
+            elif dtype_name == "F16":
+                arr = mx.array(memoryview(raw).cast("H"), dtype=mx.uint16)
+                arr = arr.view(mx.float16)
+                tensors[key] = arr.reshape(shape) if shape else arr
+
+            elif dtype_name == "F32":
+                arr = mx.array(memoryview(raw).cast("f"), dtype=mx.float32)
+                tensors[key] = arr.reshape(shape) if shape else arr
+
+            elif dtype_name in quantised_dtypes:
+                result = _find_scale_key(key, header)
+                if result is None:
+                    raise MtpExtractionError(
+                        f"no scale tensor found for {dtype_name} tensor {key!r} "
+                        f"in {shard_path.name}"
+                    )
+                scale_key, is_inverse = result
+                scale_meta = header[scale_key]
+                scale_dtype = scale_meta["dtype"]
+                scale_raw = _raw(scale_key)
+
+                # Decode weights to float32.
+                if dtype_name == "F8_E4M3":
+                    weights_f32 = _decode_fp8_e4m3fn(raw)
+                else:  # I8
+                    weights_f32 = np.frombuffer(raw, dtype=np.int8).astype(np.float32)
+
+                # Decode scales to float32.
+                if scale_dtype == "F8_E8M0":
+                    scales_f32 = _decode_e8m0(scale_raw)
+                elif scale_dtype == "F32":
+                    scales_f32 = np.frombuffer(scale_raw, dtype=np.float32).copy()
+                elif scale_dtype == "BF16":
+                    scales_f32 = _decode_bf16_as_f32(scale_raw)
+                else:
+                    raise MtpExtractionError(
+                        f"unsupported scale dtype {scale_dtype!r} for {scale_key!r} "
+                        f"in {shard_path.name}"
+                    )
+
+                # V3 stores 1/scale; take the reciprocal to get actual scale.
+                if is_inverse:
+                    scales_f32 = 1.0 / scales_f32
+
+                dequant = _apply_block_scale(weights_f32, scales_f32, shape)
+                tensors[key] = mx.array(dequant).astype(mx.bfloat16)
+
+            else:
                 raise MtpExtractionError(
                     f"unsupported MTP tensor dtype {dtype_name!r} for {key} "
                     f"in {shard_path.name}"
                 )
-            start, end = meta["data_offsets"]
-            fh.seek(data_base + start)
-            raw = fh.read(end - start)
-            shape = meta["shape"]
-            if dtype_name in ("BF16", "F16"):
-                # 2 bytes/elt: load as uint16, then bitcast to the float dtype.
-                arr = mx.array(memoryview(raw).cast("H"), dtype=mx.uint16)
-                arr = arr.view(dtype_map[dtype_name])
-            else:  # F32
-                arr = mx.array(memoryview(raw).cast("f"), dtype=mx.float32)
-            tensors[key] = arr.reshape(shape) if shape else arr
+
         return tensors
+
+
+# ── Public extraction entry point ─────────────────────────────────────────────
 
 
 def extract_mtp(
@@ -95,10 +368,17 @@ def extract_mtp(
 ) -> None:
     """Extract MTP weights from source_repo and publish them to sidecar_repo.
 
-    Downloads only the safetensors shards that contain ``mtp.*`` keys, reads only
-    the ``mtp.*`` tensors out of each shard (never the full shard), saves them at
-    full precision (bf16, **unquantized**) as ``mtp.safetensors``, and uploads to
-    ``sidecar_repo`` on Hugging Face.
+    Downloads only the safetensors shards that contain MTP head tensors, reads
+    only those tensors out of each shard (never the full shard), dequantises any
+    FP8 or INT8 tensors to BF16, saves the result as ``mtp.safetensors``, and
+    uploads to ``sidecar_repo`` on Hugging Face.
+
+    Two MTP storage layouts are supported automatically:
+
+    * **New style** (e.g. DeepSeek V4-Flash): ``mtp.*`` tensor keys.
+    * **Old style** (e.g. DeepSeek V3/V3-0324): MTP heads stored as the extra
+      transformer layer ``model.layers.{num_hidden_layers}.*``, detected via
+      ``num_nextn_predict_layers`` in the model's ``config.json``.
 
     The heads are deliberately **not quantized**. They are the speculative
     drafter, whose sole job is draft acceptance, so quantizing them would degrade
@@ -149,6 +429,7 @@ def extract_mtp(
         from huggingface_hub.utils.tqdm import (
             disable_progress_bars,  # type: ignore[import-untyped]
         )
+
         disable_progress_bars()
     except ImportError as exc:
         raise MtpExtractionError(
@@ -160,16 +441,19 @@ def extract_mtp(
         sidecar_repo, repo_type="model", private=False, exist_ok=True, token=token
     )
 
-    # Identify which shards contain mtp.* keys.
+    # Identify which shards contain MTP tensors and what key prefix they use.
     cache_dir = str(scratch_root / "_hf_cache")
-    shard_files = _find_mtp_shards(source_repo, token=token, cache_dir=cache_dir)
+    shard_files, key_prefix = _find_mtp_shards(
+        source_repo, token=token, cache_dir=cache_dir
+    )
     if not shard_files:
         raise MtpExtractionError(
-            f"no mtp.* keys found in {source_repo}; "
-            "confirm this model has native MTP heads"
+            f"no MTP head tensors found in {source_repo}; "
+            "confirm this model has native MTP heads "
+            "(checked for mtp.* keys and model.layers.{N}.* via config.json)"
         )
 
-    emit(f"mtp: found mtp.* keys in {len(shard_files)} shard(s)")
+    emit(f"mtp: found MTP tensors in {len(shard_files)} shard(s) (prefix: {key_prefix!r})")
 
     # Download the relevant shards into scratch.
     scratch_root.mkdir(parents=True, exist_ok=True)
@@ -187,26 +471,20 @@ def extract_mtp(
         local_shards.append(local)
         emit(f"mtp: shard {index}/{len(shard_files)} ready")
 
-    # Read ONLY the mtp.* tensors out of each shard by parsing the safetensors
-    # header and reading just those byte ranges. Avoids materializing the whole
-    # shard (gigabytes) to recover a handful of small heads, and handles bf16
-    # natively (safe_open(framework="mlx") cannot — it raises on bfloat16).
+    # Read MTP tensors, dequantising FP8/I8 to BF16 on the fly.
     mtp_tensors: dict[str, Any] = {}
     for shard_path in local_shards:
-        mtp_tensors.update(_read_mtp_tensors(shard_path, mx=mx))
+        mtp_tensors.update(_read_mtp_tensors(shard_path, mx=mx, key_prefix=key_prefix))
 
     if not mtp_tensors:
         raise MtpExtractionError(
-            f"shards were downloaded but no mtp.* tensors could be read"
-            f" from {source_repo}"
+            f"shards were downloaded but no MTP tensors could be read from {source_repo}"
         )
 
     emit(f"mtp: extracted {len(mtp_tensors)} tensor(s)")
 
-    # Ship the heads UNQUANTIZED at full precision (bf16). They are the
-    # speculative drafter — quantizing them would cost draft acceptance (the
-    # whole point) to save only tens of MB, and the Skulk runtime consumes bf16
-    # heads via its plain-matmul path.
+    # All tensors are now BF16 (direct reads were already BF16/F16/F32;
+    # FP8/I8 tensors were dequantised above). Cast everything to BF16.
     sidecar_tensors = {
         name: arr.astype(mx.bfloat16) for name, arr in mtp_tensors.items()
     }
@@ -252,64 +530,6 @@ def extract_mtp(
     )
 
 
-def _find_mtp_shards(
-    source_repo: str,
-    *,
-    token: str | None,
-    cache_dir: str | None = None,
-) -> list[str]:
-    """Return the shard filenames in source_repo that contain mtp.* keys.
-
-    Checks for a sharded index first; falls back to the single-file layout.
-    Pass cache_dir so any single-file download lands in the same location that
-    the caller will use for the full extraction, avoiding a double download.
-    """
-    from huggingface_hub import hf_hub_download
-    from huggingface_hub.errors import EntryNotFoundError
-
-    # Try sharded index first; only swallow 404 (no index file = single-file layout).
-    try:
-        index_path = hf_hub_download(
-            repo_id=source_repo,
-            filename="model.safetensors.index.json",
-            token=token,
-            cache_dir=cache_dir,
-        )
-        with open(index_path, encoding="utf-8") as fh:
-            index = json.load(fh)
-        weight_map: dict[str, str] = index.get("weight_map", {})
-        shards: set[str] = set()
-        for tensor_key, shard_file in weight_map.items():
-            if tensor_key.startswith("mtp.") or ".mtp." in tensor_key:
-                shards.add(shard_file)
-        return sorted(shards)
-    except EntryNotFoundError:
-        pass
-
-    # Fall back to single-file layout — check if model.safetensors has mtp.* keys.
-    try:
-        from safetensors import safe_open  # type: ignore[import-not-found]
-    except ImportError as exc:
-        raise MtpExtractionError(
-            "safetensors is required for single-file model inspection"
-        ) from exc
-
-    try:
-        single_path = hf_hub_download(
-            repo_id=source_repo,
-            filename="model.safetensors",
-            token=token,
-            cache_dir=cache_dir,
-        )
-    except EntryNotFoundError:
-        return []
-
-    with safe_open(single_path, framework="numpy") as f:
-        if any(k.startswith("mtp.") or ".mtp." in k for k in f.keys()):  # noqa: SIM118
-            return ["model.safetensors"]
-    return []
-
-
 def _sidecar_filename(sidecar_repo: str) -> str:
     return sidecar_repo.replace("/", "--") + "-mtp.safetensors"
 
@@ -324,6 +544,6 @@ def _print_dry_run_plan(
         f"mtp sidecar repo: hf://{sidecar_repo}/mtp.safetensors",
         "mtp precision:    bf16 (unquantized)",
         f"mtp output path:  {output_path}",
-        "mtp step:         extract mtp.* tensors → upload (bf16, unquantized)",
+        "mtp step:         extract MTP tensors → dequantise (FP8/I8→BF16) → upload",
     ]
     print("\n".join(lines))
