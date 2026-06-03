@@ -396,6 +396,23 @@ def _make_shard(
     return shard
 
 
+def _decode_bf16_output(path: Path) -> dict[str, np.ndarray]:
+    """Read a BF16 safetensors file from _write_mtp_streaming as float32 arrays."""
+    with open(path, "rb") as f:
+        (hdr_len,) = struct.unpack("<Q", f.read(8))
+        hdr: dict[str, Any] = json.loads(f.read(hdr_len))
+        data = f.read()
+    result: dict[str, np.ndarray] = {}
+    for key, meta in hdr.items():
+        if key == "__metadata__":
+            continue
+        start, end = meta["data_offsets"]
+        raw_u16 = np.frombuffer(data[start:end], dtype=np.uint16).copy()
+        f32 = (raw_u16.astype(np.uint32) << 16).view(np.float32)
+        result[key] = f32.reshape(meta["shape"])
+    return result
+
+
 def test_read_mtp_tensors_fp8_e4m3_with_e8m0_scale(tmp_path: Path) -> None:
     """F8_E4M3 weight + F8_E8M0 scale → dequantised BF16 (V4-Flash style)."""
     mx = pytest.importorskip("mlx.core")
@@ -484,3 +501,245 @@ def test_read_mtp_tensors_old_style_key_prefix(tmp_path: Path) -> None:
     assert set(tensors) == {"model.layers.61.norm.weight"}
     vals = tensors["model.layers.61.norm.weight"].astype(mx.float32).tolist()
     assert vals == pytest.approx([1.0, 2.0])
+
+
+# ---------------------------------------------------------------------------
+# _f32_to_bf16_bytes
+# ---------------------------------------------------------------------------
+
+
+def test_f32_to_bf16_bytes_rounds_not_truncates() -> None:
+    """Conversion must round to nearest even, not truncate.
+
+    1.0 in float32 is 0x3F800000. The next BF16 value up is 0x3F81 (≈1.0078).
+    A value halfway between them is 0x3F8080xx. Truncation gives 0x3F80 (1.0);
+    round-to-nearest gives 0x3F81 (the closer value when the low bits push past
+    the midpoint).
+    """
+    from skulk_weights_publisher.mtp_extractor import _f32_to_bf16_bytes
+
+    def _bf16(b: bytes) -> int:
+        raw = np.frombuffer(b, dtype=np.float32)
+        return int(np.frombuffer(_f32_to_bf16_bytes(raw), dtype=np.uint16)[0])
+
+    # 0x3F808000: halfway between BF16 0x3F80 and 0x3F81.
+    # BF16 LSB is 0 (even) → round down → 0x3F80.
+    assert _bf16(b'\x00\x80\x80\x3f') == 0x3F80
+
+    # 0x3F818000: halfway between BF16 0x3F81 and 0x3F82.
+    # BF16 LSB is 1 (odd) → round up to even → 0x3F82.
+    assert _bf16(b'\x00\x80\x81\x3f') == 0x3F82
+
+    # Just past midpoint: always round up regardless of LSB.
+    assert _bf16(b'\x01\x80\x80\x3f') == 0x3F81
+
+
+# ---------------------------------------------------------------------------
+# _ProgressFile
+# ---------------------------------------------------------------------------
+
+
+def test_progress_file_is_buffered_io_base(tmp_path: Path) -> None:
+    """_ProgressFile must pass the isinstance(obj, io.BufferedIOBase) check."""
+    import io
+
+    from skulk_weights_publisher.mtp_extractor import _ProgressFile
+
+    p = tmp_path / "f.bin"
+    p.write_bytes(b"\x00" * 8)
+    with _ProgressFile(p, [].append) as pf:
+        assert isinstance(pf, io.BufferedIOBase)
+
+
+def test_progress_file_only_emits_on_second_read_pass(tmp_path: Path) -> None:
+    """Progress must be silent during the hash pass and active during upload.
+
+    HF Hub calls seek(0) before hashing (pass 1) and again before the LFS PUT
+    (pass 2). Emitting during the fast CPU hash would show near-complete progress
+    before the real upload even starts; _last_pct = 99 then prevents the upload
+    pass from emitting any progress at all.
+    """
+    from skulk_weights_publisher.mtp_extractor import _ProgressFile
+
+    p = tmp_path / "f.bin"
+    p.write_bytes(b"\xff" * 1024)
+    logs: list[str] = []
+
+    with _ProgressFile(p, logs.append, pct_step=1) as pf:
+        # Simulate HF Hub: seek(0) → hash read → seek(0) → upload read
+        pf.seek(0)
+        pf.read()   # hash pass — must emit nothing
+        assert logs == [], "no progress should fire during the hash pass"
+
+        pf.seek(0)
+        pf.read()   # upload pass — must emit progress
+        assert any("mtp: uploading" in line for line in logs)
+
+
+# ---------------------------------------------------------------------------
+# _write_mtp_streaming
+# ---------------------------------------------------------------------------
+
+
+def test_write_mtp_streaming_bf16_passthrough(tmp_path: Path) -> None:
+    from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
+
+    bf16 = struct.pack("<4H", 0x3F80, 0x4000, 0x4040, 0x4080)  # 1,2,3,4
+    shard = _make_shard(tmp_path, [("mtp.w.weight", "BF16", [2, 2], bf16)])
+    out = tmp_path / "out.safetensors"
+
+    n = _write_mtp_streaming([shard], out, "mtp.", [].append)
+
+    assert n == 1
+    tensors = _decode_bf16_output(out)
+    assert list(tensors) == ["mtp.w.weight"]
+    np.testing.assert_allclose(tensors["mtp.w.weight"].ravel(), [1, 2, 3, 4], rtol=0.01)
+
+
+def test_write_mtp_streaming_f16_to_bf16(tmp_path: Path) -> None:
+    from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
+
+    f16 = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float16).tobytes()
+    shard = _make_shard(tmp_path, [("mtp.w.weight", "F16", [4], f16)])
+    out = tmp_path / "out.safetensors"
+
+    _write_mtp_streaming([shard], out, "mtp.", [].append)
+
+    tensors = _decode_bf16_output(out)
+    np.testing.assert_allclose(tensors["mtp.w.weight"], [1, 2, 3, 4], rtol=0.01)
+
+
+def test_write_mtp_streaming_f32_to_bf16(tmp_path: Path) -> None:
+    from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
+
+    f32 = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32).tobytes()
+    shard = _make_shard(tmp_path, [("mtp.w.weight", "F32", [4], f32)])
+    out = tmp_path / "out.safetensors"
+
+    _write_mtp_streaming([shard], out, "mtp.", [].append)
+
+    tensors = _decode_bf16_output(out)
+    np.testing.assert_allclose(tensors["mtp.w.weight"], [1, 2, 3, 4], rtol=0.01)
+
+
+def test_write_mtp_streaming_fp8_with_e8m0_scale(tmp_path: Path) -> None:
+    """F8_E4M3 + F8_E8M0 scale → dequantised BF16 (V4-Flash style)."""
+    from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
+
+    weight_bytes = bytes([0x38, 0x40])  # FP8: 1.0, 2.0
+    scale_bytes = bytes([128])          # E8M0 128 → 2^1 = 2.0
+    shard = _make_shard(tmp_path, [
+        ("mtp.0.w.weight", "F8_E4M3", [2], weight_bytes),
+        ("mtp.0.w.scale",  "F8_E8M0", [1], scale_bytes),
+    ])
+    out = tmp_path / "out.safetensors"
+
+    n = _write_mtp_streaming([shard], out, "mtp.", [].append)
+
+    assert n == 1  # scale key must not be counted
+    tensors = _decode_bf16_output(out)
+    assert set(tensors) == {"mtp.0.w.weight"}
+    np.testing.assert_allclose(tensors["mtp.0.w.weight"], [2.0, 4.0], rtol=0.05)
+
+
+def test_write_mtp_streaming_i8_with_e8m0_scale(tmp_path: Path) -> None:
+    """I8 + F8_E8M0 scale → dequantised BF16 (V4-Pro expert style)."""
+    from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
+
+    weight_bytes = struct.pack("<2b", 3, 4)
+    scale_bytes = bytes([127])  # E8M0 127 → 2^0 = 1.0
+    shard = _make_shard(tmp_path, [
+        ("mtp.0.ffn.w1.weight", "I8",      [2], weight_bytes),
+        ("mtp.0.ffn.w1.scale",  "F8_E8M0", [1], scale_bytes),
+    ])
+    out = tmp_path / "out.safetensors"
+
+    _write_mtp_streaming([shard], out, "mtp.", [].append)
+
+    tensors = _decode_bf16_output(out)
+    assert set(tensors) == {"mtp.0.ffn.w1.weight"}
+    np.testing.assert_allclose(tensors["mtp.0.ffn.w1.weight"], [3.0, 4.0], rtol=0.05)
+
+
+def test_write_mtp_streaming_v3_scale_inv(tmp_path: Path) -> None:
+    """F8_E4M3 + F32 weight_scale_inv → dequantised BF16 (V3 style)."""
+    from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
+
+    weight_bytes = bytes([0x38, 0x40])        # FP8: 1.0, 2.0
+    scale_inv_bytes = struct.pack("<f", 0.5)  # 1/scale → scale = 2.0
+    shard = _make_shard(tmp_path, [
+        ("model.layers.61.attn.w.weight",           "F8_E4M3", [2], weight_bytes),
+        ("model.layers.61.attn.w.weight_scale_inv", "F32",     [1], scale_inv_bytes),
+    ])
+    out = tmp_path / "out.safetensors"
+
+    n = _write_mtp_streaming([shard], out, "model.layers.61.", [].append)
+
+    assert n == 1
+    tensors = _decode_bf16_output(out)
+    assert set(tensors) == {"model.layers.61.attn.w.weight"}
+    np.testing.assert_allclose(
+        tensors["model.layers.61.attn.w.weight"], [2.0, 4.0], rtol=0.05
+    )
+
+
+def test_write_mtp_streaming_bf16_scale_excluded(tmp_path: Path) -> None:
+    """A .scale companion with non-F8_E8M0 dtype must not appear in the output.
+
+    Regression: the original scale_keys set only excluded F8_E8M0 and _scale_inv
+    keys, so a BF16 .scale companion would pass through as a spurious tensor.
+    """
+    from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
+
+    weight_bytes = bytes([0x38, 0x40])         # FP8: 1.0, 2.0
+    scale_bytes = struct.pack("<H", 0x4000)    # BF16 2.0 (not F8_E8M0)
+    shard = _make_shard(tmp_path, [
+        ("mtp.0.attn.w.weight", "F8_E4M3", [2], weight_bytes),
+        ("mtp.0.attn.w.scale",  "BF16",    [1], scale_bytes),
+    ])
+    out = tmp_path / "out.safetensors"
+
+    n = _write_mtp_streaming([shard], out, "mtp.", [].append)
+
+    assert n == 1
+    tensors = _decode_bf16_output(out)
+    assert "mtp.0.attn.w.scale" not in tensors
+
+
+def test_write_mtp_streaming_raises_on_no_mtp_tensors(tmp_path: Path) -> None:
+    from skulk_weights_publisher.mtp_extractor import (
+        MtpExtractionError,
+        _write_mtp_streaming,
+    )
+
+    non_mtp = struct.pack("<2H", 0x3F80, 0x4000)
+    shard = _make_shard(tmp_path, [("model.embed.weight", "BF16", [2], non_mtp)])
+    out = tmp_path / "out.safetensors"
+
+    with pytest.raises(MtpExtractionError, match="no MTP tensors found"):
+        _write_mtp_streaming([shard], out, "mtp.", [].append)
+
+
+def test_write_mtp_streaming_multi_shard(tmp_path: Path) -> None:
+    """Tensors from two separate shards are merged into one output file."""
+    from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
+
+    dir_a, dir_b = tmp_path / "a", tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+
+    shard_a = _make_shard(
+        dir_a, [("mtp.a.weight", "BF16", [2], struct.pack("<2H", 0x3F80, 0x4000))]
+    )
+    shard_b = _make_shard(
+        dir_b, [("mtp.b.weight", "BF16", [2], struct.pack("<2H", 0x4040, 0x4080))]
+    )
+    out = tmp_path / "out.safetensors"
+
+    n = _write_mtp_streaming([shard_a, shard_b], out, "mtp.", [].append)
+
+    assert n == 2
+    tensors = _decode_bf16_output(out)
+    assert set(tensors) == {"mtp.a.weight", "mtp.b.weight"}
+    np.testing.assert_allclose(tensors["mtp.a.weight"], [1.0, 2.0], rtol=0.01)
+    np.testing.assert_allclose(tensors["mtp.b.weight"], [3.0, 4.0], rtol=0.01)
