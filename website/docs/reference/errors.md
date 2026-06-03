@@ -68,16 +68,19 @@ You ran `--artifact vision` against an entry that has no vision sidecar
 configured. Add `vision_source_repo` and `vision_sidecar_repo` to the catalog
 entry, or select a different artifact.
 
-## `no mtp.* keys found in <repo>`
+## `no MTP head tensors found in <repo>`
 
-The MTP source repo does not contain any `mtp.*` tensor keys to extract. Point
-`mtp_source_repo` at the original PyTorch BF16 release rather than an
-mlx-converted checkpoint, which strips those keys during conversion.
+The MTP source repo does not contain any detectable MTP tensors. SWP checks two
+layouts: `mtp.*` / `.mtp.*` keys (Qwen3, DeepSeek V4-Flash), and
+`model.layers.{num_hidden_layers}.*` via `config.json` (DeepSeek V3/V3-0324).
+
+Point `mtp_source_repo` at the original BF16 or FP8 release rather than an
+mlx-converted checkpoint — mlx-lm strips MTP tensors during conversion.
 
 ## `mlx is required for reading MTP weights`
 
-MTP extraction uses mlx to read the `mtp.*` tensors out of the source shards.
-Run the `mtp` artifact on a host with `mlx` installed (`uv sync --extra mtp`).
+MTP extraction uses mlx for safetensors output. Run the `mtp` artifact on a
+host with `mlx` installed (`uv sync --extra mtp`).
 
 ## `no .safetensors weights found in <repo>`
 

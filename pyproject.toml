@@ -26,6 +26,9 @@ dev = [
   "pytest>=8.3.5",
   "ruff>=0.11.13",
   "types-PyYAML>=6.0.12.20250516",
+  # numpy is used in mtp_extractor for FP8/I8 dequantisation; needed here so
+  # basedpyright and the test suite can resolve it on Linux CI (no MLX).
+  "numpy>=1.26",
   # Also install [ui] extras in dev so the server module typechecks.
   "fastapi>=0.110",
   "uvicorn[standard]>=0.29",

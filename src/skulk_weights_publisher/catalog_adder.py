@@ -199,23 +199,48 @@ def find_assistant_model(
 def detect_mtp_keys(base_model: str, token: str | None = None) -> list[str]:
     """Return MTP tensor key names present in base_model's weight map.
 
+    Handles two storage layouts:
+
+    * **New style** (e.g. DeepSeek V4-Flash): ``mtp.*`` tensor keys.
+    * **Old style** (e.g. DeepSeek V3/V3-0324): MTP heads are stored as the
+      extra transformer layer ``model.layers.{num_hidden_layers}.*``, detected by
+      fetching ``config.json`` and checking ``num_nextn_predict_layers > 0``.
+
     Fetches the sharded index JSON; falls back to empty list on any error
     (single-file layout requires downloading the whole checkpoint).
     """
-    headers: dict[str, str] = {}
+    hdr: dict[str, str] = {}
     if token:
-        headers["Authorization"] = f"Bearer {token}"
-    url = (
-        f"https://huggingface.co/{base_model}/resolve/main"
-        "/model.safetensors.index.json"
-    )
-    req = urllib.request.Request(url, headers=headers)
-    try:
+        hdr["Authorization"] = f"Bearer {token}"
+
+    def _fetch_json(path: str) -> Any:
+        url = f"https://huggingface.co/{base_model}/resolve/main/{path}"
+        req = urllib.request.Request(url, headers=hdr)
         with urllib.request.urlopen(req, timeout=30) as resp:
-            index = json.load(resp)
+            return json.load(resp)
+
+    try:
+        index = _fetch_json("model.safetensors.index.json")
         weight_map: dict[str, str] = index.get("weight_map", {})
-        return sorted(k for k in weight_map if k.startswith("mtp.") or ".mtp." in k)
-    except Exception:
+
+        # New style: mtp.* keys.
+        mtp_keys = sorted(k for k in weight_map if k.startswith("mtp.") or ".mtp." in k)
+        if mtp_keys:
+            return mtp_keys
+
+        # Old style: model.layers.{num_hidden_layers}.* extra MTP layer.
+        try:
+            config = _fetch_json("config.json")
+        except Exception:  # noqa: BLE001
+            return []
+        num_hidden: int = config.get("num_hidden_layers", 0)
+        num_nextn: int = config.get("num_nextn_predict_layers", 0)
+        if num_nextn <= 0 or num_hidden <= 0:
+            return []
+        prefix = f"model.layers.{num_hidden}."
+        return sorted(k for k in weight_map if k.startswith(prefix))
+
+    except Exception:  # noqa: BLE001
         return []
 
 

@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import json
+import math
+import struct
 import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 import skulk_weights_publisher.mtp_extractor as mtp_mod
 from skulk_weights_publisher.mtp_extractor import (
+    MtpExtractionError,
+    _apply_block_scale,
+    _build_fp8_e4m3fn_lut,
+    _decode_e8m0,
+    _decode_fp8_e4m3fn,
+    _find_scale_key,
     _print_dry_run_plan,
     _sidecar_filename,
     extract_mtp,
@@ -109,24 +118,59 @@ def test_find_mtp_shards_sharded_index(tmp_path: Path) -> None:
     index_path.write_text(json.dumps(index), encoding="utf-8")
 
     with patch("huggingface_hub.hf_hub_download", return_value=str(index_path)):
-        shards = _find_mtp_shards("owner/repo", token=None)
+        shards, prefix = _find_mtp_shards("owner/repo", token=None)
 
     assert shards == sorted(
         {"model-00003-of-00010.safetensors", "model-00004-of-00010.safetensors"}
     )
+    assert prefix == "mtp."
 
 
 def test_find_mtp_shards_no_mtp_keys_in_index(tmp_path: Path) -> None:
     from skulk_weights_publisher.mtp_extractor import _find_mtp_shards
 
+    # No mtp.* keys and no num_nextn_predict_layers in config → empty.
     index = {"weight_map": {"model.layer.weight": "model-00001-of-00002.safetensors"}}
     index_path = tmp_path / "model.safetensors.index.json"
     index_path.write_text(json.dumps(index), encoding="utf-8")
 
     with patch("huggingface_hub.hf_hub_download", return_value=str(index_path)):
-        shards = _find_mtp_shards("owner/repo", token=None)
+        shards, prefix = _find_mtp_shards("owner/repo", token=None)
 
     assert shards == []
+    assert prefix == "mtp."
+
+
+def test_find_mtp_shards_old_style_via_config(tmp_path: Path) -> None:
+    """DeepSeek V3-style: MTP layer at model.layers.{num_hidden_layers}.*"""
+    from skulk_weights_publisher.mtp_extractor import _find_mtp_shards
+
+    index = {
+        "weight_map": {
+            "model.layers.60.mlp.weight": "shard-00001.safetensors",
+            "model.layers.61.attn.weight": "shard-00002.safetensors",
+            "model.layers.61.mlp.weight": "shard-00002.safetensors",
+            "model.layers.61.attn.weight_scale_inv": "shard-00002.safetensors",
+        }
+    }
+    config = {"num_hidden_layers": 61, "num_nextn_predict_layers": 1}
+    index_path = tmp_path / "model.safetensors.index.json"
+    config_path = tmp_path / "config.json"
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    def fake_download(repo_id: str, filename: str, **kw: Any) -> str:
+        if filename == "model.safetensors.index.json":
+            return str(index_path)
+        if filename == "config.json":
+            return str(config_path)
+        raise FileNotFoundError(filename)
+
+    with patch("huggingface_hub.hf_hub_download", side_effect=fake_download):
+        shards, prefix = _find_mtp_shards("owner/repo", token=None)
+
+    assert shards == ["shard-00002.safetensors"]
+    assert prefix == "model.layers.61."
 
 
 def test_find_mtp_shards_falls_back_when_no_index(tmp_path: Path) -> None:
@@ -148,9 +192,10 @@ def test_find_mtp_shards_falls_back_when_no_index(tmp_path: Path) -> None:
         patch("huggingface_hub.hf_hub_download", side_effect=fake_download),
         patch.dict(sys.modules, {"safetensors": fake_st}),
     ):
-        shards = _find_mtp_shards("owner/repo", token=None)
+        shards, prefix = _find_mtp_shards("owner/repo", token=None)
 
     assert shards == ["model.safetensors"]
+    assert prefix == "mtp."
 
 
 def test_find_mtp_shards_no_mtp_keys_in_single_file(tmp_path: Path) -> None:
@@ -172,9 +217,10 @@ def test_find_mtp_shards_no_mtp_keys_in_single_file(tmp_path: Path) -> None:
         patch("huggingface_hub.hf_hub_download", side_effect=fake_download),
         patch.dict(sys.modules, {"safetensors": fake_st}),
     ):
-        shards = _find_mtp_shards("owner/repo", token=None)
+        shards, prefix = _find_mtp_shards("owner/repo", token=None)
 
     assert shards == []
+    assert prefix == "mtp."
 
 
 def test_find_mtp_shards_no_files_at_all(tmp_path: Path) -> None:
@@ -191,9 +237,10 @@ def test_find_mtp_shards_no_files_at_all(tmp_path: Path) -> None:
         patch("huggingface_hub.hf_hub_download", side_effect=fake_download),
         patch.dict(sys.modules, {"safetensors": fake_st}),
     ):
-        shards = _find_mtp_shards("owner/repo", token=None)
+        shards, prefix = _find_mtp_shards("owner/repo", token=None)
 
     assert shards == []
+    assert prefix == "mtp."
 
 
 def test_read_mtp_tensors_reads_only_mtp_keys(tmp_path: Path) -> None:
@@ -248,3 +295,192 @@ def test_read_mtp_tensors_rejects_unknown_dtype(tmp_path: Path) -> None:
 
     with pytest.raises(MtpExtractionError, match="unsupported MTP tensor dtype"):
         _read_mtp_tensors(shard, mx=mx)
+
+
+# ---------------------------------------------------------------------------
+# FP8 / quantisation helpers
+# ---------------------------------------------------------------------------
+
+
+def test_fp8_e4m3fn_lut_known_values() -> None:
+    lut = _build_fp8_e4m3fn_lut()
+    assert len(lut) == 256
+    # 0x38 = sign=0, exp=7, man=0 → 2^(7-7)*1.0 = 1.0
+    assert lut[0x38] == pytest.approx(1.0)
+    # 0x40 = sign=0, exp=8, man=0 → 2^(8-7)*1.0 = 2.0
+    assert lut[0x40] == pytest.approx(2.0)
+    # 0x00 = +0.0
+    assert lut[0x00] == 0.0
+    # 0x7F = NaN (exp=15, man=7)
+    assert math.isnan(lut[0x7F])
+    # 0xFF = NaN (sign=1, exp=15, man=7)
+    assert math.isnan(lut[0xFF])
+    # 0x7E = sign=0, exp=15, man=6 → 2^8 * (1+6/8) = 256 * 1.75 = 448.0
+    assert lut[0x7E] == pytest.approx(448.0)
+
+
+def test_decode_fp8_e4m3fn_array() -> None:
+    raw = bytes([0x38, 0x40])  # FP8 values 1.0, 2.0
+    result = _decode_fp8_e4m3fn(raw)
+    assert result.tolist() == pytest.approx([1.0, 2.0])
+
+
+def test_decode_e8m0_values() -> None:
+    raw = bytes([127, 128, 126])  # → 1.0, 2.0, 0.5
+    result = _decode_e8m0(raw)
+    assert result.tolist() == pytest.approx([1.0, 2.0, 0.5])
+
+
+def test_apply_block_scale_basic() -> None:
+    # 4 weights, 2 block-scales → block_size=2
+    weights = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    scales = np.array([2.0, 0.5], dtype=np.float32)
+    result = _apply_block_scale(weights, scales, [4])
+    assert result.tolist() == pytest.approx([2.0, 4.0, 1.5, 2.0])
+
+
+def test_apply_block_scale_2d() -> None:
+    # shape [2, 4], 4 block-scales (one per row * 2 blocks of 2)
+    weights = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], dtype=np.float32)
+    scales = np.array([2.0, 1.0, 0.5, 1.0], dtype=np.float32)
+    result = _apply_block_scale(weights, scales, [2, 4])
+    expected = np.array([
+        [1.0 * 2.0, 2.0 * 2.0, 3.0 * 1.0, 4.0 * 1.0],
+        [5.0 * 0.5, 6.0 * 0.5, 7.0 * 1.0, 8.0 * 1.0],
+    ], dtype=np.float32)
+    np.testing.assert_allclose(result, expected)
+
+
+def test_find_scale_key_v4_flash_style() -> None:
+    header = {
+        "mtp.0.attn.wkv.weight": {"dtype": "F8_E4M3"},
+        "mtp.0.attn.wkv.scale": {"dtype": "F8_E8M0"},
+    }
+    result = _find_scale_key("mtp.0.attn.wkv.weight", header)
+    assert result == ("mtp.0.attn.wkv.scale", False)
+
+
+def test_find_scale_key_v3_style() -> None:
+    header = {
+        "model.layers.61.mlp.down.weight": {"dtype": "F8_E4M3"},
+        "model.layers.61.mlp.down.weight_scale_inv": {"dtype": "F32"},
+    }
+    result = _find_scale_key("model.layers.61.mlp.down.weight", header)
+    assert result == ("model.layers.61.mlp.down.weight_scale_inv", True)
+
+
+def test_find_scale_key_none_when_missing() -> None:
+    header = {"mtp.0.norm.weight": {"dtype": "BF16"}}
+    assert _find_scale_key("mtp.0.norm.weight", header) is None
+
+
+def _make_shard(
+    tmp_path: Path, tensors: list[tuple[str, str, list[int], bytes]]
+) -> Path:
+    """Write a minimal safetensors shard with the given tensors."""
+    offset = 0
+    header: dict[str, Any] = {}
+    parts: list[bytes] = []
+    for key, dtype, shape, data in tensors:
+        end = offset + len(data)
+        header[key] = {"dtype": dtype, "shape": shape, "data_offsets": [offset, end]}
+        parts.append(data)
+        offset += len(data)
+    hb = json.dumps(header).encode()
+    shard = tmp_path / "shard.safetensors"
+    with open(shard, "wb") as fh:
+        fh.write(struct.pack("<Q", len(hb)))
+        fh.write(hb)
+        for p in parts:
+            fh.write(p)
+    return shard
+
+
+def test_read_mtp_tensors_fp8_e4m3_with_e8m0_scale(tmp_path: Path) -> None:
+    """F8_E4M3 weight + F8_E8M0 scale → dequantised BF16 (V4-Flash style)."""
+    mx = pytest.importorskip("mlx.core")
+    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
+
+    # weights: FP8 1.0, 2.0 (bytes 0x38, 0x40); scale: E8M0 byte 128 → 2.0
+    weight_bytes = bytes([0x38, 0x40])
+    scale_bytes = bytes([128])  # 2^(128-127) = 2.0, block covers both elements
+
+    shard = _make_shard(tmp_path, [
+        ("mtp.0.attn.wkv.weight", "F8_E4M3", [2], weight_bytes),
+        ("mtp.0.attn.wkv.scale",  "F8_E8M0", [1], scale_bytes),
+    ])
+    tensors = _read_mtp_tensors(shard, mx=mx)
+
+    assert set(tensors) == {"mtp.0.attn.wkv.weight"}  # scale key excluded
+    vals = tensors["mtp.0.attn.wkv.weight"].astype(mx.float32).tolist()
+    assert vals == pytest.approx([2.0, 4.0], abs=0.05)  # 1.0*2, 2.0*2
+
+
+def test_read_mtp_tensors_i8_with_e8m0_scale(tmp_path: Path) -> None:
+    """I8 weight + F8_E8M0 scale → dequantised BF16 (V4-Flash expert style)."""
+    mx = pytest.importorskip("mlx.core")
+    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
+
+    # int8 values 3, 4; scale byte 127 → 2^0 = 1.0
+    weight_bytes = struct.pack("<2b", 3, 4)
+    scale_bytes = bytes([127])
+
+    shard = _make_shard(tmp_path, [
+        ("mtp.0.ffn.experts.0.w1.weight", "I8",      [2], weight_bytes),
+        ("mtp.0.ffn.experts.0.w1.scale",  "F8_E8M0", [1], scale_bytes),
+    ])
+    tensors = _read_mtp_tensors(shard, mx=mx)
+
+    assert set(tensors) == {"mtp.0.ffn.experts.0.w1.weight"}
+    vals = tensors["mtp.0.ffn.experts.0.w1.weight"].astype(mx.float32).tolist()
+    assert vals == pytest.approx([3.0, 4.0], abs=0.05)
+
+
+def test_read_mtp_tensors_fp8_with_f32_scale_inv(tmp_path: Path) -> None:
+    """F8_E4M3 weight + F32 weight_scale_inv → dequantised BF16 (V3 style)."""
+    mx = pytest.importorskip("mlx.core")
+    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
+
+    # weights: FP8 1.0, 2.0; scale_inv = 0.5 → actual scale = 1/0.5 = 2.0
+    weight_bytes = bytes([0x38, 0x40])
+    scale_inv_bytes = struct.pack("<f", 0.5)  # 1/scale → scale = 2.0
+
+    shard = _make_shard(tmp_path, [
+        ("model.layers.61.attn.w.weight",           "F8_E4M3", [2], weight_bytes),
+        ("model.layers.61.attn.w.weight_scale_inv", "F32",     [1], scale_inv_bytes),
+    ])
+    tensors = _read_mtp_tensors(shard, mx=mx, key_prefix="model.layers.61.")
+
+    assert set(tensors) == {"model.layers.61.attn.w.weight"}
+    vals = tensors["model.layers.61.attn.w.weight"].astype(mx.float32).tolist()
+    assert vals == pytest.approx([2.0, 4.0], abs=0.05)
+
+
+def test_read_mtp_tensors_raises_when_scale_missing(tmp_path: Path) -> None:
+    """F8_E4M3 tensor without a paired scale raises MtpExtractionError."""
+    mx = pytest.importorskip("mlx.core")
+    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
+
+    shard = _make_shard(tmp_path, [
+        ("mtp.0.attn.w.weight", "F8_E4M3", [2], bytes([0x38, 0x40])),
+    ])
+    with pytest.raises(MtpExtractionError, match="no scale tensor found"):
+        _read_mtp_tensors(shard, mx=mx)
+
+
+def test_read_mtp_tensors_old_style_key_prefix(tmp_path: Path) -> None:
+    """key_prefix='model.layers.61.' filters to V3-style MTP tensors."""
+    mx = pytest.importorskip("mlx.core")
+    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
+
+    bf16_bytes = struct.pack("<2H", 0x3F80, 0x4000)  # 1.0, 2.0
+
+    shard = _make_shard(tmp_path, [
+        ("model.layers.61.norm.weight", "BF16", [2], bf16_bytes),
+        ("model.layers.60.norm.weight", "BF16", [2], bf16_bytes),  # excluded
+    ])
+    tensors = _read_mtp_tensors(shard, mx=mx, key_prefix="model.layers.61.")
+
+    assert set(tensors) == {"model.layers.61.norm.weight"}
+    vals = tensors["model.layers.61.norm.weight"].astype(mx.float32).tolist()
+    assert vals == pytest.approx([1.0, 2.0])
