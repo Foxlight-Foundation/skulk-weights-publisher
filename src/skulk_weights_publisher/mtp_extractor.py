@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import shutil
 import struct
@@ -20,19 +21,21 @@ def _stderr_log(message: str) -> None:
     print(message, file=sys.stderr)
 
 
-class _ProgressFile:
-    """BinaryIO wrapper that emits byte-level progress during the LFS upload pass.
+class _ProgressFile(io.BufferedIOBase):
+    """BufferedIOBase that emits byte-level progress during the LFS upload pass.
 
-    HF Hub makes two sequential reads of the same file object: one for SHA-256
-    hashing (fast, CPU-bound) and one for the actual LFS HTTP upload (slow,
-    network-bound). The first seek(0) between them marks the start of the upload
-    pass; only from that point do we emit progress lines so the UI shows real
-    transfer progress rather than the meaningless hash pass.
+    Inheriting from io.BufferedIOBase satisfies the isinstance check that
+    huggingface_hub performs before computing UploadInfo. HF Hub makes two
+    sequential reads of the same file object: one for SHA-256 hashing (fast,
+    CPU-bound) and one for the actual LFS HTTP upload (slow, network-bound).
+    The first seek(0) between them marks the start of the upload pass; only
+    from that point do we emit progress lines.
     """
 
     def __init__(
         self, path: Path, emit: Callable[[str], None], pct_step: int = 2
     ) -> None:
+        super().__init__()
         self._f = open(path, "rb")  # noqa: SIM115
         self._size = path.stat().st_size
         self._emit = emit
@@ -40,10 +43,8 @@ class _ProgressFile:
         self._in_upload_pass = False
         self._last_pct = -1
 
-    # ── BinaryIO interface ────────────────────────────────────────────────────
-
-    def read(self, n: int = -1) -> bytes:
-        data = self._f.read(n)
+    def read(self, size: int = -1) -> bytes:  # type: ignore[override]
+        data = self._f.read(size)
         if self._in_upload_pass and self._size > 0 and data:
             pos = self._f.tell()
             pct = min(99, int(pos * 100 // self._size))
@@ -55,6 +56,9 @@ class _ProgressFile:
                     f"mtp: uploading {pct}% ({gb_done:.1f} GB / {gb_total:.1f} GB)"
                 )
         return data
+
+    def read1(self, size: int = -1) -> bytes:  # type: ignore[override]
+        return self.read(size)
 
     def seek(self, offset: int, whence: int = 0) -> int:
         result = self._f.seek(offset, whence)
@@ -76,17 +80,10 @@ class _ProgressFile:
     def seekable(self) -> bool:
         return True
 
-    def flush(self) -> None:
-        pass
-
     def close(self) -> None:
-        self._f.close()
-
-    def __enter__(self) -> _ProgressFile:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        self._f.close()
+        if not self.closed:
+            self._f.close()
+            super().close()
 
     @property
     def name(self) -> str:

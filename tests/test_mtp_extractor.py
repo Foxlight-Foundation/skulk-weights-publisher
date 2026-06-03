@@ -504,6 +504,23 @@ def test_read_mtp_tensors_old_style_key_prefix(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# _ProgressFile
+# ---------------------------------------------------------------------------
+
+
+def test_progress_file_is_buffered_io_base(tmp_path: Path) -> None:
+    """_ProgressFile must pass the isinstance(obj, io.BufferedIOBase) check."""
+    import io
+
+    from skulk_weights_publisher.mtp_extractor import _ProgressFile
+
+    p = tmp_path / "f.bin"
+    p.write_bytes(b"\x00" * 8)
+    with _ProgressFile(p, [].append) as pf:
+        assert isinstance(pf, io.BufferedIOBase)
+
+
+# ---------------------------------------------------------------------------
 # _write_mtp_streaming
 # ---------------------------------------------------------------------------
 
