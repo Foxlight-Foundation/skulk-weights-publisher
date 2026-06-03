@@ -94,9 +94,12 @@ def _apply_block_scale(
     n_scale = scales_f32.size
     if n_scale == 0 or n_weight == 0:
         return weights_f32.reshape(shape).astype(np.float32)
+    if n_weight % n_scale != 0:
+        raise MtpExtractionError(
+            f"weight elements ({n_weight}) not divisible by scale count "
+            f"({n_scale}) — unexpected quantisation block layout"
+        )
     block_size = n_weight // n_scale
-    if block_size < 1:
-        block_size = 1
     w = weights_f32.reshape(n_scale, block_size)
     s = scales_f32.reshape(n_scale, 1)
     return (w * s).reshape(shape).astype(np.float32)
@@ -373,6 +376,164 @@ def _read_mtp_tensors(
         return tensors
 
 
+# ── Streaming safetensors writer ─────────────────────────────────────────────
+
+
+def _write_mtp_streaming(
+    local_shards: list[Path],
+    output_path: Path,
+    key_prefix: str,
+    emit: Callable[[str], None],
+) -> int:
+    """Stream MTP tensors from shards into a single BF16 safetensors output file.
+
+    Processes one tensor at a time so memory usage is bounded to a single
+    tensor regardless of how many tensors or how large the source shards are.
+    This is the correct path for large models (DeepSeek V4-Pro, V3, etc.) where
+    accumulating all dequantised tensors in a dict before saving would require
+    tens of GB of RAM.
+
+    Returns the number of tensors written.
+    """
+    import numpy as np
+
+    def _in_ns(key: str) -> bool:
+        if key_prefix == "mtp.":
+            return _is_mtp_key(key)
+        return key.startswith(key_prefix)
+
+    # ── Pass 1: collect tensor metadata without loading data ──────────────
+    shard_meta: list[tuple[Path, dict[str, Any], int]] = []
+    for shard_path in local_shards:
+        with open(shard_path, "rb") as fh:
+            (header_len,) = struct.unpack("<Q", fh.read(8))
+            hdr: dict[str, Any] = json.loads(fh.read(header_len).decode("utf-8"))
+        shard_meta.append((shard_path, hdr, 8 + header_len))
+
+    # Identify primary vs. scale-companion keys.
+    output_entries: list[tuple[str, int, list[int], str]] = []
+    for shard_idx, (_, hdr, _) in enumerate(shard_meta):
+        scale_keys = {
+            k
+            for k, m in hdr.items()
+            if k != "__metadata__"
+            and _in_ns(k)
+            and (m["dtype"] in {"F8_E8M0"} or k.endswith("_scale_inv"))
+        }
+        for key, meta in hdr.items():
+            if key == "__metadata__" or not _in_ns(key) or key in scale_keys:
+                continue
+            output_entries.append((key, shard_idx, meta["shape"], meta["dtype"]))
+
+    if not output_entries:
+        raise MtpExtractionError(
+            f"shards downloaded but no MTP tensors found with prefix {key_prefix!r}"
+        )
+
+    # ── Build output safetensors header (data_offsets relative to data start) ─
+    offset = 0
+    out_hdr: dict[str, Any] = {}
+    for key, _, shape, _ in output_entries:
+        n_elems = max(1, int(np.prod(shape)) if shape else 1)
+        byte_size = n_elems * 2  # BF16 = 2 bytes/element
+        out_hdr[key] = {
+            "dtype": "BF16",
+            "shape": shape,
+            "data_offsets": [offset, offset + byte_size],
+        }
+        offset += byte_size
+
+    # Pad header JSON to a multiple of 8 bytes (safetensors spec).
+    hdr_json = json.dumps(out_hdr, separators=(",", ":")).encode("utf-8")
+    pad = (8 - len(hdr_json) % 8) % 8
+    hdr_json += b" " * pad
+
+    # ── Pass 2: stream one tensor at a time into the output file ─────────
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    shard_fhs = [  # noqa: SIM115 — closed in the finally block below
+        open(path, "rb") for path, _, _ in shard_meta  # noqa: SIM115
+    ]
+    try:
+        with open(output_path, "wb") as out_fh:
+            out_fh.write(struct.pack("<Q", len(hdr_json)))
+            out_fh.write(hdr_json)
+
+            for key, shard_idx, shape, src_dtype in output_entries:
+                _, shard_hdr, data_base = shard_meta[shard_idx]
+                fh = shard_fhs[shard_idx]
+                meta = shard_hdr[key]
+                start, end = meta["data_offsets"]
+                fh.seek(data_base + start)
+                raw = fh.read(end - start)
+
+                if src_dtype == "BF16":
+                    out_fh.write(raw)
+
+                elif src_dtype == "F16":
+                    f32 = np.frombuffer(raw, dtype=np.float16).astype(np.float32)
+                    out_fh.write(
+                        (f32.view(np.uint32) >> 16).astype(np.uint16).tobytes()
+                    )
+
+                elif src_dtype == "F32":
+                    f32 = np.frombuffer(raw, dtype=np.float32)
+                    out_fh.write(
+                        (f32.view(np.uint32) >> 16).astype(np.uint16).tobytes()
+                    )
+
+                elif src_dtype in ("F8_E4M3", "I8"):
+                    result = _find_scale_key(key, shard_hdr)
+                    if result is None:
+                        raise MtpExtractionError(
+                            f"no scale tensor found for {src_dtype} tensor {key!r}"
+                        )
+                    scale_key, is_inverse = result
+                    scale_meta = shard_hdr[scale_key]
+                    s_start, s_end = scale_meta["data_offsets"]
+                    fh.seek(data_base + s_start)
+                    scale_raw = fh.read(s_end - s_start)
+
+                    if src_dtype == "F8_E4M3":
+                        weights_f32 = _decode_fp8_e4m3fn(raw)
+                    else:  # I8
+                        weights_f32 = np.frombuffer(
+                            raw, dtype=np.int8
+                        ).astype(np.float32)
+
+                    scale_dtype = scale_meta["dtype"]
+                    if scale_dtype == "F8_E8M0":
+                        scales_f32 = _decode_e8m0(scale_raw)
+                    elif scale_dtype == "F32":
+                        scales_f32 = np.frombuffer(
+                            scale_raw, dtype=np.float32
+                        ).copy()
+                    elif scale_dtype == "BF16":
+                        scales_f32 = _decode_bf16_as_f32(scale_raw)
+                    else:
+                        raise MtpExtractionError(
+                            f"unsupported scale dtype {scale_dtype!r} for "
+                            f"{scale_key!r}"
+                        )
+
+                    if is_inverse:
+                        scales_f32 = 1.0 / scales_f32
+
+                    dequant = _apply_block_scale(weights_f32, scales_f32, shape)
+                    out_fh.write(
+                        (dequant.view(np.uint32) >> 16).astype(np.uint16).tobytes()
+                    )
+
+                else:
+                    raise MtpExtractionError(
+                        f"unsupported MTP tensor dtype {src_dtype!r} for {key!r}"
+                    )
+    finally:
+        for fh in shard_fhs:
+            fh.close()
+
+    return len(output_entries)
+
+
 # ── Public extraction entry point ─────────────────────────────────────────────
 
 
@@ -439,13 +600,6 @@ def extract_mtp(
         return
 
     try:
-        import mlx.core as mx  # type: ignore[import-not-found]
-    except ImportError as exc:
-        raise MtpExtractionError(
-            "mlx is required for reading MTP weights"
-        ) from exc
-
-    try:
         from huggingface_hub import create_repo, hf_hub_download, upload_file
         from huggingface_hub.utils.tqdm import (
             disable_progress_bars,  # type: ignore[import-untyped]
@@ -495,29 +649,14 @@ def extract_mtp(
         local_shards.append(local)
         emit(f"mtp: shard {index}/{len(shard_files)} ready")
 
-    # Read MTP tensors, dequantising FP8/I8 to BF16 on the fly.
-    mtp_tensors: dict[str, Any] = {}
-    for shard_path in local_shards:
-        mtp_tensors.update(_read_mtp_tensors(shard_path, mx=mx, key_prefix=key_prefix))
-
-    if not mtp_tensors:
-        raise MtpExtractionError(
-            f"shards were downloaded but no MTP tensors could be read"
-            f" from {source_repo}"
-        )
-
-    emit(f"mtp: extracted {len(mtp_tensors)} tensor(s)")
-
-    # All tensors are now BF16 (direct reads were already BF16/F16/F32;
-    # FP8/I8 tensors were dequantised above). Cast everything to BF16.
-    sidecar_tensors = {
-        name: arr.astype(mx.bfloat16) for name, arr in mtp_tensors.items()
-    }
-
-    # Save.
-    mx.save_safetensors(str(output_path), sidecar_tensors)
+    # Stream MTP tensors from shards directly into the output file one tensor
+    # at a time. This keeps peak memory bounded to a single tensor regardless
+    # of total dataset size — essential for large models (DeepSeek V4-Pro etc.)
+    # where accumulating everything in RAM before saving would OOM.
+    emit("mtp: streaming tensors to disk (bf16, unquantized)...")
+    n_tensors = _write_mtp_streaming(local_shards, output_path, key_prefix, emit)
     emit(
-        f"mtp: saved {len(sidecar_tensors)} tensor(s) at bf16 (unquantized) "
+        f"mtp: saved {n_tensors} tensor(s) at bf16 (unquantized) "
         f"to {output_path}"
     )
 
