@@ -374,6 +374,22 @@ def test_find_scale_key_none_when_missing() -> None:
     assert _find_scale_key("mtp.0.norm.weight", header) is None
 
 
+def test_apply_block_scale_2d_exact_tiles() -> None:
+    """2D tiling where both dims are exact multiples of block size.
+
+    Regression: [256, 256] with 4 scales is divisible by 4 so the old code
+    took the flat path, scaling contiguous rows instead of quadrants.
+    """
+    weights = np.ones((256, 256), dtype=np.float32)
+    scales = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    result = _apply_block_scale(weights.ravel(), scales, [256, 256])
+    assert result.shape == (256, 256)
+    np.testing.assert_allclose(result[:128, :128], 1.0)   # tile (0,0)
+    np.testing.assert_allclose(result[:128, 128:], 2.0)   # tile (0,1)
+    np.testing.assert_allclose(result[128:, :128], 3.0)   # tile (1,0)
+    np.testing.assert_allclose(result[128:, 128:], 4.0)   # tile (1,1)
+
+
 def test_apply_block_scale_2d_partial_col_block() -> None:
     """2D tiling where the last column block is partial (V3.2 MTP style).
 

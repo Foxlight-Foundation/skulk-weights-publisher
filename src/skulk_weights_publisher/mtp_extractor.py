@@ -174,14 +174,15 @@ def _apply_block_scale(
 
     Handles two layouts:
 
-    * **1D flat** — n_weight divisible by n_scale; block_size = n_weight / n_scale.
-      Used by DeepSeek V3 (_scale_inv) and V4-Flash/Pro (.scale).
+    * **2D tiled** — weight stored as [R, C] with one scale per B×B tile
+      (ceil(R/B) × ceil(C/B) == n_scale). Checked first for 2D weights so
+      that axis-aligned tile boundaries are respected even when n_weight is
+      divisible by n_scale (e.g. [256, 256] / 4 scales with B=128 — the flat
+      path would silently scale rows instead of quadrants).
 
-    * **2D tiled** — weight stored as [R, C] with one scale per 128×128 tile
-      (ceil(R/128) × ceil(C/128) == n_scale). Used by DeepSeek V3.2 MTP experts
-      where C is not a multiple of 128 (e.g. [7168, 576] → 56×5 = 280 scales).
-      The partial right-edge tiles are handled by zero-padding the weight to full
-      block boundaries before scaling, then stripping the padding.
+    * **1D flat** — n_weight divisible by n_scale; block_size = n_weight / n_scale.
+      Used by DeepSeek V3 (_scale_inv) and V4-Flash/Pro (.scale), or as fallback
+      when no 2D tiling matches.
     """
     import numpy as np
 
@@ -190,16 +191,10 @@ def _apply_block_scale(
     if n_scale == 0 or n_weight == 0:
         return weights_f32.reshape(shape).astype(np.float32)
 
-    # ── Fast path: flat 1D block quantisation ────────────────────────────────
-    if n_weight % n_scale == 0:
-        block_size = n_weight // n_scale
-        w = weights_f32.reshape(n_scale, block_size)
-        s = scales_f32.reshape(n_scale, 1)
-        return (w * s).reshape(shape).astype(np.float32)
-
-    # ── 2D tiled block quantisation (e.g. DeepSeek V3.2 MTP experts) ────────
+    # ── 2D tiled block quantisation — checked before flat ────────────────────
     # For weight [R, C] with block size B: scale count == ceil(R/B) * ceil(C/B).
-    # Try standard MX block sizes in preference order.
+    # Partial right/bottom-edge tiles are handled by zero-padding to full block
+    # boundaries, scaling, then stripping the padding.
     if len(shape) == 2:
         R, C = shape
         for B in (128, 64, 256, 32):
@@ -210,12 +205,19 @@ def _apply_block_scale(
             R_pad, C_pad = Rb * B, Cb * B
             w_pad = np.zeros((R_pad, C_pad), dtype=np.float32)
             w_pad[:R, :C] = weights_f32.reshape(R, C)
-            # Reshape to [Rb, B, Cb, B] so each tile is contiguous in the last axes.
+            # [Rb, B, Cb, B]: each tile is contiguous in the last two axes.
             tiles = w_pad.reshape(Rb, B, Cb, B)
             s = scales_f32.reshape(Rb, 1, Cb, 1)
             return (tiles * s).reshape(R_pad, C_pad)[:R, :C].reshape(shape).astype(
                 np.float32
             )
+
+    # ── Flat 1D block quantisation ────────────────────────────────────────────
+    if n_weight % n_scale == 0:
+        block_size = n_weight // n_scale
+        w = weights_f32.reshape(n_scale, block_size)
+        s = scales_f32.reshape(n_scale, 1)
+        return (w * s).reshape(shape).astype(np.float32)
 
     raise MtpExtractionError(
         f"weight elements ({n_weight}) not divisible by scale count "
