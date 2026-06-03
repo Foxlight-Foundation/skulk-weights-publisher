@@ -453,7 +453,10 @@ def extract_mtp(
             "(checked for mtp.* keys and model.layers.{N}.* via config.json)"
         )
 
-    emit(f"mtp: found MTP tensors in {len(shard_files)} shard(s) (prefix: {key_prefix!r})")
+    emit(
+        f"mtp: found MTP tensors in {len(shard_files)} shard(s)"
+        f" (prefix: {key_prefix!r})"
+    )
 
     # Download the relevant shards into scratch.
     scratch_root.mkdir(parents=True, exist_ok=True)
@@ -478,7 +481,8 @@ def extract_mtp(
 
     if not mtp_tensors:
         raise MtpExtractionError(
-            f"shards were downloaded but no MTP tensors could be read from {source_repo}"
+            f"shards were downloaded but no MTP tensors could be read"
+            f" from {source_repo}"
         )
 
     emit(f"mtp: extracted {len(mtp_tensors)} tensor(s)")

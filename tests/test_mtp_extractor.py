@@ -374,13 +374,16 @@ def test_find_scale_key_none_when_missing() -> None:
     assert _find_scale_key("mtp.0.norm.weight", header) is None
 
 
-def _make_shard(tmp_path: Path, tensors: list[tuple[str, str, list[int], bytes]]) -> Path:
+def _make_shard(
+    tmp_path: Path, tensors: list[tuple[str, str, list[int], bytes]]
+) -> Path:
     """Write a minimal safetensors shard with the given tensors."""
     offset = 0
     header: dict[str, Any] = {}
     parts: list[bytes] = []
     for key, dtype, shape, data in tensors:
-        header[key] = {"dtype": dtype, "shape": shape, "data_offsets": [offset, offset + len(data)]}
+        end = offset + len(data)
+        header[key] = {"dtype": dtype, "shape": shape, "data_offsets": [offset, end]}
         parts.append(data)
         offset += len(data)
     hb = json.dumps(header).encode()
