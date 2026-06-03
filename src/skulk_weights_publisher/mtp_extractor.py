@@ -20,6 +20,79 @@ def _stderr_log(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+class _ProgressFile:
+    """BinaryIO wrapper that emits byte-level progress during the LFS upload pass.
+
+    HF Hub makes two sequential reads of the same file object: one for SHA-256
+    hashing (fast, CPU-bound) and one for the actual LFS HTTP upload (slow,
+    network-bound). The first seek(0) between them marks the start of the upload
+    pass; only from that point do we emit progress lines so the UI shows real
+    transfer progress rather than the meaningless hash pass.
+    """
+
+    def __init__(
+        self, path: Path, emit: Callable[[str], None], pct_step: int = 2
+    ) -> None:
+        self._f = open(path, "rb")  # noqa: SIM115
+        self._size = path.stat().st_size
+        self._emit = emit
+        self._pct_step = pct_step
+        self._in_upload_pass = False
+        self._last_pct = -1
+
+    # ── BinaryIO interface ────────────────────────────────────────────────────
+
+    def read(self, n: int = -1) -> bytes:
+        data = self._f.read(n)
+        if self._in_upload_pass and self._size > 0 and data:
+            pos = self._f.tell()
+            pct = min(99, int(pos * 100 // self._size))
+            if pct >= self._last_pct + self._pct_step:
+                self._last_pct = pct
+                gb_done = pos / 1_073_741_824
+                gb_total = self._size / 1_073_741_824
+                self._emit(
+                    f"mtp: uploading {pct}% ({gb_done:.1f} GB / {gb_total:.1f} GB)"
+                )
+        return data
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        result = self._f.seek(offset, whence)
+        # First rewind to start signals the transition from hash pass → upload pass.
+        if offset == 0 and whence == 0 and not self._in_upload_pass:
+            self._in_upload_pass = True
+            self._last_pct = -1
+        return result
+
+    def tell(self) -> int:
+        return self._f.tell()
+
+    def readable(self) -> bool:
+        return True
+
+    def writable(self) -> bool:
+        return False
+
+    def seekable(self) -> bool:
+        return True
+
+    def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
+        self._f.close()
+
+    def __enter__(self) -> _ProgressFile:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self._f.close()
+
+    @property
+    def name(self) -> str:
+        return self._f.name
+
+
 # ── FP8 / quantised-dtype decoding ───────────────────────────────────────────
 # MLX 0.31.x has no float8 dtype, so we decode FP8 via a precomputed lookup
 # table and numpy, then hand the result to MLX as float32/bfloat16.
@@ -411,15 +484,18 @@ def _write_mtp_streaming(
         shard_meta.append((shard_path, hdr, 8 + header_len))
 
     # Identify primary vs. scale-companion keys.
+    # Build scale_keys by resolving each quantised weight's companion via
+    # _find_scale_key — the same pairing logic used when writing tensor data.
+    # This catches companions of any dtype (BF16, F32, F8_E8M0), not just F8_E8M0.
+    _quantised_set = {"F8_E4M3", "I8"}
     output_entries: list[tuple[str, int, list[int], str]] = []
     for shard_idx, (_, hdr, _) in enumerate(shard_meta):
-        scale_keys = {
-            k
-            for k, m in hdr.items()
-            if k != "__metadata__"
-            and _in_ns(k)
-            and (m["dtype"] in {"F8_E8M0"} or k.endswith("_scale_inv"))
-        }
+        scale_keys: set[str] = set()
+        for k, m in hdr.items():
+            if k != "__metadata__" and _in_ns(k) and m["dtype"] in _quantised_set:
+                pair = _find_scale_key(k, hdr)
+                if pair is not None:
+                    scale_keys.add(pair[0])
         for key, meta in hdr.items():
             if key == "__metadata__" or not _in_ns(key) or key in scale_keys:
                 continue
@@ -434,7 +510,7 @@ def _write_mtp_streaming(
     offset = 0
     out_hdr: dict[str, Any] = {}
     for key, _, shape, _ in output_entries:
-        n_elems = max(1, int(np.prod(shape)) if shape else 1)
+        n_elems = int(np.prod(shape)) if shape else 1
         byte_size = n_elems * 2  # BF16 = 2 bytes/element
         out_hdr[key] = {
             "dtype": "BF16",
@@ -662,14 +738,15 @@ def extract_mtp(
 
     # Upload.
     emit(f"mtp: uploading to hf://{sidecar_repo}/mtp.safetensors")
-    upload_file(
-        path_or_fileobj=str(output_path),
-        path_in_repo="mtp.safetensors",
-        repo_id=sidecar_repo,
-        repo_type="model",
-        token=token,
-        commit_message=f"Add MTP sidecar from {source_repo} (bf16, unquantized)",
-    )
+    with _ProgressFile(output_path, emit) as pf:
+        upload_file(
+            path_or_fileobj=pf,  # type: ignore[arg-type]
+            path_in_repo="mtp.safetensors",
+            repo_id=sidecar_repo,
+            repo_type="model",
+            token=token,
+            commit_message=f"Add MTP sidecar from {source_repo} (bf16, unquantized)",
+        )
     emit(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors")
 
     # Skulk owns artifact lifecycle — discard everything we staged locally.

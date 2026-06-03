@@ -67,6 +67,13 @@ function deriveStages(
       const line = lines.find((l) => /mtp: quantized/.test(l));
       if (line) detail = line.replace('mtp: ', '');
     }
+    if (def.id === 'uploading' && isActive) {
+      const prog = [...lines].reverse().find((l) => /mtp: uploading \d+%/.test(l));
+      if (prog) {
+        const m = prog.match(/uploading (\d+)%\s*\(([^)]+)\)/);
+        if (m) detail = `${m[1]}% · ${m[2]}`;
+      }
+    }
 
     return { stage: def.id, label: def.label, status, detail };
   });
@@ -237,6 +244,13 @@ const DownloadHint = styled.p`
   font-style: italic;
 `;
 
+const UploadHint = styled.p`
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  color: ${({ theme }) => theme.colors.textMuted};
+  padding: 0 ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.sm};
+  font-style: italic;
+`;
+
 const ErrorBlock = styled.div`
   padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
   font-size: ${({ theme }) => theme.fontSizes.sm};
@@ -282,6 +296,7 @@ export const PublishLog = ({ phase, lines, errorMessage, className }: PublishLog
   const stages = isRegistration ? registrationStages(lines) : deriveStages(lines, isError);
   const activeStage = stages.find((s) => s.status === 'active');
   const isDownloading = activeStage?.stage === 'downloading';
+  const isUploading = activeStage?.stage === 'uploading';
 
   useEffect(() => {
     if (rawRef.current) rawRef.current.scrollTop = rawRef.current.scrollHeight;
@@ -316,6 +331,12 @@ export const PublishLog = ({ phase, lines, errorMessage, className }: PublishLog
         <DownloadHint>
           Downloading BF16 shards from HuggingFace — this can take several minutes for large models.
         </DownloadHint>
+      )}
+
+      {isUploading && (
+        <UploadHint>
+          Uploading to HuggingFace — large models can take 20–40 minutes on a typical connection.
+        </UploadHint>
       )}
 
       {isError && errorMessage && <ErrorBlock>Error: {errorMessage}</ErrorBlock>}
