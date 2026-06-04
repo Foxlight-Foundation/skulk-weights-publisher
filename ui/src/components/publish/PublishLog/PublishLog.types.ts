@@ -4,7 +4,6 @@ export type Stage =
   | 'finding'
   | 'downloading'
   | 'extracting'
-  | 'quantizing'
   | 'saving'
   | 'uploading'
   | 'confirming'

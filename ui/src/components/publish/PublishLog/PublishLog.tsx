@@ -7,15 +7,17 @@ import type { PublishLogProps, Stage, StageStatus } from './PublishLog.types';
 // Stage parsing
 // ---------------------------------------------------------------------------
 
+// Triggers must match the emit strings in mtp_extractor.py verbatim — the
+// "matches real backend emit strings" test in PublishLog.test.tsx pins each
+// trigger to a real log line. Update both sides together.
 const STAGE_DEFS: { id: Stage; label: string; trigger: RegExp }[] = [
-  { id: 'finding', label: 'Finding MTP shards', trigger: /mtp: found mtp\.\* keys/ },
+  { id: 'finding', label: 'Finding MTP shards', trigger: /mtp: found MTP tensors/ },
   { id: 'downloading', label: 'Downloading shards', trigger: /mtp: downloading shard/ },
   {
     id: 'extracting',
     label: 'Extracting tensors',
-    trigger: /mtp: extracted|mtp: streaming tensors/,
+    trigger: /mtp: streaming tensors/,
   },
-  { id: 'quantizing', label: 'Quantizing', trigger: /mtp: quantized/ },
   { id: 'saving', label: 'Saving locally', trigger: /mtp: saved/ },
   { id: 'uploading', label: 'Uploading to HuggingFace', trigger: /mtp: uploading/ },
   {
@@ -64,12 +66,7 @@ function deriveStages(
       if (lastDownload) detail = lastDownload.replace('mtp: ', '');
     }
     if (def.id === 'extracting' && status === 'done') {
-      const line =
-        lines.find((l) => /mtp: extracted/.test(l)) ?? lines.find((l) => /mtp: saved/.test(l));
-      if (line) detail = line.replace('mtp: ', '');
-    }
-    if (def.id === 'quantizing' && status === 'done') {
-      const line = lines.find((l) => /mtp: quantized/.test(l));
+      const line = lines.find((l) => /mtp: saved/.test(l));
       if (line) detail = line.replace('mtp: ', '');
     }
     if (def.id === 'uploading' && isActive) {
