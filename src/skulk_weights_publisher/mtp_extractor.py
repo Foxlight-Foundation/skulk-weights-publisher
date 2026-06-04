@@ -373,129 +373,6 @@ def _find_scale_key(
     return None
 
 
-def _read_mtp_tensors(
-    shard_path: Path,
-    *,
-    mx: Any,
-    key_prefix: str = "mtp.",
-) -> dict[str, Any]:
-    """Return MTP tensors from a safetensors shard, dequantising FP8/I8 to BF16.
-
-    Reads only tensors whose keys start with ``key_prefix``.  Scale companion
-    tensors (``*_scale_inv`` or ``*.scale``) are consumed during dequantisation
-    and excluded from the output dict.
-
-    Supported dtypes
-    ----------------
-    * BF16, F16, F32 — passed through directly.
-    * F8_E4M3 + paired scale (F8_E8M0 or F32 ``_scale_inv``) — MX-FP8 block
-      dequantisation → BF16.
-    * I8 + paired F8_E8M0 scale — block dequantisation → BF16.
-    """
-    quantised_dtypes = {"F8_E4M3", "I8"}
-    scale_dtypes = {"F8_E8M0"}
-
-    with open(shard_path, "rb") as fh:
-        (header_len,) = struct.unpack("<Q", fh.read(8))
-        header: dict[str, Any] = json.loads(fh.read(header_len).decode("utf-8"))
-        data_base = 8 + header_len
-
-        def _in_mtp_namespace(key: str) -> bool:
-            """Return True if key belongs to the MTP namespace for this prefix."""
-            if key_prefix == "mtp.":
-                # Use _is_mtp_key so both mtp.* and .mtp.* (embedded) are covered.
-                return _is_mtp_key(key)
-            return key.startswith(key_prefix)
-
-        # Identify scale-companion keys so we can skip them as primary tensors.
-        scale_keys: set[str] = set()
-        for key, meta in header.items():
-            if key == "__metadata__" or not _in_mtp_namespace(key):
-                continue
-            dtype = meta["dtype"]
-            if dtype in scale_dtypes or key.endswith("_scale_inv"):
-                scale_keys.add(key)
-
-        def _raw(key: str) -> bytes:
-            start, end = header[key]["data_offsets"]
-            fh.seek(data_base + start)
-            return fh.read(end - start)
-
-        tensors: dict[str, Any] = {}
-
-        for key, meta in header.items():
-            if key == "__metadata__" or not _in_mtp_namespace(key):
-                continue
-            if key in scale_keys:
-                continue  # consumed alongside the paired weight tensor
-
-            dtype_name: str = meta["dtype"]
-            shape: list[int] = meta["shape"]
-            raw = _raw(key)
-
-            if dtype_name == "BF16":
-                arr = mx.array(memoryview(raw).cast("H"), dtype=mx.uint16)
-                arr = arr.view(mx.bfloat16)
-                tensors[key] = arr.reshape(shape) if shape else arr
-
-            elif dtype_name == "F16":
-                arr = mx.array(memoryview(raw).cast("H"), dtype=mx.uint16)
-                arr = arr.view(mx.float16)
-                tensors[key] = arr.reshape(shape) if shape else arr
-
-            elif dtype_name == "F32":
-                arr = mx.array(memoryview(raw).cast("f"), dtype=mx.float32)
-                tensors[key] = arr.reshape(shape) if shape else arr
-
-            elif dtype_name in quantised_dtypes:
-                result = _find_scale_key(key, header)
-                if result is None:
-                    raise MtpExtractionError(
-                        f"no scale tensor found for {dtype_name} tensor {key!r} "
-                        f"in {shard_path.name}"
-                    )
-                scale_key, is_inverse = result
-                scale_meta = header[scale_key]
-                scale_dtype = scale_meta["dtype"]
-                scale_raw = _raw(scale_key)
-
-                # Decode weights to float32.
-                import numpy as np  # lazy: only needed for FP8/I8 paths
-
-                if dtype_name == "F8_E4M3":
-                    weights_f32 = _decode_fp8_e4m3fn(raw)
-                else:  # I8
-                    weights_f32 = np.frombuffer(raw, dtype=np.int8).astype(np.float32)
-
-                # Decode scales to float32.
-                if scale_dtype == "F8_E8M0":
-                    scales_f32 = _decode_e8m0(scale_raw)
-                elif scale_dtype == "F32":
-                    scales_f32 = np.frombuffer(scale_raw, dtype=np.float32).copy()
-                elif scale_dtype == "BF16":
-                    scales_f32 = _decode_bf16_as_f32(scale_raw)
-                else:
-                    raise MtpExtractionError(
-                        f"unsupported scale dtype {scale_dtype!r} for {scale_key!r} "
-                        f"in {shard_path.name}"
-                    )
-
-                # V3 stores 1/scale; take the reciprocal to get actual scale.
-                if is_inverse:
-                    scales_f32 = 1.0 / scales_f32
-
-                dequant = _apply_block_scale(weights_f32, scales_f32, shape)
-                tensors[key] = mx.array(dequant).astype(mx.bfloat16)
-
-            else:
-                raise MtpExtractionError(
-                    f"unsupported MTP tensor dtype {dtype_name!r} for {key} "
-                    f"in {shard_path.name}"
-                )
-
-        return tensors
-
-
 # ── Streaming safetensors writer ─────────────────────────────────────────────
 
 
@@ -733,68 +610,75 @@ def extract_mtp(
         sidecar_repo, repo_type="model", private=False, exist_ok=True, token=token
     )
 
-    # Identify which shards contain MTP tensors and what key prefix they use.
     cache_dir = str(scratch_root / "_hf_cache")
-    shard_files, key_prefix = _find_mtp_shards(
-        source_repo, token=token, cache_dir=cache_dir
-    )
-    if not shard_files:
-        raise MtpExtractionError(
-            f"no MTP head tensors found in {source_repo}; "
-            "confirm this model has native MTP heads "
-            "(checked for mtp.* keys and model.layers.{N}.* via config.json)"
+    try:
+        # Identify which shards contain MTP tensors and what key prefix they use.
+        shard_files, key_prefix = _find_mtp_shards(
+            source_repo, token=token, cache_dir=cache_dir
         )
-
-    emit(
-        f"mtp: found MTP tensors in {len(shard_files)} shard(s)"
-        f" (prefix: {key_prefix!r})"
-    )
-
-    # Download the relevant shards into scratch.
-    scratch_root.mkdir(parents=True, exist_ok=True)
-    local_shards: list[Path] = []
-    for index, shard in enumerate(shard_files, 1):
-        emit(f"mtp: downloading shard {index}/{len(shard_files)}: {shard}")
-        local = Path(
-            hf_hub_download(
-                repo_id=source_repo,
-                filename=shard,
-                token=token,
-                cache_dir=cache_dir,
+        if not shard_files:
+            raise MtpExtractionError(
+                f"no MTP head tensors found in {source_repo}; "
+                "confirm this model has native MTP heads "
+                "(checked for mtp.* keys and model.layers.{N}.* via config.json)"
             )
+
+        emit(
+            f"mtp: found MTP tensors in {len(shard_files)} shard(s)"
+            f" (prefix: {key_prefix!r})"
         )
-        local_shards.append(local)
-        emit(f"mtp: shard {index}/{len(shard_files)} ready")
 
-    # Stream MTP tensors from shards directly into the output file one tensor
-    # at a time. This keeps peak memory bounded to a single tensor regardless
-    # of total dataset size — essential for large models (DeepSeek V4-Pro etc.)
-    # where accumulating everything in RAM before saving would OOM.
-    emit("mtp: streaming tensors to disk (bf16, unquantized)...")
-    n_tensors = _write_mtp_streaming(local_shards, output_path, key_prefix, emit)
-    emit(
-        f"mtp: saved {n_tensors} tensor(s) at bf16 (unquantized) "
-        f"to {output_path}"
-    )
+        # Download the relevant shards into scratch.
+        scratch_root.mkdir(parents=True, exist_ok=True)
+        local_shards: list[Path] = []
+        for index, shard in enumerate(shard_files, 1):
+            emit(f"mtp: downloading shard {index}/{len(shard_files)}: {shard}")
+            local = Path(
+                hf_hub_download(
+                    repo_id=source_repo,
+                    filename=shard,
+                    token=token,
+                    cache_dir=cache_dir,
+                )
+            )
+            local_shards.append(local)
+            emit(f"mtp: shard {index}/{len(shard_files)} ready")
 
-    # Upload.
-    emit(f"mtp: uploading to hf://{sidecar_repo}/mtp.safetensors")
-    with _ProgressFile(output_path, emit) as pf:
-        upload_file(
-            path_or_fileobj=pf,  # type: ignore[arg-type]
-            path_in_repo="mtp.safetensors",
-            repo_id=sidecar_repo,
-            repo_type="model",
-            token=token,
-            commit_message=f"Add MTP sidecar from {source_repo} (bf16, unquantized)",
+        # Stream MTP tensors from shards directly into the output file one
+        # tensor at a time. This keeps peak memory bounded to a single tensor
+        # regardless of total dataset size — essential for large models
+        # (DeepSeek V4-Pro etc.) where accumulating everything in RAM before
+        # saving would OOM.
+        emit("mtp: streaming tensors to disk (bf16, unquantized)...")
+        n_tensors = _write_mtp_streaming(local_shards, output_path, key_prefix, emit)
+        emit(
+            f"mtp: saved {n_tensors} tensor(s) at bf16 (unquantized) "
+            f"to {output_path}"
         )
-    emit(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors")
 
-    # Skulk owns artifact lifecycle — discard everything we staged locally.
-    output_path.unlink()
-    hf_cache = scratch_root / "_hf_cache"
-    if hf_cache.exists():
-        shutil.rmtree(hf_cache)
+        # Upload.
+        emit(f"mtp: uploading to hf://{sidecar_repo}/mtp.safetensors")
+        with _ProgressFile(output_path, emit) as pf:
+            upload_file(
+                path_or_fileobj=pf,  # type: ignore[arg-type]
+                path_in_repo="mtp.safetensors",
+                repo_id=sidecar_repo,
+                repo_type="model",
+                token=token,
+                commit_message=(
+                    f"Add MTP sidecar from {source_repo} (bf16, unquantized)"
+                ),
+            )
+        emit(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors")
+    finally:
+        # Skulk owns artifact lifecycle — discard everything we staged locally,
+        # success or failure. A failed run would otherwise leak the partial
+        # output plus tens of GB of cached shards (the server gives each job a
+        # fresh scratch dir, so a leaked cache is never reused or reclaimed).
+        output_path.unlink(missing_ok=True)
+        hf_cache = scratch_root / "_hf_cache"
+        if hf_cache.exists():
+            shutil.rmtree(hf_cache)
 
     # Publish a self-describing model card so the sidecar carries its provenance
     # (source repo + revision), target, and inherited license.

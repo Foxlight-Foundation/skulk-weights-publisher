@@ -103,41 +103,46 @@ def extract_and_publish_vision(
         shutil.rmtree(local_dir)
     local_dir.mkdir(parents=True, exist_ok=True)
 
-    emit(f"vision: downloading weights from hf://{source_repo}")
-    snapshot_download(
-        repo_id=source_repo,
-        repo_type="model",
-        local_dir=str(local_dir),
-        token=token,
-        allow_patterns=_VISION_ALLOW_PATTERNS,
-    )
-
-    weight_files = sorted(local_dir.rglob("*.safetensors"))
-    if not weight_files:
-        raise VisionExtractionError(
-            f"no .safetensors weights found in {source_repo}; "
-            "confirm this repo holds the vision encoder weights"
+    try:
+        emit(f"vision: downloading weights from hf://{source_repo}")
+        snapshot_download(
+            repo_id=source_repo,
+            repo_type="model",
+            local_dir=str(local_dir),
+            token=token,
+            allow_patterns=_VISION_ALLOW_PATTERNS,
         )
-    emit(f"vision: {len(weight_files)} weight file(s) downloaded")
 
-    emit(f"vision: uploading to hf://{sidecar_repo}")
-    # delete_patterns prunes files already on the Hub that the current snapshot no
-    # longer contains, so republishing a repointed/slimmed source produces a true
-    # mirror instead of accumulating obsolete shards/configs/indexes alongside the
-    # new ones. Scoped to the same file kinds we manage so HF repo metadata
-    # (.gitattributes, auto-created README) is left untouched.
-    upload_folder(
-        folder_path=str(local_dir),
-        repo_id=sidecar_repo,
-        repo_type="model",
-        token=token,
-        commit_message=f"Mirror vision encoder from {source_repo}",
-        delete_patterns=_VISION_ALLOW_PATTERNS,
-    )
-    emit(f"vision: published to hf://{sidecar_repo}")
+        weight_files = sorted(local_dir.rglob("*.safetensors"))
+        if not weight_files:
+            raise VisionExtractionError(
+                f"no .safetensors weights found in {source_repo}; "
+                "confirm this repo holds the vision encoder weights"
+            )
+        emit(f"vision: {len(weight_files)} weight file(s) downloaded")
 
-    # Skulk owns artifact lifecycle — discard the local mirror we staged.
-    shutil.rmtree(local_dir)
+        emit(f"vision: uploading to hf://{sidecar_repo}")
+        # delete_patterns prunes files already on the Hub that the current
+        # snapshot no longer contains, so republishing a repointed/slimmed
+        # source produces a true mirror instead of accumulating obsolete
+        # shards/configs/indexes alongside the new ones. Scoped to the same
+        # file kinds we manage so HF repo metadata (.gitattributes,
+        # auto-created README) is left untouched.
+        upload_folder(
+            folder_path=str(local_dir),
+            repo_id=sidecar_repo,
+            repo_type="model",
+            token=token,
+            commit_message=f"Mirror vision encoder from {source_repo}",
+            delete_patterns=_VISION_ALLOW_PATTERNS,
+        )
+        emit(f"vision: published to hf://{sidecar_repo}")
+    finally:
+        # Skulk owns artifact lifecycle — discard the local mirror we staged,
+        # success or failure. A failed run would otherwise leak the full
+        # downloaded mirror (potentially many GB) in scratch.
+        if local_dir.exists():
+            shutil.rmtree(local_dir)
 
     # Publish a self-describing model card. README.md is not in
     # _VISION_ALLOW_PATTERNS, so a later mirror's delete_patterns never prunes it.

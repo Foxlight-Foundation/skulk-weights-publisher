@@ -1,7 +1,6 @@
 /** Response from GET /api/status */
 export interface StatusResponse {
   hf_token_set: boolean;
-  mlx_available: boolean;
 }
 
 /** Response from GET /api/config */

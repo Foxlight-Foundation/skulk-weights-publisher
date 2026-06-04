@@ -70,11 +70,7 @@ const Actions = styled.div`
  * Shows detected model metadata and exposes the Publish MTP button.
  * The Publish button is disabled with an explanation when no MTP tensors are found.
  */
-export const DetectionResult = ({
-  detection,
-  mlxAvailable = true,
-  className,
-}: DetectionResultProps) => {
+export const DetectionResult = ({ detection, className }: DetectionResultProps) => {
   const phase = usePublishStore((s) => s.phase);
   const publish = usePublishStore((s) => s.publish);
   const reset = usePublishStore((s) => s.reset);
@@ -142,12 +138,6 @@ export const DetectionResult = ({
           cannot be published as an MTP sidecar.
         </Banner>
       )}
-      {detection.can_publish && !mlxAvailable && (
-        <Banner severity="error">
-          mlx is not installed. Install it with <code>uv sync --extra ui --extra mtp</code> then
-          restart skulk-ui.
-        </Banner>
-      )}
 
       <Actions>
         <Button variant="ghost" size="sm" onClick={reset} disabled={publishing}>
@@ -167,7 +157,7 @@ export const DetectionResult = ({
           <Button
             variant="primary"
             onClick={() => void publish()}
-            disabled={!detection.can_publish || !mlxAvailable}
+            disabled={!detection.can_publish}
             loading={publishing}
             aria-label="Publish MTP sidecar"
           >

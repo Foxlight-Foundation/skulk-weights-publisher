@@ -16,18 +16,17 @@ There are seven endpoints.
 
 ## `GET /api/status`
 
-Returns whether a token is configured and a legacy `mlx_available` flag.
+Returns whether a token is configured.
 
 ```json
-{ "hf_token_set": true, "mlx_available": false }
+{ "hf_token_set": true }
 ```
 
-:::note Legacy `mlx_available`
-`mlx_available` reports whether `mlx.core` imports. It is a **stale gate** — real
-MTP extraction is pure-numpy and does not require `mlx`, so this flag does not
-reflect whether extraction can run. The GUI still surfaces it as a warning
-banner; both the flag and the banner are slated for removal in a follow-up
-release.
+:::note
+MTP extraction is pure numpy and cross-platform, so there is no platform
+capability to report here. (Earlier releases returned an `mlx_available`
+flag from the pre-streaming extraction path; it was removed along with the
+GUI's mlx warning banner.)
 :::
 
 ## `GET /api/config`
