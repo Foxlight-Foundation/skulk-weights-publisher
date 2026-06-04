@@ -108,10 +108,7 @@ auto-generated model card, and every stage shows complete:
 :::note
 Real extraction is pure-numpy and cross-platform — it needs only `numpy`,
 `safetensors`, and `huggingface_hub` (all pulled in by `uv sync --extra ui`),
-with no `mlx` dependency. The GUI still shows a legacy "mlx is not installed"
-warning banner (driven by `/api/status` `mlx_available`); this gate is stale —
-it does **not** block real extraction and is slated for removal in a follow-up
-release. See the [MTP sidecar guide](./mtp-sidecar.md).
+with no `mlx` dependency. See the [MTP sidecar guide](./mtp-sidecar.md).
 :::
 
 ## Gemma 4 assistant models
@@ -147,11 +144,6 @@ publishing it again.
 - **"cannot find the ui/ directory"** — `skulk-ui` is being run outside the
   source tree. Run it from a clone, or set `SKULK_UI_DIST` to a prebuilt
   `dist/`.
-- **"mlx is not installed"** — a stale legacy warning banner that does not block
-  real extraction (which is pure-numpy and cross-platform). Installing the extras
-  with `uv sync --extra ui` provides everything extraction needs (`numpy`,
-  `safetensors`, `huggingface_hub`); the banner itself is slated for removal in a
-  follow-up release.
 - **No assistant / no MTP detected** — the model has neither native MTP heads
   nor a published `{model}-assistant`. It can't be published as a sidecar; this
   is expected for models without speculative-decoding support.

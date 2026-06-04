@@ -51,7 +51,6 @@ function AppContent() {
   const [tokenWarningDismissed, setTokenWarningDismissed] = useState(false);
 
   const hfTokenSet = useConfigStore((s) => s.hfTokenSet);
-  const mlxAvailable = useConfigStore((s) => s.mlxAvailable);
   const fetchStatus = useConfigStore((s) => s.fetchStatus);
 
   const phase = usePublishStore((s) => s.phase);
@@ -93,19 +92,10 @@ function AppContent() {
             to configure your HuggingFace token before publishing.
           </Banner>
         )}
-        {!mlxAvailable && (
-          <Banner severity="error">
-            <strong>mlx is not installed.</strong> MTP extraction requires Apple Silicon and the{' '}
-            <code>[mtp]</code> extras: <code>uv sync --extra ui --extra mtp</code>
-          </Banner>
-        )}
-
         <Card>
           <CardTitle>Publish MTP Sidecar</CardTitle>
           <DetectForm />
-          {showDetection && detection && (
-            <DetectionResult detection={detection} mlxAvailable={mlxAvailable} />
-          )}
+          {showDetection && detection && <DetectionResult detection={detection} />}
         </Card>
 
         {showLog && <PublishLog phase={phase} lines={logLines} errorMessage={errorMessage} />}

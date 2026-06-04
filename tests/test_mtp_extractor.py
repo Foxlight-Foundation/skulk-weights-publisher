@@ -243,60 +243,6 @@ def test_find_mtp_shards_no_files_at_all(tmp_path: Path) -> None:
     assert prefix == "mtp."
 
 
-def test_read_mtp_tensors_reads_only_mtp_keys(tmp_path: Path) -> None:
-    """_read_mtp_tensors returns only mtp.* tensors and round-trips bf16."""
-    import struct
-
-    mx = pytest.importorskip("mlx.core")
-    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
-
-    # bf16 encodings: 1,2,3,4 and 5,6,7,8
-    mtp_bytes = struct.pack("<4H", 0x3F80, 0x4000, 0x4040, 0x4080)
-    other_bytes = struct.pack("<4H", 0x40A0, 0x40C0, 0x40E0, 0x4100)
-    header = {
-        "mtp.fc.weight": {"dtype": "BF16", "shape": [2, 2], "data_offsets": [0, 8]},
-        "model.other.weight": {
-            "dtype": "BF16",
-            "shape": [2, 2],
-            "data_offsets": [8, 16],
-        },
-    }
-    hb = json.dumps(header).encode()
-    shard = tmp_path / "shard.safetensors"
-    with open(shard, "wb") as f:
-        f.write(struct.pack("<Q", len(hb)))
-        f.write(hb)
-        f.write(mtp_bytes + other_bytes)
-
-    tensors = _read_mtp_tensors(shard, mx=mx)
-
-    assert list(tensors) == ["mtp.fc.weight"]  # non-mtp skipped
-    assert tensors["mtp.fc.weight"].dtype == mx.bfloat16
-    as_floats = tensors["mtp.fc.weight"].astype(mx.float32).tolist()
-    assert as_floats == [[1.0, 2.0], [3.0, 4.0]]
-
-
-def test_read_mtp_tensors_rejects_unknown_dtype(tmp_path: Path) -> None:
-    import struct
-
-    mx = pytest.importorskip("mlx.core")
-    from skulk_weights_publisher.mtp_extractor import (
-        MtpExtractionError,
-        _read_mtp_tensors,
-    )
-
-    header = {"mtp.x": {"dtype": "I64", "shape": [1], "data_offsets": [0, 8]}}
-    hb = json.dumps(header).encode()
-    shard = tmp_path / "shard.safetensors"
-    with open(shard, "wb") as f:
-        f.write(struct.pack("<Q", len(hb)))
-        f.write(hb)
-        f.write(struct.pack("<q", 1))
-
-    with pytest.raises(MtpExtractionError, match="unsupported MTP tensor dtype"):
-        _read_mtp_tensors(shard, mx=mx)
-
-
 # ---------------------------------------------------------------------------
 # FP8 / quantisation helpers
 # ---------------------------------------------------------------------------
@@ -460,96 +406,6 @@ def _decode_bf16_output(path: Path) -> dict[str, np.ndarray]:
         f32 = (raw_u16.astype(np.uint32) << 16).view(np.float32)
         result[key] = f32.reshape(meta["shape"])
     return result
-
-
-def test_read_mtp_tensors_fp8_e4m3_with_e8m0_scale(tmp_path: Path) -> None:
-    """F8_E4M3 weight + F8_E8M0 scale → dequantised BF16 (V4-Flash style)."""
-    mx = pytest.importorskip("mlx.core")
-    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
-
-    # weights: FP8 1.0, 2.0 (bytes 0x38, 0x40); scale: E8M0 byte 128 → 2.0
-    weight_bytes = bytes([0x38, 0x40])
-    scale_bytes = bytes([128])  # 2^(128-127) = 2.0, block covers both elements
-
-    shard = _make_shard(tmp_path, [
-        ("mtp.0.attn.wkv.weight", "F8_E4M3", [2], weight_bytes),
-        ("mtp.0.attn.wkv.scale",  "F8_E8M0", [1], scale_bytes),
-    ])
-    tensors = _read_mtp_tensors(shard, mx=mx)
-
-    assert set(tensors) == {"mtp.0.attn.wkv.weight"}  # scale key excluded
-    vals = tensors["mtp.0.attn.wkv.weight"].astype(mx.float32).tolist()
-    assert vals == pytest.approx([2.0, 4.0], abs=0.05)  # 1.0*2, 2.0*2
-
-
-def test_read_mtp_tensors_i8_with_e8m0_scale(tmp_path: Path) -> None:
-    """I8 weight + F8_E8M0 scale → dequantised BF16 (V4-Flash expert style)."""
-    mx = pytest.importorskip("mlx.core")
-    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
-
-    # int8 values 3, 4; scale byte 127 → 2^0 = 1.0
-    weight_bytes = struct.pack("<2b", 3, 4)
-    scale_bytes = bytes([127])
-
-    shard = _make_shard(tmp_path, [
-        ("mtp.0.ffn.experts.0.w1.weight", "I8",      [2], weight_bytes),
-        ("mtp.0.ffn.experts.0.w1.scale",  "F8_E8M0", [1], scale_bytes),
-    ])
-    tensors = _read_mtp_tensors(shard, mx=mx)
-
-    assert set(tensors) == {"mtp.0.ffn.experts.0.w1.weight"}
-    vals = tensors["mtp.0.ffn.experts.0.w1.weight"].astype(mx.float32).tolist()
-    assert vals == pytest.approx([3.0, 4.0], abs=0.05)
-
-
-def test_read_mtp_tensors_fp8_with_f32_scale_inv(tmp_path: Path) -> None:
-    """F8_E4M3 weight + F32 weight_scale_inv → dequantised BF16 (V3 style)."""
-    mx = pytest.importorskip("mlx.core")
-    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
-
-    # weights: FP8 1.0, 2.0; scale_inv = 0.5 → actual scale = 1/0.5 = 2.0
-    weight_bytes = bytes([0x38, 0x40])
-    scale_inv_bytes = struct.pack("<f", 0.5)  # 1/scale → scale = 2.0
-
-    shard = _make_shard(tmp_path, [
-        ("model.layers.61.attn.w.weight",           "F8_E4M3", [2], weight_bytes),
-        ("model.layers.61.attn.w.weight_scale_inv", "F32",     [1], scale_inv_bytes),
-    ])
-    tensors = _read_mtp_tensors(shard, mx=mx, key_prefix="model.layers.61.")
-
-    assert set(tensors) == {"model.layers.61.attn.w.weight"}
-    vals = tensors["model.layers.61.attn.w.weight"].astype(mx.float32).tolist()
-    assert vals == pytest.approx([2.0, 4.0], abs=0.05)
-
-
-def test_read_mtp_tensors_raises_when_scale_missing(tmp_path: Path) -> None:
-    """F8_E4M3 tensor without a paired scale raises MtpExtractionError."""
-    mx = pytest.importorskip("mlx.core")
-    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
-
-    shard = _make_shard(tmp_path, [
-        ("mtp.0.attn.w.weight", "F8_E4M3", [2], bytes([0x38, 0x40])),
-    ])
-    with pytest.raises(MtpExtractionError, match="no scale tensor found"):
-        _read_mtp_tensors(shard, mx=mx)
-
-
-def test_read_mtp_tensors_old_style_key_prefix(tmp_path: Path) -> None:
-    """key_prefix='model.layers.61.' filters to V3-style MTP tensors."""
-    mx = pytest.importorskip("mlx.core")
-    from skulk_weights_publisher.mtp_extractor import _read_mtp_tensors
-
-    bf16_bytes = struct.pack("<2H", 0x3F80, 0x4000)  # 1.0, 2.0
-
-    shard = _make_shard(tmp_path, [
-        ("model.layers.61.norm.weight", "BF16", [2], bf16_bytes),
-        ("model.layers.60.norm.weight", "BF16", [2], bf16_bytes),  # excluded
-    ])
-    tensors = _read_mtp_tensors(shard, mx=mx, key_prefix="model.layers.61.")
-
-    assert set(tensors) == {"model.layers.61.norm.weight"}
-    vals = tensors["model.layers.61.norm.weight"].astype(mx.float32).tolist()
-    assert vals == pytest.approx([1.0, 2.0])
 
 
 # ---------------------------------------------------------------------------
@@ -757,7 +613,6 @@ def test_write_mtp_streaming_bf16_scale_excluded(tmp_path: Path) -> None:
 
 def test_write_mtp_streaming_raises_on_no_mtp_tensors(tmp_path: Path) -> None:
     from skulk_weights_publisher.mtp_extractor import (
-        MtpExtractionError,
         _write_mtp_streaming,
     )
 

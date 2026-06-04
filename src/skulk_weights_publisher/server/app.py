@@ -118,16 +118,10 @@ class CatalogFindBody(BaseModel):
 
 @app.get("/api/status")
 async def status() -> dict[str, Any]:
-    """Return whether an HF token is configured and whether mlx is available."""
-    return {"hf_token_set": bool(_get_token()), "mlx_available": _check_mlx()}
-
-
-def _check_mlx() -> bool:
-    try:
-        import mlx.core  # type: ignore[import-not-found]  # noqa: F401
-        return True
-    except ImportError:
-        return False
+    """Return whether an HF token is configured."""
+    # MTP extraction is pure numpy (streaming writer) — there is no platform
+    # gate to report. The old `mlx_available` flag is gone.
+    return {"hf_token_set": bool(_get_token())}
 
 
 @app.get("/api/config")

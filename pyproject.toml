@@ -14,12 +14,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Required for real MTP sidecar extraction (not needed for dry-run or vindex publication).
-# mlx requires macOS (Apple Silicon); Linux runners cannot perform real MTP extraction.
+# Required for real MTP sidecar extraction (not needed for dry-run or vindex
+# publication). Extraction is pure numpy and cross-platform.
 mtp = [
   "safetensors>=0.4",
   "numpy>=1.26",
-  "mlx>=0.22; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 dev = [
   "basedpyright>=1.29.4",
@@ -27,7 +26,7 @@ dev = [
   "ruff>=0.11.13",
   "types-PyYAML>=6.0.12.20250516",
   # numpy is used in mtp_extractor for FP8/I8 dequantisation; needed here so
-  # basedpyright and the test suite can resolve it on Linux CI (no MLX).
+  # basedpyright and the test suite can resolve it on Linux CI.
   "numpy>=1.26",
   # Also install [ui] extras in dev so the server module typechecks.
   "fastapi>=0.110",
@@ -39,7 +38,6 @@ ui = [
   # MTP extraction deps — skulk-ui exists to publish MTP sidecars.
   "safetensors>=0.4",
   "numpy>=1.26",
-  "mlx>=0.22; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 
 [project.scripts]
