@@ -20,9 +20,10 @@ Nemotron 3) and old-style DeepSeek `model.layers.{N}.*` heads stored as the
 extra transformer layer beyond `num_hidden_layers` (detected via
 `num_nextn_predict_layers` in `config.json`, e.g. DeepSeek V3/V3.2).
 FP8/INT8-quantised heads are dequantised to BF16 during extraction. Publishing
-an MTP sidecar needs **no catalog entry** — paste a model URL into
-[skulk-ui](#skulk-ui-local-gui) or run
-`skulk-weights publish --artifact mtp`.
+an MTP sidecar through [skulk-ui](#skulk-ui-local-gui) needs **no catalog
+entry** — paste a model URL and everything else is derived. (The CLI's
+`skulk-weights publish --artifact mtp` is the catalog-backed equivalent: it
+takes a catalog key via `--model` and reads the entry's `mtp_*` fields.)
 
 **LARQL vindexes** — LARQL treats model weights as a database, decompiling
 transformer weights into a queryable vindex and exposing LQL, the Lazarus Query
@@ -41,7 +42,7 @@ an availability and versioning risk (see
 This repository is the controlled publication workflow: it keeps the catalog of
 publishable vindexes, validates it, prints the exact commands, runs catalog
 publication from a configured runner, and provides the direct (catalog-less)
-MTP publishing flow via `skulk-ui` and the CLI.
+MTP publishing flow via `skulk-ui`.
 
 ## Published artifacts
 
@@ -70,9 +71,9 @@ hundreds of gigabytes to the wrong scratch path, publish under the wrong Hugging
 Face repository, or silently omit MTP heads that a model needs. This project
 makes publication repeatable:
 
-- `skulk-ui` and `publish --artifact mtp` derive everything needed for an MTP
-  sidecar from the source model — base-model resolution, shard discovery,
-  dequantisation, sidecar naming, model card — with no catalog bookkeeping
+- `skulk-ui` derives everything needed for an MTP sidecar from the source
+  model — base-model resolution, shard discovery, dequantisation, sidecar
+  naming, model card — with no catalog bookkeeping
 - packaged Foxlight catalog entries describe shared Skulk vindexes published
   under `FoxlightAI`
 - `skulk-weights.yaml` can add operator-owned catalog source files
@@ -87,7 +88,8 @@ The catalog drives **vindex** publication. The entries below are the vindex
 definitions in the shipped Foxlight catalog — CI-validated and used for
 dry-run/publish planning. They describe the planned vindex set, not artifacts
 already on the Hub (see [Published artifacts](#published-artifacts)).
-Publishing an MTP sidecar does **not** require a catalog entry:
+Publishing an MTP sidecar through `skulk-ui` does **not** require a catalog
+entry. The current entries:
 
 | Key | Source model | Quant | Slices |
 |---|---|---|---|
