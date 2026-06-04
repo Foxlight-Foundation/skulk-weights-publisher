@@ -56,6 +56,11 @@ _jobs_finished_at: dict[str, float] = {}
 # (event loop) and publish worker threads. The queues themselves are
 # thread-safe; the dicts around them are not.
 _jobs_lock = threading.Lock()
+# Serializes the catalog read-check-append in /api/register. Registration runs
+# in the default thread pool, so two concurrent requests could otherwise both
+# pass the collision checks and double-append the same entry. (In-process only;
+# a register racing a CLI `catalog add` in another process is a known follow-up.)
+_catalog_write_lock = threading.Lock()
 # Keep a finished job around this long so a disconnected client can reconnect.
 _JOB_RETENTION_SECONDS = 600.0
 # Local single-operator GUI: allow a little parallelism but refuse runaway
@@ -378,31 +383,38 @@ def _register_impl(url: str, token: str | None) -> dict[str, Any]:
     hf_repo_new = f"FoxlightAI/{artifact_slug}-vindex"
     output_name_new = f"{artifact_slug}.vindex"
 
-    entries = load_catalogue_view().entries
-    if effective_key in {e.key for e in entries}:
-        raise _ApiError(409, f"'{effective_key}' already exists in the catalog")
-    if hf_repo_new in {e.hf_repo for e in entries}:
-        raise _ApiError(
-            409, f"hf_repo '{hf_repo_new}' already exists in the catalog"
-        )
-    if output_name_new in {e.output_name for e in entries}:
-        raise _ApiError(
-            409, f"output_name '{output_name_new}' already exists in the catalog"
-        )
+    # Check-then-append must be atomic: hold the lock across both so two
+    # concurrent registrations of the same model can't both pass the collision
+    # checks and double-append.
+    with _catalog_write_lock:
+        entries = load_catalogue_view().entries
+        if effective_key in {e.key for e in entries}:
+            raise _ApiError(
+                409, f"'{effective_key}' already exists in the catalog"
+            )
+        if hf_repo_new in {e.hf_repo for e in entries}:
+            raise _ApiError(
+                409, f"hf_repo '{hf_repo_new}' already exists in the catalog"
+            )
+        if output_name_new in {e.output_name for e in entries}:
+            raise _ApiError(
+                409,
+                f"output_name '{output_name_new}' already exists in the catalog",
+            )
 
-    entry_block = build_entry_block(
-        key_slug=key_slug,
-        artifact_slug=artifact_slug,
-        source_model=model_id,
-        quant=quant,
-        tier=tier,
-        base_model=base_model,
-        mtp_keys=mtp_keys,
-        assistant_model_repo=assistant_model_repo,
-    )
-    catalog_path = find_builtin_catalog_path()
-    with open(catalog_path, "a", encoding="utf-8") as fh:
-        fh.write(entry_block)
+        entry_block = build_entry_block(
+            key_slug=key_slug,
+            artifact_slug=artifact_slug,
+            source_model=model_id,
+            quant=quant,
+            tier=tier,
+            base_model=base_model,
+            mtp_keys=mtp_keys,
+            assistant_model_repo=assistant_model_repo,
+        )
+        catalog_path = find_builtin_catalog_path()
+        with open(catalog_path, "a", encoding="utf-8") as fh:
+            fh.write(entry_block)
 
     return {
         "ok": True,

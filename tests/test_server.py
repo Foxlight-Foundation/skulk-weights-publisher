@@ -419,3 +419,76 @@ def test_evict_stale_jobs_reaps_old_finished_jobs() -> None:
         assert "stale" not in app_module._jobs_finished_at
         assert "fresh" in app_module._jobs
     _clear_jobs()
+
+
+def test_concurrent_register_same_model_appends_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two simultaneous registrations of one model: one 200, one 409, one entry.
+
+    Registration runs in the thread pool, so without the catalog write lock
+    both threads could pass the collision checks and double-append.
+    """
+    import threading as _threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    catalog = tmp_path / "foxlight.yaml"
+    # Block style (not `models: []`) so appended `  - key:` entries stay
+    # parseable YAML when the collision check re-reads the file.
+    catalog.write_text("models:\n", encoding="utf-8")
+
+    info = {
+        "id": "mlx-community/gemma-4-27b-it-4bit",
+        "tags": ["base_model:quantized:google/gemma-4-27b-it"],
+    }
+    barrier = _threading.Barrier(2, timeout=10)
+
+    def synced_fetch(*a: object, **k: object) -> dict[str, object]:
+        # Force both requests to reach the check-then-append window together.
+        barrier.wait()
+        return info
+
+    monkeypatch.setattr(app_module, "fetch_hf_model_info", synced_fetch)
+    monkeypatch.setattr(
+        app_module, "resolve_base_model", lambda *a, **k: "google/gemma-4-27b-it"
+    )
+    monkeypatch.setattr(
+        app_module, "detect_base_model", lambda *a, **k: "google/gemma-4-27b-it"
+    )
+    monkeypatch.setattr(app_module, "detect_mtp_keys", lambda *a, **k: [])
+    monkeypatch.setattr(
+        app_module,
+        "find_assistant_model",
+        lambda *a, **k: "google/gemma-4-27b-it-assistant",
+    )
+    monkeypatch.setattr(app_module, "find_builtin_catalog_path", lambda: catalog)
+
+    # The collision check reads the file fresh each time so the second caller
+    # (under the lock) sees the first caller's append.
+    import yaml
+
+    class _Entry:
+        def __init__(self, d: dict[str, object]) -> None:
+            self.key = f"foxlight/{d['key']}"
+            self.hf_repo = d.get("hf_repo")
+            self.output_name = d.get("output_name")
+
+    class _View:
+        @property
+        def entries(self) -> list[object]:
+            data = yaml.safe_load(catalog.read_text(encoding="utf-8")) or {}
+            return [_Entry(m) for m in (data.get("models") or [])]
+
+    monkeypatch.setattr(app_module, "load_catalogue_view", lambda *a, **k: _View())
+
+    body = {"url": "mlx-community/gemma-4-27b-it-4bit"}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [
+            pool.submit(client.post, "/api/register", json=body) for _ in range(2)
+        ]
+        statuses = sorted(f.result().status_code for f in futures)
+
+    assert statuses == [200, 409], f"expected one success and one conflict: {statuses}"
+    written = catalog.read_text(encoding="utf-8")
+    assert written.count("- key: gemma-4-27b-full-q4-k") == 1
