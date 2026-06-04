@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">skulk-ui (Local GUI) | SWP: Skulk Weights Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/skulk-ui"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="skulk-ui (Local GUI) | SWP: Skulk Weights Publisher"><meta data-rh="true" name="description" content="skulk-ui is a local, point-and-click web app for publishing MTP sidecars,"><meta data-rh="true" property="og:description" content="skulk-ui is a local, point-and-click web app for publishing MTP sidecars,"><link data-rh="true" rel="icon" href="/skulk-weights-publisher/img/skulk-logo.svg"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/skulk-ui"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/skulk-ui" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/skulk-ui" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"skulk-ui (Local GUI)","item":"https://foxlight-foundation.github.io/skulk-weights-publisher/guides/skulk-ui"}]}</script><link rel="stylesheet" href="/skulk-weights-publisher/assets/css/styles.289aaf1c.css">
-<script src="/skulk-weights-publisher/assets/js/runtime~main.6188784d.js" defer="defer"></script>
-<script src="/skulk-weights-publisher/assets/js/main.be00136a.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/runtime~main.71550727.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/main.08c41c39.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -36,8 +36,8 @@ same catalog entries and sidecar uploads you&#x27;d get from <code>skulk-weights
 <code>pip install</code> of a published wheel. (Set <code>SKULK_UI_DIST</code> to point at a
 prebuilt <code>dist/</code> elsewhere if you need to.)</li>
 <li class="">The <code>[ui]</code> extras installed (FastAPI, uvicorn, and the MTP deps).</li>
-<li class="">Node.js 18+ and Yarn on <code>PATH</code> — needed only on the first launch, which builds
-the React app automatically and caches it in <code>ui/dist/</code>.</li>
+<li class="">Node.js 20+ and Yarn (Yarn 1 classic) on <code>PATH</code> — needed only on the first
+launch, which builds the React app automatically and caches it in <code>ui/dist/</code>.</li>
 <li class="">A HuggingFace token with write access to the target org (for publishing).</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="install-and-run">Install and run<a href="#install-and-run" class="hash-link" aria-label="Direct link to Install and run" title="Direct link to Install and run" translate="no">​</a></h2>
@@ -61,7 +61,7 @@ environment also works and takes precedence.)</p>
 <p>Paste a HuggingFace model URL (or <code>owner/repo</code>) and click <strong>Detect</strong>. SWP
 resolves the true BF16 base model — following <code>base_model:quantized:</code> chains
 through community MLX quants — and inspects it for native MTP heads.</p>
-<p><img decoding="async" loading="lazy" alt="Detection result for an MTP model" src="/skulk-weights-publisher/assets/images/03-detect-mtp-f844346498e92519dafaf6c54c4f6b79.png" width="2000" height="1760" class="img_ev3q"></p>
+<p><img decoding="async" loading="lazy" alt="Detection result for an MTP model" src="/skulk-weights-publisher/assets/images/03-detect-mtp-c2683a52ea0f80dbb9f4f8cea5bdbd7b.png" width="2000" height="1400" class="img_ev3q"></p>
 <p>The result shows the resolved base model, detected quant and tier, how many
 <code>mtp.*</code> tensors were found, and the target sidecar repo. The sidecar is one per
 base model (e.g. <code>…-mtp</code>), not quant-qualified — the bf16 heads are shared
@@ -72,10 +72,23 @@ shards that contain <code>mtp.*</code> keys, reads only those tensors, and uploa
 full precision (bf16, unquantized) as <code>mtp.safetensors</code> to the target repo.
 Progress streams live in the log panel, stage by stage (finding shards →
 downloading → extracting → saving → uploading).</p>
-<div class="theme-admonition theme-admonition-note admonition_xJq3 alert alert--secondary"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 14 16"><path fill-rule="evenodd" d="M6.3 5.69a.942.942 0 0 1-.28-.7c0-.28.09-.52.28-.7.19-.18.42-.28.7-.28.28 0 .52.09.7.28.18.19.28.42.28.7 0 .28-.09.52-.28.7a1 1 0 0 1-.7.3c-.28 0-.52-.11-.7-.3zM8 7.99c-.02-.25-.11-.48-.31-.69-.2-.19-.42-.3-.69-.31H6c-.27.02-.48.13-.69.31-.2.2-.3.44-.31.69h1v3c.02.27.11.5.31.69.2.2.42.31.69.31h1c.27 0 .48-.11.69-.31.2-.19.3-.42.31-.69H8V7.98v.01zM7 2.3c-3.14 0-5.7 2.54-5.7 5.68 0 3.14 2.56 5.7 5.7 5.7s5.7-2.55 5.7-5.7c0-3.15-2.56-5.69-5.7-5.69v.01zM7 .98c3.86 0 7 3.14 7 7s-3.14 7-7 7-7-3.12-7-7 3.14-7 7-7z"></path></svg></span>note</div><div class="admonitionContent_BuS1"><p>Real extraction requires <code>mlx</code> (Apple Silicon). If <code>mlx</code> isn&#x27;t available the GUI
-shows an error banner and disables publishing — install with
-<code>uv sync --extra ui</code> (the <code>ui</code> extra already includes the mtp deps). See the
-<a class="" href="/skulk-weights-publisher/guides/mtp-sidecar">MTP sidecar guide</a>.</p></div></div>
+<p>The walkthrough below publishes the MTP heads of
+<a href="https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16" target="_blank" rel="noopener noreferrer" class=""><code>nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16</code></a>
+— a 120B model whose 1,040-tensor MoE drafter lives in just 2 of its 50
+shards, so SWP downloads ~8 GB instead of ~240 GB.</p>
+<p><img decoding="async" loading="lazy" alt="Publish log with the downloading stage active and shard progress" src="/skulk-weights-publisher/assets/images/05-publish-downloading-c5cce74b7a0dd5d067cc7f72d87afe65.png" width="2000" height="1400" class="img_ev3q"></p>
+<p>Extraction streams tensors to disk one at a time (peak memory stays bounded
+regardless of model size), then the upload reports live byte-level progress:</p>
+<p><img decoding="async" loading="lazy" alt="Publish log uploading the sidecar with live percentage and GB progress" src="/skulk-weights-publisher/assets/images/07-publish-uploading-52cd98a608215c2dbbf738dcea35e420.png" width="2000" height="1400" class="img_ev3q"></p>
+<p>When the upload lands, the sidecar repo gets <code>mtp.safetensors</code> plus an
+auto-generated model card, and every stage shows complete:</p>
+<p><img decoding="async" loading="lazy" alt="Publish log with all stages complete after a successful publish" src="/skulk-weights-publisher/assets/images/08-publish-done-40946a0327ae63e3fa93b5b7bd440a06.png" width="2000" height="1400" class="img_ev3q"></p>
+<div class="theme-admonition theme-admonition-note admonition_xJq3 alert alert--secondary"><div class="admonitionHeading_Gvgb"><span class="admonitionIcon_Rf37"><svg viewBox="0 0 14 16"><path fill-rule="evenodd" d="M6.3 5.69a.942.942 0 0 1-.28-.7c0-.28.09-.52.28-.7.19-.18.42-.28.7-.28.28 0 .52.09.7.28.18.19.28.42.28.7 0 .28-.09.52-.28.7a1 1 0 0 1-.7.3c-.28 0-.52-.11-.7-.3zM8 7.99c-.02-.25-.11-.48-.31-.69-.2-.19-.42-.3-.69-.31H6c-.27.02-.48.13-.69.31-.2.2-.3.44-.31.69h1v3c.02.27.11.5.31.69.2.2.42.31.69.31h1c.27 0 .48-.11.69-.31.2-.19.3-.42.31-.69H8V7.98v.01zM7 2.3c-3.14 0-5.7 2.54-5.7 5.68 0 3.14 2.56 5.7 5.7 5.7s5.7-2.55 5.7-5.7c0-3.15-2.56-5.69-5.7-5.69v.01zM7 .98c3.86 0 7 3.14 7 7s-3.14 7-7 7-7-3.12-7-7 3.14-7 7-7z"></path></svg></span>note</div><div class="admonitionContent_BuS1"><p>Real extraction is pure-numpy and cross-platform — it needs only <code>numpy</code>,
+<code>safetensors</code>, and <code>huggingface_hub</code> (all pulled in by <code>uv sync --extra ui</code>),
+with no <code>mlx</code> dependency. The GUI still shows a legacy &quot;mlx is not installed&quot;
+warning banner (driven by <code>/api/status</code> <code>mlx_available</code>); this gate is stale —
+it does <strong>not</strong> block real extraction and is slated for removal in a follow-up
+release. See the <a class="" href="/skulk-weights-publisher/guides/mtp-sidecar">MTP sidecar guide</a>.</p></div></div>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="gemma-4-assistant-models">Gemma 4 assistant models<a href="#gemma-4-assistant-models" class="hash-link" aria-label="Direct link to Gemma 4 assistant models" title="Direct link to Gemma 4 assistant models" translate="no">​</a></h2>
 <p>Gemma 4 doesn&#x27;t embed <code>mtp.*</code> heads; it ships a <strong>separate companion assistant
 model</strong> for speculative decoding (e.g. <code>google/gemma-4-26B-A4B-it-assistant</code>).
@@ -102,8 +115,11 @@ publishing it again.</p>
 <li class=""><strong>&quot;cannot find the ui/ directory&quot;</strong> — <code>skulk-ui</code> is being run outside the
 source tree. Run it from a clone, or set <code>SKULK_UI_DIST</code> to a prebuilt
 <code>dist/</code>.</li>
-<li class=""><strong>&quot;mlx is not installed&quot;</strong> — install the MTP extras
-(<code>uv sync --extra ui --extra mtp</code>); real extraction is Apple-Silicon only.</li>
+<li class=""><strong>&quot;mlx is not installed&quot;</strong> — a stale legacy warning banner that does not block
+real extraction (which is pure-numpy and cross-platform). Installing the extras
+with <code>uv sync --extra ui</code> provides everything extraction needs (<code>numpy</code>,
+<code>safetensors</code>, <code>huggingface_hub</code>); the banner itself is slated for removal in a
+follow-up release.</li>
 <li class=""><strong>No assistant / no MTP detected</strong> — the model has neither native MTP heads
 nor a published <code>{model}-assistant</code>. It can&#x27;t be published as a sidecar; this
 is expected for models without speculative-decoding support.</li>

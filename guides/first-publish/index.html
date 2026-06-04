@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">First Publish | SWP: Skulk Weights Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/first-publish"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="First Publish | SWP: Skulk Weights Publisher"><meta data-rh="true" name="description" content="Your first real publish should prove the whole path with one small vindex:"><meta data-rh="true" property="og:description" content="Your first real publish should prove the whole path with one small vindex:"><link data-rh="true" rel="icon" href="/skulk-weights-publisher/img/skulk-logo.svg"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/first-publish"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/first-publish" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/first-publish" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"First Publish","item":"https://foxlight-foundation.github.io/skulk-weights-publisher/guides/first-publish"}]}</script><link rel="stylesheet" href="/skulk-weights-publisher/assets/css/styles.289aaf1c.css">
-<script src="/skulk-weights-publisher/assets/js/runtime~main.6188784d.js" defer="defer"></script>
-<script src="/skulk-weights-publisher/assets/js/main.be00136a.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/runtime~main.71550727.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/main.08c41c39.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -27,11 +27,11 @@ starts.</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">uv run skulk-weights doctor </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--publish</span><br></div></code></pre></div></div>
 <p>This checks the pieces needed for a real <strong>vindex</strong> publish: <code>larql</code>, <code>PyYAML</code>,
 <code>HF_TOKEN</code>, <code>huggingface_hub</code>, scratch storage, and the catalog.</p>
-<p>It does <strong>not</strong> check <code>mlx</code> or <code>safetensors</code>, so a passing <code>doctor --publish</code>
+<p>It does <strong>not</strong> check <code>numpy</code> or <code>safetensors</code>, so a passing <code>doctor --publish</code>
 does not guarantee MTP or vision real-publish readiness. Those artifacts need
-the <code>mtp</code> extras (<code>uv sync --extra mtp</code>); MTP additionally needs a macOS Apple
-Silicon host for <code>mlx</code>. See the <a class="" href="/skulk-weights-publisher/guides/mtp-sidecar">MTP sidecar</a> and
-<a class="" href="/skulk-weights-publisher/guides/vision-sidecar">Vision sidecar</a> guides.</p>
+the <code>mtp</code> extras (<code>uv sync --extra mtp</code>). MTP extraction is pure-numpy and
+cross-platform — no <code>mlx</code> and no macOS Apple Silicon host is required. See the
+<a class="" href="/skulk-weights-publisher/guides/mtp-sidecar">MTP sidecar</a> and <a class="" href="/skulk-weights-publisher/guides/vision-sidecar">Vision sidecar</a> guides.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-review-the-dry-run">3. Review The Dry-Run<a href="#3-review-the-dry-run" class="hash-link" aria-label="Direct link to 3. Review The Dry-Run" title="Direct link to 3. Review The Dry-Run" translate="no">​</a></h2>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">uv run skulk-weights publish </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--model</span><span class="token plain"> foxlight/gemma-3-4b-full-q4-k --dry-run</span><br></div></code></pre></div></div>
 <p>Read the source model, output path, target repository, collection, and slice

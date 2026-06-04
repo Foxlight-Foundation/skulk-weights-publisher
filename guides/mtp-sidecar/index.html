@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">MTP Sidecar Guide | SWP: Skulk Weights Publisher</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="MTP Sidecar Guide | SWP: Skulk Weights Publisher"><meta data-rh="true" name="description" content="Multi-Token Prediction (MTP) heads allow a model to draft multiple tokens in a"><meta data-rh="true" property="og:description" content="Multi-Token Prediction (MTP) heads allow a model to draft multiple tokens in a"><link data-rh="true" rel="icon" href="/skulk-weights-publisher/img/skulk-logo.svg"><link data-rh="true" rel="canonical" href="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar" hreflang="en"><link data-rh="true" rel="alternate" href="https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"MTP Sidecar Guide","item":"https://foxlight-foundation.github.io/skulk-weights-publisher/guides/mtp-sidecar"}]}</script><link rel="stylesheet" href="/skulk-weights-publisher/assets/css/styles.289aaf1c.css">
-<script src="/skulk-weights-publisher/assets/js/runtime~main.6188784d.js" defer="defer"></script>
-<script src="/skulk-weights-publisher/assets/js/main.be00136a.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/runtime~main.71550727.js" defer="defer"></script>
+<script src="/skulk-weights-publisher/assets/js/main.08c41c39.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -26,6 +26,9 @@ step re-extracts them from the original checkpoint and publishes them at
 <strong>full precision (bf16, unquantized)</strong> as <code>mtp.safetensors</code> to a separate HF
 repository. Tensors stored in quantised formats (FP8/INT8) are dequantised to
 BF16 during extraction.</p>
+<p>Extraction is <strong>pure-numpy and cross-platform</strong> — it requires only <code>numpy</code>,
+<code>safetensors</code>, and <code>huggingface_hub</code>, with no <code>mlx</code> dependency, so it runs the
+same on Linux/x86 as on macOS.</p>
 <p>The heads are <strong>not</strong> quantized. They are the speculative <em>drafter</em>, and their
 only job is to maximize draft <em>acceptance</em>—the entire point of the feature.
 Quantizing them would degrade acceptance to save only tens of MB on a multi-GB
@@ -35,15 +38,17 @@ quantization: the Skulk runtime loads the sidecar through its own path, so
 sidecar per base model, quant-independent.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="prerequisites">Prerequisites<a href="#prerequisites" class="hash-link" aria-label="Direct link to Prerequisites" title="Direct link to Prerequisites" translate="no">​</a></h2>
 <p>The same prerequisites as regular vindex publishing apply, plus the <code>mtp</code>
-extras (<code>huggingface_hub</code>, <code>safetensors</code>, <code>mlx</code>):</p>
+extras (<code>numpy</code>, <code>safetensors</code>, on top of the base <code>huggingface_hub</code>):</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">uv </span><span class="token function" style="color:rgb(130, 170, 255)">sync</span><span class="token plain"> </span><span class="token parameter variable" style="color:rgb(191, 199, 213)">--extra</span><span class="token plain"> mtp</span><br></div></code></pre></div></div>
 <ul>
-<li class=""><code>huggingface_hub</code> Python package</li>
-<li class=""><code>safetensors</code> Python package</li>
-<li class=""><code>mlx</code> Python package (used for safetensors I/O)</li>
+<li class=""><code>huggingface_hub</code> Python package (base dependency)</li>
+<li class=""><code>numpy</code> Python package (FP8/INT8 decode and BF16 encode)</li>
+<li class=""><code>safetensors</code> Python package (single-file checkpoint inspection)</li>
 <li class="">Read access to the source BF16 checkpoint on Hugging Face</li>
 <li class="">Write access to the sidecar repository on Hugging Face</li>
 </ul>
+<p>There is no <code>mlx</code> requirement and no platform restriction — extraction is
+pure-numpy and runs on Linux/x86 as well as macOS.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="catalog-entry">Catalog Entry<a href="#catalog-entry" class="hash-link" aria-label="Direct link to Catalog Entry" title="Direct link to Catalog Entry" translate="no">​</a></h2>
 <p>Add two fields to the catalog entry. Both must be present or both must be
 absent:</p>
@@ -79,19 +84,68 @@ For single-file checkpoints it falls back to checking <code>model.safetensors</c
 <li class="">Downloads only those shards into the scratch directory (<code>.scratch/_hf_cache/</code>
 by default). Large models ship dozens of shards; the extractor avoids downloading
 the entire 60–70 GB by filtering on the index.</li>
-<li class="">Reads the MTP tensors out of each shard. Tensors in quantised formats (FP8 E4M3
-with E8M0 or F32 block scales, INT8 with E8M0 scales) are dequantised to BF16
-on the fly. BF16, F16, and F32 tensors are passed through directly.</li>
-<li class="">Saves the result as a single <code>mtp.safetensors</code> file at full precision (bf16,
-unquantized). Preserving fidelity is what keeps draft acceptance high.</li>
-<li class="">Uploads it to <code>mtp_sidecar_repo</code> on Hugging Face, alongside a self-describing
-<code>README.md</code> model card. The card inherits the source model&#x27;s license
-unchanged and carries a Foxlight provenance block pinning the source SHA.</li>
+<li class="">Reads the MTP tensors out of each shard and dequantises any quantised formats
+to BF16 on the fly (see <a href="#dequantisation" class="">Dequantisation</a> below). BF16, F16,
+and F32 tensors are converted to BF16 directly.</li>
+<li class="">Streams the result into a single <code>mtp.safetensors</code> file at full precision
+(bf16, unquantized), <strong>one tensor at a time</strong> (see
+<a href="#streaming-extraction" class="">Streaming extraction</a> below). Preserving fidelity is
+what keeps draft acceptance high.</li>
+<li class="">Uploads it to <code>mtp_sidecar_repo</code> on Hugging Face, emitting byte-level progress
+lines during the LFS transfer (see <a href="#upload-progress" class="">Upload progress</a> below),
+alongside a self-describing <code>README.md</code> model card. The card inherits the
+source model&#x27;s license unchanged and carries a Foxlight provenance block
+pinning the source SHA.</li>
 <li class="">Files the repo into the <code>MTP Sidecars</code> Hugging Face collection (unless
 <code>SKULK_WEIGHTS_COLLECTION</code> is set to a disabling value).</li>
 <li class="">Deletes the local <code>.safetensors</code> file and shard cache from scratch. Skulk
 owns the artifact lifecycle; SWP&#x27;s job ends when the push completes.</li>
 </ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="already-published-skip">Already-published skip<a href="#already-published-skip" class="hash-link" aria-label="Direct link to Already-published skip" title="Direct link to Already-published skip" translate="no">​</a></h3>
+<p>Because one bf16 sidecar covers every quantization of a base model, extraction
+is <strong>skipped</strong> when <code>mtp.safetensors</code> already exists on the sidecar repo. The
+extractor checks the Hub up front and, if the file is present, prints a message
+that the sidecar already covers the source model and exits without
+re-downloading or re-uploading. Pass <code>--force</code> to re-extract and overwrite it.
+The check is best-effort: any lookup failure (repo absent, no network) is
+treated as &quot;not published&quot; so extraction proceeds normally.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="streaming-extraction">Streaming extraction<a href="#streaming-extraction" class="hash-link" aria-label="Direct link to Streaming extraction" title="Direct link to Streaming extraction" translate="no">​</a></h3>
+<p>Tensors are streamed from the source shards into the output file <strong>one at a
+time</strong>, so peak memory is bounded to a single tensor regardless of how many
+tensors there are or how large the source shards are. Shards are read via
+memory-friendly per-tensor access (the extractor seeks to each tensor&#x27;s byte
+range in the shard rather than loading the whole file), and the output
+<code>mtp.safetensors</code> is written incrementally. This is what makes extraction safe
+for very large models (DeepSeek V4-Pro, V3, etc.) where accumulating every
+dequantised tensor in a dict before saving would need tens of GB of RAM.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="upload-progress">Upload progress<a href="#upload-progress" class="hash-link" aria-label="Direct link to Upload progress" title="Direct link to Upload progress" translate="no">​</a></h3>
+<p>During the LFS upload pass the extractor emits byte-level progress lines so the
+CLI and GUI can track the real network transfer:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">mtp: uploading 12% (1.3 GB / 10.6 GB)</span><br></div><div class="token-line" style="color:#bfc7d5"><span class="token plain">mtp: uploading 14% (1.5 GB / 10.6 GB)</span><br></div></code></pre></div></div>
+<p>Progress is armed only on the actual upload pass, not the fast CPU hash pass
+that precedes it, so the percentage reflects bytes pushed to Hugging Face.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="dequantisation">Dequantisation<a href="#dequantisation" class="hash-link" aria-label="Direct link to Dequantisation" title="Direct link to Dequantisation" translate="no">​</a></h3>
+<p>The extractor handles a broad range of quantised source dtypes, always producing
+BF16 output:</p>
+<ul>
+<li class=""><strong>FP8 E4M3</strong> weights, paired with a block scale stored as <strong>F8 E8M0</strong>, <strong>F32</strong>
+<code>_scale_inv</code> (DeepSeek V3 — the stored value is <code>1/scale</code>, so the reciprocal is
+taken), or <strong>BF16</strong>.</li>
+<li class=""><strong>INT8</strong> weights, paired with an <strong>F8 E8M0</strong> block scale.</li>
+<li class=""><strong>BF16 / F16 / F32</strong> tensors pass straight through (converted to BF16).</li>
+</ul>
+<p>Block scales are applied in one of two layouts:</p>
+<ul>
+<li class=""><strong>2D MX tiled</strong> — for a 2D weight <code>[R, C]</code>, one scale per <code>B×B</code> tile, with
+<code>ceil(R/B) × ceil(C/B)</code> scales. The tile size <code>B</code> is inferred from the scale
+count (tried in order 128, 64, 256, 32); partial right/bottom-edge tiles are
+zero-padded to a full block boundary, scaled, then stripped. This 2D layout is
+checked first so axis-aligned tile boundaries are respected even when the flat
+layout would also divide evenly.</li>
+<li class=""><strong>1D flat</strong> — <code>n_weight</code> divisible by the scale count, with
+<code>block_size = n_weight / n_scale</code>. Used by DeepSeek V3 (<code>_scale_inv</code>) and
+V4-Flash/Pro (<code>.scale</code>), or as the fallback when no 2D tiling matches.</li>
+</ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="publishing-only-the-mtp-sidecar">Publishing Only The MTP Sidecar<a href="#publishing-only-the-mtp-sidecar" class="hash-link" aria-label="Direct link to Publishing Only The MTP Sidecar" title="Direct link to Publishing Only The MTP Sidecar" translate="no">​</a></h2>
 <p>The <code>--artifact mtp</code> flag publishes the MTP sidecar without re-running vindex
 extraction or publication. This is useful when the vindex already exists on HF
@@ -108,8 +162,10 @@ and you only need to add the sidecar:</p>
 of the original BF16/FP8 release (mlx-lm strips MTP tensors during conversion),
 or when the model genuinely does not have MTP heads.</p>
 <p><strong>Missing Python dependencies:</strong></p>
-<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">huggingface_hub is required for MTP extraction</span><br></div><div class="token-line" style="color:#bfc7d5"><span class="token plain">safetensors is required for single-file model inspection</span><br></div><div class="token-line" style="color:#bfc7d5"><span class="token plain">mlx is required for reading MTP weights</span><br></div></code></pre></div></div>
-<p>Install the extras with <code>uv sync --extra mtp</code>.</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><div class="token-line" style="color:#bfc7d5"><span class="token plain">huggingface_hub is required for MTP extraction</span><br></div><div class="token-line" style="color:#bfc7d5"><span class="token plain">safetensors is required for single-file model inspection</span><br></div></code></pre></div></div>
+<p>Install the extras with <code>uv sync --extra mtp</code> (<code>numpy</code> + <code>safetensors</code>, on top
+of the base <code>huggingface_hub</code>). <code>safetensors</code> is needed only for the single-file
+checkpoint fallback; sharded checkpoints inspect their index directly.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="scratch-storage">Scratch Storage<a href="#scratch-storage" class="hash-link" aria-label="Direct link to Scratch Storage" title="Direct link to Scratch Storage" translate="no">​</a></h2>
 <p>Sidecar output and the shard cache are created in <code>SKULK_WEIGHTS_SCRATCH</code>
 (or <code>.scratch/</code> by default) during extraction, then <strong>deleted automatically
@@ -117,6 +173,6 @@ after a successful upload</strong>. Skulk owns the artifact lifecycle; SWP does 
 retain local copies.</p>
 <p>If extraction fails before the upload completes, the scratch files are left in
 place for inspection and retry. Use <code>skulk-weights scratch clean</code> to remove
-them manually if needed.</p></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/skulk-weights-publisher/guides/first-publish"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">First Publish</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/skulk-weights-publisher/guides/vision-sidecar"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Vision Sidecar Guide</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#prerequisites" class="table-of-contents__link toc-highlight">Prerequisites</a></li><li><a href="#catalog-entry" class="table-of-contents__link toc-highlight">Catalog Entry</a></li><li><a href="#dry-run" class="table-of-contents__link toc-highlight">Dry Run</a></li><li><a href="#extract-and-publish" class="table-of-contents__link toc-highlight">Extract And Publish</a></li><li><a href="#publishing-only-the-mtp-sidecar" class="table-of-contents__link toc-highlight">Publishing Only The MTP Sidecar</a></li><li><a href="#error-cases" class="table-of-contents__link toc-highlight">Error Cases</a></li><li><a href="#scratch-storage" class="table-of-contents__link toc-highlight">Scratch Storage</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/skulk-weights-publisher/quickstart">Quickstart</a></li><li class="footer__item"><a class="footer__link-item" href="/skulk-weights-publisher/reference/cli">CLI reference</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/Foxlight-Foundation/skulk-weights-publisher" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 Foxlight Foundation.</div></div></div></footer></div>
+them manually if needed.</p></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/skulk-weights-publisher/guides/first-publish"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">First Publish</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/skulk-weights-publisher/guides/vision-sidecar"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Vision Sidecar Guide</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#prerequisites" class="table-of-contents__link toc-highlight">Prerequisites</a></li><li><a href="#catalog-entry" class="table-of-contents__link toc-highlight">Catalog Entry</a></li><li><a href="#dry-run" class="table-of-contents__link toc-highlight">Dry Run</a></li><li><a href="#extract-and-publish" class="table-of-contents__link toc-highlight">Extract And Publish</a><ul><li><a href="#already-published-skip" class="table-of-contents__link toc-highlight">Already-published skip</a></li><li><a href="#streaming-extraction" class="table-of-contents__link toc-highlight">Streaming extraction</a></li><li><a href="#upload-progress" class="table-of-contents__link toc-highlight">Upload progress</a></li><li><a href="#dequantisation" class="table-of-contents__link toc-highlight">Dequantisation</a></li></ul></li><li><a href="#publishing-only-the-mtp-sidecar" class="table-of-contents__link toc-highlight">Publishing Only The MTP Sidecar</a></li><li><a href="#error-cases" class="table-of-contents__link toc-highlight">Error Cases</a></li><li><a href="#scratch-storage" class="table-of-contents__link toc-highlight">Scratch Storage</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/skulk-weights-publisher/quickstart">Quickstart</a></li><li class="footer__item"><a class="footer__link-item" href="/skulk-weights-publisher/reference/cli">CLI reference</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Project</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/Foxlight-Foundation/skulk-weights-publisher" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 Foxlight Foundation.</div></div></div></footer></div>
 </body>
 </html>
