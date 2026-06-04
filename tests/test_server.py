@@ -540,3 +540,41 @@ def test_publish_collection_failure_does_not_fail_job(
     assert any("warning: could not file into collection" in line for line in lines)
     assert "publish complete" in lines  # still a success
     assert not any(line.startswith("[error]") for line in lines)
+
+
+def test_publish_skips_collection_when_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SKULK_WEIGHTS_COLLECTION=none disables GUI collection filing, matching
+    the documented CLI kill-switch behavior."""
+    _clear_jobs()
+    monkeypatch.setattr(app_module, "_get_token", lambda: "hf_test")
+    monkeypatch.setattr(app_module, "default_scratch_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        app_module, "extract_mtp", lambda **k: k["log"]("mtp: published")
+    )
+    monkeypatch.setenv("SKULK_WEIGHTS_COLLECTION", "none")
+
+    def must_not_be_called(*a: object, **k: object) -> None:
+        raise AssertionError("filing must be skipped when collections are disabled")
+
+    monkeypatch.setattr(app_module, "file_artifact_in_collection", must_not_be_called)
+
+    resp = client.post(
+        "/api/publish",
+        json={"base_model": "owner/model", "sidecar_repo": "FoxlightAI/model-mtp"},
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+
+    lines: list[str] = []
+    with client.stream("GET", f"/api/stream/{job_id}") as stream_resp:
+        for raw in stream_resp.iter_lines():
+            if raw.startswith("data: "):
+                lines.append(raw[len("data: "):])
+            if raw == "data: [done]":
+                break
+
+    assert "mtp: collection filing disabled by SKULK_WEIGHTS_COLLECTION" in lines
+    assert "publish complete" in lines

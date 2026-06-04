@@ -41,6 +41,7 @@ from skulk_weights_publisher.catalogue import (
 )
 from skulk_weights_publisher.collection_publish import (
     CollectionError,
+    collections_disabled,
     file_artifact_in_collection,
 )
 from skulk_weights_publisher.manifest import ALLOWED_QUANTS, ManifestError
@@ -333,16 +334,20 @@ async def publish(body: PublishBody) -> Any:
                 log=q.put,
             )
             # File the sidecar into the "MTP Sidecars" collection, like the
-            # catalog publish path (publisher.execute_publish_plan) does.
+            # catalog publish path (publisher.execute_publish_plan) does —
+            # honoring the same SKULK_WEIGHTS_COLLECTION kill-switch.
             # Best-effort: the artifact is already published at this point, so
             # a collection failure is reported but does not fail the job.
-            try:
-                file_artifact_in_collection(
-                    body.sidecar_repo, "mtp-sidecar", token=token
-                )
-                q.put("mtp: filed in the 'MTP Sidecars' collection")
-            except CollectionError as exc:
-                q.put(f"mtp: warning: could not file into collection: {exc}")
+            if collections_disabled():
+                q.put("mtp: collection filing disabled by SKULK_WEIGHTS_COLLECTION")
+            else:
+                try:
+                    file_artifact_in_collection(
+                        body.sidecar_repo, "mtp-sidecar", token=token
+                    )
+                    q.put("mtp: filed in the 'MTP Sidecars' collection")
+                except CollectionError as exc:
+                    q.put(f"mtp: warning: could not file into collection: {exc}")
             q.put("publish complete")
         except MtpExtractionError as exc:
             q.put(f"[error]: {exc}")
