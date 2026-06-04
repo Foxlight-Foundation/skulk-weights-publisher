@@ -138,6 +138,7 @@ def _patch_catalog_add_deps(
     fake_info = {"id": id, "tags": tags or ["text-generation"]}
     monkeypatch.setattr(adder_mod, "fetch_hf_model_info", lambda *a, **kw: fake_info)
     monkeypatch.setattr(adder_mod, "detect_mtp_keys", lambda *a, **kw: [])
+    monkeypatch.setattr(adder_mod, "detect_assistant_model", lambda *a, **kw: None)
     if empty_catalog:
         from unittest.mock import MagicMock
 
@@ -194,6 +195,7 @@ def test_cli_catalog_add_rejects_duplicate_key(
     fake_info = {"id": "mlx-community/TestModel-4bit", "tags": ["text-generation"]}
     monkeypatch.setattr(adder_mod, "fetch_hf_model_info", lambda *a, **kw: fake_info)
     monkeypatch.setattr(adder_mod, "detect_mtp_keys", lambda *a, **kw: [])
+    monkeypatch.setattr(adder_mod, "detect_assistant_model", lambda *a, **kw: None)
 
     existing = MagicMock()
     existing.key = "foxlight/testmodel-full-q4-k"
@@ -224,6 +226,7 @@ def test_cli_catalog_add_rejects_duplicate_output_name(
     fake_info = {"id": "mlx-community/TestModel-4bit", "tags": ["text-generation"]}
     monkeypatch.setattr(adder_mod, "fetch_hf_model_info", lambda *a, **kw: fake_info)
     monkeypatch.setattr(adder_mod, "detect_mtp_keys", lambda *a, **kw: [])
+    monkeypatch.setattr(adder_mod, "detect_assistant_model", lambda *a, **kw: None)
 
     existing = MagicMock()
     existing.key = "foxlight/other-key-full-q4-k"

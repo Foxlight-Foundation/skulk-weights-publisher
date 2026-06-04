@@ -153,9 +153,16 @@ def detect_assistant_model(model_id: str, token: str | None = None) -> str | Non
 
     Appends ``-assistant`` to ``model_id`` and performs a lightweight HEAD
     request against the HF API.  Returns the candidate ID on HTTP 200, ``None``
-    on a definitive 404 (no such repo). Any other failure — auth, rate limit,
-    network — raises :class:`CatalogAddError`: silently treating those as
-    "no assistant" would mis-register Gemma 4 models on a transient error.
+    when the repo is definitively absent. Any other failure — bad credentials,
+    rate limit, network — raises :class:`CatalogAddError`: silently treating
+    those as "no assistant" would mis-register Gemma 4 models on a transient
+    error.
+
+    "Definitively absent" depends on auth: HF hides repo existence from
+    anonymous requests, returning **401 for nonexistent repos when no token is
+    sent** — so anonymous 401 means absent-or-hidden (the best a tokenless
+    caller can know), while 401/403 *with* a token means the credentials are
+    genuinely bad and must be surfaced.
     """
     candidate = f"{model_id}-assistant"
     url = f"https://huggingface.co/api/models/{candidate}"
@@ -169,7 +176,7 @@ def detect_assistant_model(model_id: str, token: str | None = None) -> str | Non
                 return candidate
             return None
     except urllib.error.HTTPError as exc:
-        if exc.code == 404:
+        if exc.code == 404 or (exc.code == 401 and not token):
             return None
         raise CatalogAddError(
             f"could not check for companion assistant {candidate}: "
@@ -214,13 +221,18 @@ def detect_mtp_keys(base_model: str, token: str | None = None) -> list[str]:
       extra transformer layer ``model.layers.{num_hidden_layers}.*``, detected by
       fetching ``config.json`` and checking ``num_nextn_predict_layers > 0``.
 
-    Fetches the sharded index JSON. A definitive HTTP 404 (no sharded index,
-    or no ``config.json`` for the old-style check) returns an empty list —
-    single-file layouts require downloading the whole checkpoint to inspect.
-    Any other failure — auth, rate limit, network — raises
-    :class:`CatalogAddError`: silently returning ``[]`` would make a transient
-    error indistinguishable from "this model has no MTP heads" and disable
-    publishing for a model that has them.
+    Fetches the sharded index JSON. A definitively-absent file (no sharded
+    index, or no ``config.json`` for the old-style check) returns an empty
+    list — single-file layouts require downloading the whole checkpoint to
+    inspect. Any other failure — bad credentials, rate limit, network —
+    raises :class:`CatalogAddError`: silently returning ``[]`` would make a
+    transient error indistinguishable from "this model has no MTP heads" and
+    disable publishing for a model that has them.
+
+    "Definitively absent" depends on auth: HF hides existence from anonymous
+    requests (401 for nonexistent/gated content with no token), so anonymous
+    401 is treated as absent, while 401/403 *with* a token means the
+    credentials are genuinely bad and must be surfaced.
     """
     hdr: dict[str, str] = {}
     if token:
@@ -231,6 +243,9 @@ def detect_mtp_keys(base_model: str, token: str | None = None) -> list[str]:
         req = urllib.request.Request(url, headers=hdr)
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.load(resp)
+
+    def _is_absent(exc: urllib.error.HTTPError) -> bool:
+        return exc.code == 404 or (exc.code == 401 and not token)
 
     def _raise_inspect_error(path: str, exc: Exception) -> None:
         detail = (
@@ -246,7 +261,7 @@ def detect_mtp_keys(base_model: str, token: str | None = None) -> list[str]:
     try:
         index = _fetch_json("model.safetensors.index.json")
     except urllib.error.HTTPError as exc:
-        if exc.code == 404:
+        if _is_absent(exc):
             return []  # no sharded index — single-file layout or absent
         _raise_inspect_error("model.safetensors.index.json", exc)
         raise  # unreachable; keeps the type-checker happy
@@ -265,7 +280,7 @@ def detect_mtp_keys(base_model: str, token: str | None = None) -> list[str]:
     try:
         config = _fetch_json("config.json")
     except urllib.error.HTTPError as exc:
-        if exc.code == 404:
+        if _is_absent(exc):
             return []  # no config.json — nothing to detect old-style from
         _raise_inspect_error("config.json", exc)
         raise  # unreachable

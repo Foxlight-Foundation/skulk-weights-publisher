@@ -333,7 +333,7 @@ def test_detect_mtp_keys_returns_empty_on_404() -> None:
         assert detect_mtp_keys("some/model") == []
 
 
-def test_detect_mtp_keys_raises_on_auth_error() -> None:
+def test_detect_mtp_keys_authenticated_auth_error_raises() -> None:
     """A 401/403 must NOT read as 'no MTP heads' — it would silently disable
     publishing for a model that has them."""
     from skulk_weights_publisher.catalog_adder import CatalogAddError
@@ -345,7 +345,7 @@ def test_detect_mtp_keys_raises_on_auth_error() -> None:
         ),
         pytest.raises(CatalogAddError, match="check your HF token"),
     ):
-        detect_mtp_keys("some/model")
+        detect_mtp_keys("some/model", token="hf_expired")
 
 
 def test_detect_mtp_keys_raises_on_network_error() -> None:
@@ -408,7 +408,7 @@ def test_detect_assistant_model_raises_on_auth_error() -> None:
         ),
         pytest.raises(CatalogAddError, match="check your HF token"),
     ):
-        detect_assistant_model("google/gemma-4-27b-it")
+        detect_assistant_model("google/gemma-4-27b-it", token="hf_expired")
 
 
 def test_detect_assistant_model_constructs_candidate_correctly() -> None:
@@ -502,3 +502,33 @@ def test_build_entry_block_assistant_wins_over_empty_mtp() -> None:
     )
     assert "assistant_model_repo: google/gemma-4-27b-it-assistant" in block
     assert "mtp_source_repo" not in block
+
+
+def test_detect_assistant_model_anonymous_401_is_absent() -> None:
+    """HF hides repo existence from anonymous requests (401, not 404) —
+    a tokenless 401 must read as 'absent', not as a credential error."""
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=urllib.error.HTTPError(None, 401, "Unauthorized", {}, None),  # type: ignore[arg-type]
+    ):
+        assert detect_assistant_model("google/gemma-4-27b-it", token=None) is None
+
+
+def test_detect_assistant_model_authenticated_401_raises() -> None:
+    """With a token present, 401 means the credentials are genuinely bad."""
+    with (
+        patch(
+            "urllib.request.urlopen",
+            side_effect=urllib.error.HTTPError(None, 401, "Unauthorized", {}, None),  # type: ignore[arg-type]
+        ),
+        pytest.raises(CatalogAddError, match="check your HF token"),
+    ):
+        detect_assistant_model("google/gemma-4-27b-it", token="hf_expired")
+
+
+def test_detect_mtp_keys_anonymous_401_is_absent() -> None:
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=urllib.error.HTTPError(None, 401, "Unauthorized", {}, None),  # type: ignore[arg-type]
+    ):
+        assert detect_mtp_keys("some/model", token=None) == []
