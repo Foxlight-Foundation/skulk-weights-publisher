@@ -308,6 +308,13 @@ def test_publish_streams_lines_and_done_then_evicts(
 
     monkeypatch.setattr(app_module, "extract_mtp", fake_extract_mtp)
 
+    filed: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        app_module,
+        "file_artifact_in_collection",
+        lambda repo, artifact_type, **k: filed.append((repo, artifact_type)),
+    )
+
     resp = client.post(
         "/api/publish",
         json={"base_model": "owner/model", "sidecar_repo": "FoxlightAI/model-mtp"},
@@ -326,6 +333,9 @@ def test_publish_streams_lines_and_done_then_evicts(
 
     assert "publish complete" in lines
     assert lines[-1] == "[done]"
+    # The published sidecar was filed into its artifact-type collection.
+    assert filed == [("FoxlightAI/model-mtp", "mtp-sidecar")]
+    assert "mtp: filed in the 'MTP Sidecars' collection" in lines
     # The completed stream drops the job — a second connect is a 404.
     resp = client.get(f"/api/stream/{job_id}")
     assert resp.status_code == 404
@@ -492,3 +502,79 @@ def test_concurrent_register_same_model_appends_once(
     assert statuses == [200, 409], f"expected one success and one conflict: {statuses}"
     written = catalog.read_text(encoding="utf-8")
     assert written.count("- key: gemma-4-27b-full-q4-k") == 1
+
+
+def test_publish_collection_failure_does_not_fail_job(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A collection-filing failure is a warning line, not a job failure —
+    the artifact is already published by the time filing runs."""
+    _clear_jobs()
+    monkeypatch.setattr(app_module, "_get_token", lambda: "hf_test")
+    monkeypatch.setattr(app_module, "default_scratch_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        app_module, "extract_mtp", lambda **k: k["log"]("mtp: published")
+    )
+
+    def failing_filing(*a: object, **k: object) -> None:
+        raise app_module.CollectionError("hub said no")
+
+    monkeypatch.setattr(app_module, "file_artifact_in_collection", failing_filing)
+
+    resp = client.post(
+        "/api/publish",
+        json={"base_model": "owner/model", "sidecar_repo": "FoxlightAI/model-mtp"},
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+
+    lines: list[str] = []
+    with client.stream("GET", f"/api/stream/{job_id}") as stream_resp:
+        for raw in stream_resp.iter_lines():
+            if raw.startswith("data: "):
+                lines.append(raw[len("data: "):])
+            if raw == "data: [done]":
+                break
+
+    assert any("warning: could not file into collection" in line for line in lines)
+    assert "publish complete" in lines  # still a success
+    assert not any(line.startswith("[error]") for line in lines)
+
+
+def test_publish_skips_collection_when_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SKULK_WEIGHTS_COLLECTION=none disables GUI collection filing, matching
+    the documented CLI kill-switch behavior."""
+    _clear_jobs()
+    monkeypatch.setattr(app_module, "_get_token", lambda: "hf_test")
+    monkeypatch.setattr(app_module, "default_scratch_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        app_module, "extract_mtp", lambda **k: k["log"]("mtp: published")
+    )
+    monkeypatch.setenv("SKULK_WEIGHTS_COLLECTION", "none")
+
+    def must_not_be_called(*a: object, **k: object) -> None:
+        raise AssertionError("filing must be skipped when collections are disabled")
+
+    monkeypatch.setattr(app_module, "file_artifact_in_collection", must_not_be_called)
+
+    resp = client.post(
+        "/api/publish",
+        json={"base_model": "owner/model", "sidecar_repo": "FoxlightAI/model-mtp"},
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+
+    lines: list[str] = []
+    with client.stream("GET", f"/api/stream/{job_id}") as stream_resp:
+        for raw in stream_resp.iter_lines():
+            if raw.startswith("data: "):
+                lines.append(raw[len("data: "):])
+            if raw == "data: [done]":
+                break
+
+    assert "mtp: collection filing disabled by SKULK_WEIGHTS_COLLECTION" in lines
+    assert "publish complete" in lines
