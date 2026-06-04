@@ -1,38 +1,64 @@
 # SWP: Skulk Weights Publisher
 
-Publish Skulk model weights: LARQL vindexes and MTP sidecars.
+Publish Skulk model weights: MTP sidecars, LARQL vindexes, and vision encoder
+sidecars.
 
 Documentation: <https://foxlight-foundation.github.io/skulk-weights-publisher/>
 
-Skulk is a distributed LLM inference system. SWP publishes two kinds of model
+Skulk is a distributed LLM inference system. SWP publishes three kinds of model
 weights that Skulk clusters consume:
+
+**MTP sidecars** — the day-to-day workhorse. Models with native multi-token
+prediction heads require those heads to be published separately: standard
+quantization pipelines (e.g. mlx-lm's `sanitize()`) strip MTP tensors, so SWP
+re-extracts them from the original BF16 checkpoint and publishes them at full
+precision (bf16, unquantized) as `mtp.safetensors` to a dedicated Hugging Face
+repo — one sidecar per base model, shared across every quantization of it — so
+Skulk can use speculative decoding. Two storage layouts are detected
+automatically: new-style `mtp.*` tensor keys (Qwen3, DeepSeek V4-Flash,
+Nemotron 3) and old-style DeepSeek `model.layers.{N}.*` heads stored as the
+extra transformer layer beyond `num_hidden_layers` (detected via
+`num_nextn_predict_layers` in `config.json`, e.g. DeepSeek V3/V3.2).
+FP8/INT8-quantised heads are dequantised to BF16 during extraction. Publishing
+an MTP sidecar needs **no catalog entry** — paste a model URL into
+[skulk-ui](#skulk-ui-local-gui) or run
+`skulk-weights publish --artifact mtp`.
 
 **LARQL vindexes** — LARQL treats model weights as a database, decompiling
 transformer weights into a queryable vindex and exposing LQL, the Lazarus Query
 Language. A vindex is a vector-index directory published so Skulk does not have
 to keep every weight resident in expensive GPU memory: CPU/high-memory LARQL
 servers host feed-forward weights while GPU nodes handle the latency-sensitive
-inference path.
+inference path. Vindex publication is **catalog-driven**: the entries in the
+[shipped catalog](#catalog) define each vindex, CI validates them, and real
+publication runs on the labelled self-hosted runner.
 
-**MTP sidecars** — Models with native multi-token prediction heads require
-those heads to be published separately. Two storage layouts are detected
-automatically: new-style `mtp.*` tensor keys (Qwen3, DeepSeek V4-Flash) and
-old-style DeepSeek `model.layers.{N}.*` heads stored as the extra transformer
-layer beyond `num_hidden_layers` (detected via `num_nextn_predict_layers` in
-`config.json`, e.g. DeepSeek V3/V3-0324). Standard quantization pipelines (e.g.
-mlx-lm's `sanitize()`) strip MTP tensors. SWP re-extracts them from the original
-BF16 checkpoint and publishes them at full precision (bf16, unquantized) as
-`mtp.safetensors` to a dedicated Hugging Face repo — one sidecar per base model,
-shared across every quantization of it — so Skulk can use speculative decoding.
+**Vision encoder sidecars** — byte-for-byte, Foxlight-owned mirrors of vision
+encoder weights that some VLM checkpoints leave in third-party repos, removing
+an availability and versioning risk (see
+[Vision encoder sidecars](#vision-encoder-sidecars)).
 
-This repository is the controlled publication workflow. It keeps the catalog
-of publishable model weights, validates that catalog, prints the exact commands,
-and runs publication from a configured runner.
+This repository is the controlled publication workflow: it keeps the catalog of
+publishable vindexes, validates it, prints the exact commands, runs catalog
+publication from a configured runner, and provides the direct (catalog-less)
+MTP publishing flow via `skulk-ui` and the CLI.
 
-The Foxlight catalog is included automatically and publishes to the
-`FoxlightAI` Hugging Face organization. Each publish is filed into a
-per-artifact-type Hugging Face collection — `Vindexes`, `MTP Sidecars`, and
-`Vision Sidecars` (see [Collections](#collections)). Operators can add their own catalog files with
+## Published artifacts
+
+Everything SWP publishes lands in the
+[FoxlightAI Hugging Face organization](https://huggingface.co/FoxlightAI).
+Today that is a fleet of MTP sidecars — the DeepSeek family (V3.2-Exp-Base,
+V4-Flash, V4-Pro), the Qwen3.5 / Qwen3.6 / Qwen3-Next families, and NVIDIA
+Nemotron 3 Super — each with a self-describing model card recording its
+provenance (see [model cards](#self-describing-model-cards)). Vindex
+publication is pending its first production run: the catalog below defines the
+planned vindex set, and the `Vindexes` collection exists but is not yet
+populated.
+
+The Foxlight catalog is included automatically and publishes to `FoxlightAI`.
+Each catalog publish is filed into a per-artifact-type Hugging Face collection —
+`Vindexes`, `MTP Sidecars`, and `Vision Sidecars` (see
+[Collections](#collections)). Operators can add their own catalog files with
 `skulk-weights.yaml`; the merged catalog uses namespaced keys such as
 `foxlight/gemma-3-4b-full-q4-k` and `my-org/my-model-full-q4-k` so shared
 Foxlight entries and local operator entries can coexist safely.
@@ -44,8 +70,11 @@ hundreds of gigabytes to the wrong scratch path, publish under the wrong Hugging
 Face repository, or silently omit MTP heads that a model needs. This project
 makes publication repeatable:
 
+- `skulk-ui` and `publish --artifact mtp` derive everything needed for an MTP
+  sidecar from the source model — base-model resolution, shard discovery,
+  dequantisation, sidecar naming, model card — with no catalog bookkeeping
 - packaged Foxlight catalog entries describe shared Skulk vindexes published
-  under `FoxlightAI`; MTP sidecar entries can be added by operators
+  under `FoxlightAI`
 - `skulk-weights.yaml` can add operator-owned catalog source files
 - `skulk-weights catalog validate` checks the merged catalog
 - `skulk-weights publish --dry-run` prints the full publication plan
@@ -54,7 +83,11 @@ makes publication repeatable:
 
 ## Catalog
 
-Vindex entries (all entries currently in the Foxlight catalog):
+The catalog drives **vindex** publication. The entries below are the vindex
+definitions in the shipped Foxlight catalog — CI-validated and used for
+dry-run/publish planning. They describe the planned vindex set, not artifacts
+already on the Hub (see [Published artifacts](#published-artifacts)).
+Publishing an MTP sidecar does **not** require a catalog entry:
 
 | Key | Source model | Quant | Slices |
 |---|---|---|---|
@@ -138,11 +171,14 @@ For vindex publication:
 
 For MTP sidecar publication (additional):
 
-5. The runner must be able to download the source BF16 checkpoint from Hugging
-   Face. HF_TOKEN must have read access to the source repo and write access to
-   the sidecar repo.
-6. Provision additional scratch capacity for the BF16 checkpoint download before
-   quantization. Typical BF16 checkpoints run 15–30 GB per model.
+5. The runner must be able to download the source BF16 checkpoint's
+   MTP-bearing shards from Hugging Face. HF_TOKEN must have read access to the
+   source repo and write access to the sidecar repo.
+6. Provision additional scratch capacity for the shard download. SWP downloads
+   only the shards that contain MTP tensors — typically a few GB even for
+   100B+ models (e.g. ~8 GB of a ~240 GB checkpoint for Nemotron 3 Super
+   120B) — and extraction streams one tensor at a time, so peak memory stays
+   bounded regardless of model size.
 7. Install the `mtp` optional extras: `uv sync --extra mtp`. MTP extraction is
    pure-numpy and cross-platform — it requires only `numpy`, `safetensors`, and
    `huggingface_hub`, with no `mlx` dependency. The standard Linux runner can
@@ -283,7 +319,8 @@ community and open source.
 
 ## Collections
 
-Each publish is filed into a per-artifact-type Hugging Face collection:
+Each catalog publish (`skulk-weights publish`) is filed into a
+per-artifact-type Hugging Face collection:
 
 | Artifact | Collection |
 |---|---|
@@ -296,11 +333,17 @@ and created if missing. The vindex collection is the configured `Vindexes`
 slug. Set `SKULK_WEIGHTS_COLLECTION` to one of `none`, `0`, `false`, `no`,
 `off`, or `disabled` to skip collection filing entirely for a run.
 
+Publishes made through `skulk-ui` are **not yet auto-filed** into a collection
+— the GUI path calls the extractor directly and skips the collection step
+(a known gap, tracked for a follow-up).
+
 ## skulk-ui (Local GUI)
 
-`skulk-ui` is a point-and-click interface for publishing MTP sidecars. Paste a
-HuggingFace model URL, review the detected metadata, and click Publish — no
-catalog knowledge required.
+`skulk-ui` is the primary way MTP sidecars get published: a point-and-click
+interface where you paste a HuggingFace model URL, review the detected
+metadata, and click Publish — no catalog knowledge required. The published
+sidecars in the [FoxlightAI org](https://huggingface.co/FoxlightAI) were
+produced through this flow.
 
 ![skulk-ui publishing the MTP sidecar of a 120B Nemotron model, with live stage and upload progress](website/static/img/skulk-ui/07-publish-uploading.png)
 
