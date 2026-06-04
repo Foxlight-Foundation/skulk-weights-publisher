@@ -77,10 +77,18 @@ layouts: `mtp.*` / `.mtp.*` keys (Qwen3, DeepSeek V4-Flash), and
 Point `mtp_source_repo` at the original BF16 or FP8 release rather than an
 mlx-converted checkpoint — mlx-lm strips MTP tensors during conversion.
 
-## `mlx is required for reading MTP weights`
+## `safetensors is required for single-file model inspection`
 
-MTP extraction uses mlx for safetensors output. Run the `mtp` artifact on a
-host with `mlx` installed (`uv sync --extra mtp`).
+**Cause:** the MTP source repo publishes its weights as a single
+`model.safetensors` file (no `model.safetensors.index.json` shard index), and
+the extractor needs `safetensors` to open it and inspect its tensor keys. The
+`safetensors` package is not installed.
+
+**Remedy:** install the `mtp` extras (`uv sync --extra mtp`), which provides
+`safetensors` and `numpy`. Sharded checkpoints inspect their index JSON directly
+and do not hit this path; only the single-file fallback requires `safetensors`.
+MTP extraction itself is pure-numpy and cross-platform — there is no `mlx`
+requirement.
 
 ## `no .safetensors weights found in <repo>`
 

@@ -14,11 +14,14 @@ to keep every weight resident in expensive GPU memory: CPU/high-memory LARQL
 servers host feed-forward weights while GPU nodes handle the latency-sensitive
 inference path.
 
-**MTP sidecars** — Models with native multi-token prediction heads (`mtp.*`
-tensor keys, such as Qwen3 and DeepSeek V3/R1) require those heads to be
-published separately. Standard quantization pipelines (e.g. mlx-lm's
-`sanitize()`) strip MTP tensors. SWP re-extracts them from the original BF16
-checkpoint and publishes them at full precision (bf16, unquantized) as
+**MTP sidecars** — Models with native multi-token prediction heads require
+those heads to be published separately. Two storage layouts are detected
+automatically: new-style `mtp.*` tensor keys (Qwen3, DeepSeek V4-Flash) and
+old-style DeepSeek `model.layers.{N}.*` heads stored as the extra transformer
+layer beyond `num_hidden_layers` (detected via `num_nextn_predict_layers` in
+`config.json`, e.g. DeepSeek V3/V3-0324). Standard quantization pipelines (e.g.
+mlx-lm's `sanitize()`) strip MTP tensors. SWP re-extracts them from the original
+BF16 checkpoint and publishes them at full precision (bf16, unquantized) as
 `mtp.safetensors` to a dedicated Hugging Face repo — one sidecar per base model,
 shared across every quantization of it — so Skulk can use speculative decoding.
 
@@ -64,6 +67,9 @@ Vindex entries (all entries currently in the Foxlight catalog):
 | `foxlight/mixtral-8x7b-expert-server-q4-k` | `mistralai/Mixtral-8x7B-Instruct-v0.1` | `q4k` | `expert-server` |
 | `foxlight/mixtral-8x22b-full-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `full` |
 | `foxlight/mixtral-8x22b-expert-server-q4-k` | `mistralai/Mixtral-8x22B-Instruct-v0.1` | `q4k` | `expert-server` |
+| `foxlight/qwen3-5-9b-full-q4-k` | `mlx-community/Qwen3.5-9B-OptiQ-4bit` | `q4k` | `full` |
+| `foxlight/qwen3-6-35b-a3b-full-q4-k` | `mlx-community/Qwen3.6-35B-A3B-4bit` | `q4k` | `full` |
+| `foxlight/gemma-4-31b-full-q4-k` | `google/gemma-4-31B-it` | `q4k` | `full` |
 
 Catalog entries can additionally declare MTP fields (`mtp_source_repo`,
 `mtp_sidecar_repo`) to enable sidecar extraction for models with native
@@ -84,30 +90,30 @@ anything.
 
 | Instruction-tuned model | Companion assistant |
 |---|---|
-| `google/gemma-4-27b-it` | `google/gemma-4-27b-it-assistant` |
+| `google/gemma-4-31B-it` | `google/gemma-4-31B-it-assistant` |
 | `google/gemma-4-26B-A4B-it` | `google/gemma-4-26B-A4B-it-assistant` |
 
 The catalog field for this pattern is `assistant_model_repo` (mutually exclusive
 with `mtp_source_repo` / `mtp_sidecar_repo`):
 
 ```yaml
-  - key: gemma-4-27b-it-full-q4-k
-    source_model: mlx-community/gemma-4-27b-it-4bit
+  - key: gemma-4-31b-full-q4-k
+    source_model: google/gemma-4-31B-it
     quant: q4k
-    tier: moe
+    tier: smoke
     slices:
       - full
-    output_name: gemma-4-27b-it-full-q4-k.vindex
-    hf_repo: FoxlightAI/gemma-4-27b-it-full-q4-k-vindex
+    output_name: gemma-4-31b-it-full-q4-k.vindex
+    hf_repo: FoxlightAI/gemma-4-31b-it-full-q4-k-vindex
     hf_collection: FoxlightAI/vindexes-6a124406dd5fb439c431b051
-    assistant_model_repo: google/gemma-4-27b-it-assistant
+    assistant_model_repo: google/gemma-4-31B-it-assistant
 ```
 
 `skulk-weights catalog add` detects the assistant automatically:
 
 ```bash
-skulk-weights catalog add mlx-community/gemma-4-27b-it-4bit
-# Gemma 4 companion assistant detected: google/gemma-4-27b-it-assistant
+skulk-weights catalog add google/gemma-4-31B-it
+# Gemma 4 companion assistant detected: google/gemma-4-31B-it-assistant
 # This model uses Google's companion-assistant pattern for speculative decoding.
 # The assistant is already published — no tensor extraction needed.
 ```
@@ -135,10 +141,10 @@ For MTP sidecar publication (additional):
    the sidecar repo.
 6. Provision additional scratch capacity for the BF16 checkpoint download before
    quantization. Typical BF16 checkpoints run 15–30 GB per model.
-7. Install the `mtp` optional extras: `uv sync --extra mtp`. This installs
-   `safetensors` on all platforms; `mlx` is only installed on macOS (Apple
-   Silicon) due to a platform marker. The standard Linux runner cannot perform
-   real MTP extraction — a macOS Apple Silicon runner is required.
+7. Install the `mtp` optional extras: `uv sync --extra mtp`. MTP extraction is
+   pure-numpy and cross-platform — it requires only `numpy`, `safetensors`, and
+   `huggingface_hub`, with no `mlx` dependency. The standard Linux runner can
+   perform real MTP extraction.
 
 ## Install The CLI
 
@@ -167,9 +173,17 @@ skulk-weights publish --model foxlight/gemma-3-4b-full-q4-k --artifact vindex --
 skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
 ```
 
+Global options come before the subcommand. `--config PATH` adds an operator
+`skulk-weights.yaml` source on top of the built-in catalog; `--manifest PATH` is
+a legacy single-file mode that bypasses the merged catalog and reads one manifest
+source directly (the two are mutually exclusive). See the
+[CLI reference](https://foxlight-foundation.github.io/skulk-weights-publisher/reference/cli)
+for details.
+
 ### Catalog subcommands
 
-`skulk-weights catalog` groups the catalog tooling:
+`skulk-weights catalog` groups the catalog tooling (`catalogue` is a legacy
+alias — every `catalog` subcommand also works under `catalogue`):
 
 - `validate` — check the merged catalog (shared Foxlight + operator entries).
 - `list` — list every catalog key.
@@ -187,12 +201,15 @@ skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
 is writable, and the catalog validates. `skulk-weights doctor --publish` adds
 three publish checks: `larql` is on `PATH`, `HF_TOKEN` is set, and
 `huggingface_hub` is importable. It does **not** verify Hugging Face write
-access, scratch *capacity*, or MTP/vision tooling (`mlx`/`safetensors`), so a
+access, scratch *capacity*, or MTP/vision tooling (`numpy`/`safetensors`), so a
 passing `doctor --publish` does not by itself guarantee a real MTP or vision
 sidecar publish will succeed.
 
-`skulk-weights scratch clean` removes the local scratch extraction output left
-behind by a real publish.
+`skulk-weights scratch clean` deletes the entire scratch root — all cached
+weight shards, UI job directories, and extraction outputs inside it — to reclaim
+disk space after a publish run or to force a clean re-download. It refuses to
+delete paths that are too broad (home, root, the current working directory or an
+ancestor of it, or any path fewer than three components deep).
 
 `skulk-weights catalog find <hf-url-or-owner/repo>` is the reverse of
 `catalog show`: given the upstream HuggingFace source model you started from, it
@@ -290,8 +307,8 @@ catalog knowledge required.
   not usable from a bare `pip install` of a published wheel. (Override the dist
   location with `SKULK_UI_DIST` if you build elsewhere.)
 - The `[ui]` extras installed in the active environment (see below).
-- Node.js 18+ and Yarn on `PATH` (only needed on first run — the React app is
-  built automatically and cached in `ui/dist/`).
+- Node.js 20+ and Yarn (Yarn 1 classic) on `PATH` (only needed on first run —
+  the React app under `ui/` is built automatically and cached in `ui/dist/`).
 - A HuggingFace token with write access to `FoxlightAI`.
 
 **Run** (from the repo root)
@@ -372,6 +389,14 @@ cd website
 npm ci
 npm run build
 ```
+
+This repo has two independent frontend toolchains, each with its own package
+manager. Both require **Node.js 20 or newer** (CI pins Node 22, which satisfies
+that floor):
+
+- `ui/` — the `skulk-ui` React/Vite app — uses **yarn** (Yarn 1 classic, pinned
+  via `packageManager`).
+- `website/` — the Docusaurus documentation site — uses **npm**.
 
 Pull requests build the site as a validation artifact. Branch pushes publish
 preview docs under `/previews/<branch>/`. Pushes to `main` publish the root docs

@@ -17,10 +17,10 @@ uv sync --extra dev
 ```
 
 This installs the CLI plus development tools used by CI: tests, linting, and
-type checking. Add `--extra mtp` for MTP sidecar extraction (`safetensors`,
-`numpy`, `mlx` — Apple Silicon only). Add `--extra ui` for the local GUI (it
-already includes the mtp deps). Vision sidecars and vindex publishing need no
-extra — `huggingface_hub` is a base dependency.
+type checking. Add `--extra mtp` for MTP sidecar extraction (`numpy` and
+`safetensors` — pure-numpy and cross-platform, no `mlx`). Add `--extra ui` for
+the local GUI (it already includes the mtp deps). Vision sidecars and vindex
+publishing need no extra — `huggingface_hub` is a base dependency.
 
 ## Runner Install
 
@@ -30,7 +30,8 @@ uv sync
 
 Use the bare sync on a self-hosted publishing runner that only needs the product
 CLI. A Linux runner can publish vindexes; real MTP and vision publishing also
-needs `--extra mtp` and a macOS Apple Silicon host (see
+needs `--extra mtp`. MTP extraction is pure-numpy and cross-platform, so the same
+Linux runner can perform it — no macOS Apple Silicon host is required (see
 [Runner Setup](runner-setup.md)).
 
 ## Check The Install

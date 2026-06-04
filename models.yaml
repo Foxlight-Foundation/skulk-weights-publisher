@@ -1,9 +1,9 @@
 # Legacy single-manifest copy of the Foxlight vindex catalogue.
 #
 # The product CLI loads the packaged Foxlight catalogue from
-# src/skulk_vindex_publisher/catalogues/foxlight.yaml by default and exposes
+# src/skulk_weights_publisher/catalogues/foxlight.yaml by default and exposes
 # keys under the `foxlight/` namespace. Keep this file for older automation that
-# still calls `skulk-vindex --manifest models.yaml ...`.
+# still calls `skulk-weights --manifest models.yaml ...`.
 #
 # Fields:
 # - key: stable workflow selector
