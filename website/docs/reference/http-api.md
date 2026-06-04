@@ -109,6 +109,13 @@ Response:
 { "job_id": "0d6f...e3a1" }
 ```
 
+Error responses:
+
+- `400` — no HF token configured (the job would otherwise fail deep inside the
+  upload; configure one via `POST /api/config` first).
+- `429` — too many publish jobs already running (the server caps concurrent
+  jobs at 2 — each can download tens of GB); retry when one finishes.
+
 ### Publish → stream flow
 
 1. `POST /api/publish` returns a `job_id`.

@@ -265,3 +265,157 @@ def test_save_token_is_owner_only(
 
     mode = stat.S_IMODE(env_file.stat().st_mode)
     assert mode == 0o600, f"expected 0600, got {oct(mode)}"
+
+
+# ---------------------------------------------------------------------------
+# /api/publish + /api/stream job lifecycle
+# ---------------------------------------------------------------------------
+
+def _clear_jobs() -> None:
+    with app_module._jobs_lock:
+        app_module._jobs.clear()
+        app_module._jobs_finished_at.clear()
+
+
+def test_publish_without_token_returns_400(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No HF token → fail fast with 400, like detect/register, not a deep job error."""
+    monkeypatch.setattr(app_module, "_get_token", lambda: None)
+
+    resp = client.post(
+        "/api/publish",
+        json={"base_model": "owner/model", "sidecar_repo": "FoxlightAI/model-mtp"},
+    )
+
+    assert resp.status_code == 400
+    assert "token" in resp.json()["error"].lower()
+
+
+def test_publish_streams_lines_and_done_then_evicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Happy path: publish spawns a job whose log lines arrive over SSE,
+    terminated by [done], after which the job is dropped from the registry."""
+    _clear_jobs()
+    monkeypatch.setattr(app_module, "_get_token", lambda: "hf_test")
+    monkeypatch.setattr(app_module, "default_scratch_root", lambda: tmp_path)
+
+    def fake_extract_mtp(*, source_repo, sidecar_repo, scratch_root, token, log):
+        log("mtp: found MTP tensors in 1 shard(s) (prefix: 'mtp.')")
+        log("mtp: published to hf://FoxlightAI/model-mtp/mtp.safetensors")
+
+    monkeypatch.setattr(app_module, "extract_mtp", fake_extract_mtp)
+
+    resp = client.post(
+        "/api/publish",
+        json={"base_model": "owner/model", "sidecar_repo": "FoxlightAI/model-mtp"},
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+
+    lines: list[str] = []
+    with client.stream("GET", f"/api/stream/{job_id}") as stream_resp:
+        assert stream_resp.status_code == 200
+        for raw in stream_resp.iter_lines():
+            if raw.startswith("data: "):
+                lines.append(raw[len("data: "):])
+            if raw == "data: [done]":
+                break
+
+    assert "publish complete" in lines
+    assert lines[-1] == "[done]"
+    # The completed stream drops the job — a second connect is a 404.
+    resp = client.get(f"/api/stream/{job_id}")
+    assert resp.status_code == 404
+
+
+def test_publish_worker_failure_streams_error_and_cleans_scratch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failing job surfaces an [error]: line and removes its scratch dir."""
+    _clear_jobs()
+    monkeypatch.setattr(app_module, "_get_token", lambda: "hf_test")
+    monkeypatch.setattr(app_module, "default_scratch_root", lambda: tmp_path)
+
+    def fake_extract_mtp(*, source_repo, sidecar_repo, scratch_root, token, log):
+        scratch_root.mkdir(parents=True, exist_ok=True)
+        (scratch_root / "leftover.bin").write_bytes(b"x")
+        raise app_module.MtpExtractionError("no MTP head tensors found")
+
+    monkeypatch.setattr(app_module, "extract_mtp", fake_extract_mtp)
+
+    resp = client.post(
+        "/api/publish",
+        json={"base_model": "owner/model", "sidecar_repo": "FoxlightAI/model-mtp"},
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+
+    lines: list[str] = []
+    with client.stream("GET", f"/api/stream/{job_id}") as stream_resp:
+        for raw in stream_resp.iter_lines():
+            if raw.startswith("data: "):
+                lines.append(raw[len("data: "):])
+            if raw == "data: [done]":
+                break
+
+    assert any(line.startswith("[error]: no MTP head tensors") for line in lines)
+    # The per-job scratch dir was removed despite the failure.
+    assert not (tmp_path / "ui-jobs" / job_id).exists()
+
+
+def test_publish_rejects_when_at_concurrency_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """More than _MAX_CONCURRENT_JOBS running jobs → 429 backpressure."""
+    import threading as _threading
+
+    _clear_jobs()
+    monkeypatch.setattr(app_module, "_get_token", lambda: "hf_test")
+    monkeypatch.setattr(app_module, "default_scratch_root", lambda: tmp_path)
+
+    release = _threading.Event()
+
+    def blocking_extract_mtp(*, source_repo, sidecar_repo, scratch_root, token, log):
+        release.wait(timeout=10)
+
+    monkeypatch.setattr(app_module, "extract_mtp", blocking_extract_mtp)
+
+    body = {"base_model": "owner/model", "sidecar_repo": "FoxlightAI/model-mtp"}
+    try:
+        for _ in range(app_module._MAX_CONCURRENT_JOBS):
+            assert client.post("/api/publish", json=body).status_code == 200
+
+        resp = client.post("/api/publish", json=body)
+        assert resp.status_code == 429
+        assert "limit" in resp.json()["error"]
+    finally:
+        release.set()
+        _clear_jobs()
+
+
+def test_evict_stale_jobs_reaps_old_finished_jobs() -> None:
+    """Finished jobs past the retention window are dropped from both dicts."""
+    import queue as _queue
+    import time as _time
+
+    _clear_jobs()
+    with app_module._jobs_lock:
+        app_module._jobs["stale"] = _queue.Queue()
+        app_module._jobs_finished_at["stale"] = (
+            _time.monotonic() - app_module._JOB_RETENTION_SECONDS - 1
+        )
+        app_module._jobs["fresh"] = _queue.Queue()
+        app_module._jobs_finished_at["fresh"] = _time.monotonic()
+
+    app_module._evict_stale_jobs()
+
+    with app_module._jobs_lock:
+        assert "stale" not in app_module._jobs
+        assert "stale" not in app_module._jobs_finished_at
+        assert "fresh" in app_module._jobs
+    _clear_jobs()

@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import os
 import queue
+import shutil
 import threading
 import time
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -50,31 +52,64 @@ _jobs: dict[str, queue.Queue[str | None]] = {}
 # Completion timestamps (monotonic) for finished jobs, used to evict ones whose
 # client never reconnected to /api/stream so _jobs can't grow unbounded.
 _jobs_finished_at: dict[str, float] = {}
+# Guards _jobs and _jobs_finished_at: both are mutated from request handlers
+# (event loop) and publish worker threads. The queues themselves are
+# thread-safe; the dicts around them are not.
+_jobs_lock = threading.Lock()
 # Keep a finished job around this long so a disconnected client can reconnect.
 _JOB_RETENTION_SECONDS = 600.0
+# Local single-operator GUI: allow a little parallelism but refuse runaway
+# fan-out — each job can download tens of GB.
+_MAX_CONCURRENT_JOBS = 2
+_EVICT_INTERVAL_SECONDS = 60.0
 
 
 def _evict_stale_jobs() -> None:
     """Drop finished jobs whose client never reconnected within the grace window."""
     now = time.monotonic()
-    # Snapshot before iterating: a publish worker thread may write
-    # _jobs_finished_at concurrently, which would raise "dictionary changed
-    # size during iteration".
-    stale = [
-        jid
-        for jid, done_at in list(_jobs_finished_at.items())
-        if now - done_at > _JOB_RETENTION_SECONDS
-    ]
-    for jid in stale:
-        _jobs.pop(jid, None)
-        _jobs_finished_at.pop(jid, None)
+    with _jobs_lock:
+        stale = [
+            jid
+            for jid, done_at in _jobs_finished_at.items()
+            if now - done_at > _JOB_RETENTION_SECONDS
+        ]
+        for jid in stale:
+            _jobs.pop(jid, None)
+            _jobs_finished_at.pop(jid, None)
+
+
+async def _evict_periodically() -> None:
+    """Reap stale jobs on a timer.
+
+    Eviction used to piggyback on /api/publish and /api/stream traffic, so a
+    fire-and-forget publish whose client never returned was retained until
+    unrelated traffic happened to arrive. A background timer reaps it within
+    one interval regardless.
+    """
+    while True:
+        await asyncio.sleep(_EVICT_INTERVAL_SECONDS)
+        _evict_stale_jobs()
 
 
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="Skulk Weights Publisher", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    evictor = asyncio.create_task(_evict_periodically())
+    try:
+        yield
+    finally:
+        evictor.cancel()
+
+
+app = FastAPI(
+    title="Skulk Weights Publisher",
+    docs_url=None,
+    redoc_url=None,
+    lifespan=_lifespan,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +219,46 @@ async def catalog_find(body: CatalogFindBody) -> Any:
     }
 
 
+def _detect_impl(url: str, token: str | None) -> dict[str, Any]:
+    """Blocking detection work for /api/detect — runs in a worker thread."""
+    model_id = parse_hf_model_id(url)
+    info = fetch_hf_model_info(model_id, token=token)
+    immediate_base = detect_base_model(info)
+    base_model = resolve_base_model(info, token=token)
+    quant = detect_quant(info)
+    tier = detect_tier(info)
+    mtp_keys: list[str] = []
+    sidecar_repo: str | None = None
+    if base_model:
+        mtp_keys = detect_mtp_keys(base_model, token=token)
+        # Only advertise a sidecar repo when there are actually MTP tensors
+        # to publish — otherwise the response is self-contradictory
+        # (can_publish False but sidecar_repo populated).
+        if mtp_keys:
+            # One bf16 sidecar per base model — quant-independent.
+            sidecar_repo = f"{_FOXLIGHT_HF_OWNER}/{base_model_slug(base_model)}-mtp"
+    # If no MTP tensors, check for a Gemma 4-style companion assistant.
+    # The assistant is named after the instruct model the user pasted, so
+    # check model_id first, then its base(s).
+    assistant_model_repo: str | None = None
+    if not mtp_keys:
+        assistant_model_repo = find_assistant_model(
+            [model_id, immediate_base, base_model], token=token
+        )
+    return {
+        "model_id": model_id,
+        "base_model": base_model,
+        "quant": quant,
+        "tier": tier,
+        "mtp_key_count": len(mtp_keys),
+        "mtp_keys": mtp_keys,
+        "sidecar_repo": sidecar_repo,
+        "can_publish": len(mtp_keys) > 0 and base_model is not None,
+        "assistant_model_repo": assistant_model_repo,
+        "can_publish_assistant": assistant_model_repo is not None,
+    }
+
+
 @app.post("/api/detect")
 async def detect(body: DetectBody) -> Any:
     """Parse a HF model URL and return full detection metadata."""
@@ -192,45 +267,12 @@ async def detect(body: DetectBody) -> Any:
         return JSONResponse({"error": "url is required"}, status_code=400)
 
     token = _get_token()
+    loop = asyncio.get_running_loop()
     try:
-        model_id = parse_hf_model_id(url)
-        info = fetch_hf_model_info(model_id, token=token)
-        immediate_base = detect_base_model(info)
-        base_model = resolve_base_model(info, token=token)
-        quant = detect_quant(info)
-        tier = detect_tier(info)
-        mtp_keys: list[str] = []
-        sidecar_repo: str | None = None
-        if base_model:
-            mtp_keys = detect_mtp_keys(base_model, token=token)
-            # Only advertise a sidecar repo when there are actually MTP tensors
-            # to publish — otherwise the response is self-contradictory
-            # (can_publish False but sidecar_repo populated).
-            if mtp_keys:
-                # One bf16 sidecar per base model — quant-independent.
-                sidecar_repo = (
-                    f"{_FOXLIGHT_HF_OWNER}/{base_model_slug(base_model)}-mtp"
-                )
-        # If no MTP tensors, check for a Gemma 4-style companion assistant.
-        # The assistant is named after the instruct model the user pasted, so
-        # check model_id first, then its base(s).
-        assistant_model_repo: str | None = None
-        if not mtp_keys:
-            assistant_model_repo = find_assistant_model(
-                [model_id, immediate_base, base_model], token=token
-            )
-        return {
-            "model_id": model_id,
-            "base_model": base_model,
-            "quant": quant,
-            "tier": tier,
-            "mtp_key_count": len(mtp_keys),
-            "mtp_keys": mtp_keys,
-            "sidecar_repo": sidecar_repo,
-            "can_publish": len(mtp_keys) > 0 and base_model is not None,
-            "assistant_model_repo": assistant_model_repo,
-            "can_publish_assistant": assistant_model_repo is not None,
-        }
+        # Detection makes several sequential HF API calls (sync urllib) — run
+        # them off the event loop so a slow detect can't stall a concurrent
+        # publish's SSE stream.
+        return await loop.run_in_executor(None, _detect_impl, url, token)
     except CatalogAddError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except Exception as exc:  # noqa: BLE001
@@ -241,10 +283,31 @@ async def detect(body: DetectBody) -> Any:
 async def publish(body: PublishBody) -> Any:
     """Start an async MTP extraction job and return its job ID."""
     _evict_stale_jobs()
+
+    # Fail fast like /api/detect and /api/register do: without a token the job
+    # would only die deep inside the HF upload with an opaque [error] line.
     token = _get_token()
+    if not token:
+        return JSONResponse(
+            {"error": "HF token not configured — open Settings to add one"},
+            status_code=400,
+        )
+
     job_id = str(uuid.uuid4())
     q: queue.Queue[str | None] = queue.Queue()
-    _jobs[job_id] = q
+    with _jobs_lock:
+        running = len(_jobs) - len(_jobs_finished_at)
+        if running >= _MAX_CONCURRENT_JOBS:
+            return JSONResponse(
+                {
+                    "error": (
+                        f"{running} publish job(s) already running "
+                        f"(limit {_MAX_CONCURRENT_JOBS}) — retry when one finishes"
+                    )
+                },
+                status_code=429,
+            )
+        _jobs[job_id] = q
 
     scratch = default_scratch_root() / "ui-jobs" / job_id
 
@@ -266,11 +329,88 @@ async def publish(body: PublishBody) -> Any:
         except Exception as exc:  # noqa: BLE001
             q.put(f"[error]: unexpected error: {exc}")
         finally:
-            _jobs_finished_at[job_id] = time.monotonic()
+            # extract_mtp cleans its own staging; remove the per-job dir
+            # skeleton too so failed jobs leave nothing behind.
+            shutil.rmtree(scratch, ignore_errors=True)
+            with _jobs_lock:
+                _jobs_finished_at[job_id] = time.monotonic()
             q.put(None)
 
     threading.Thread(target=_run, daemon=True).start()
     return {"job_id": job_id}
+
+
+class _ApiError(Exception):
+    """An error with an HTTP status, raised from sync impl helpers."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def _register_impl(url: str, token: str | None) -> dict[str, Any]:
+    """Blocking registration work for /api/register — runs in a worker thread."""
+    model_id = parse_hf_model_id(url)
+    info = fetch_hf_model_info(model_id, token=token)
+    immediate_base = detect_base_model(info)
+    base_model = resolve_base_model(info, token=token)
+    quant = detect_quant(info)
+    if quant not in ALLOWED_QUANTS:
+        raise _ApiError(
+            400,
+            f"detected quant '{quant}' is not supported "
+            f"(allowed: {', '.join(sorted(ALLOWED_QUANTS))})",
+        )
+    tier = detect_tier(info)
+
+    mtp_keys: list[str] = []
+    if base_model:
+        mtp_keys = detect_mtp_keys(base_model, token=token)
+    assistant_model_repo: str | None = None
+    if not mtp_keys:
+        assistant_model_repo = find_assistant_model(
+            [model_id, immediate_base, base_model], token=token
+        )
+
+    key_slug = derive_key_slug(model_id, quant)
+    artifact_slug = derive_artifact_slug(model_id, quant)
+    effective_key = f"foxlight/{key_slug}"
+    hf_repo_new = f"FoxlightAI/{artifact_slug}-vindex"
+    output_name_new = f"{artifact_slug}.vindex"
+
+    entries = load_catalogue_view().entries
+    if effective_key in {e.key for e in entries}:
+        raise _ApiError(409, f"'{effective_key}' already exists in the catalog")
+    if hf_repo_new in {e.hf_repo for e in entries}:
+        raise _ApiError(
+            409, f"hf_repo '{hf_repo_new}' already exists in the catalog"
+        )
+    if output_name_new in {e.output_name for e in entries}:
+        raise _ApiError(
+            409, f"output_name '{output_name_new}' already exists in the catalog"
+        )
+
+    entry_block = build_entry_block(
+        key_slug=key_slug,
+        artifact_slug=artifact_slug,
+        source_model=model_id,
+        quant=quant,
+        tier=tier,
+        base_model=base_model,
+        mtp_keys=mtp_keys,
+        assistant_model_repo=assistant_model_repo,
+    )
+    catalog_path = find_builtin_catalog_path()
+    with open(catalog_path, "a", encoding="utf-8") as fh:
+        fh.write(entry_block)
+
+    return {
+        "ok": True,
+        "key": effective_key,
+        "assistant_model_repo": assistant_model_repo,
+        "catalog_path": str(catalog_path),
+        "entry_block": entry_block,
+    }
 
 
 @app.post("/api/register")
@@ -288,82 +428,13 @@ async def register(body: RegisterBody) -> Any:
         return JSONResponse({"error": "url is required"}, status_code=400)
 
     token = _get_token()
+    loop = asyncio.get_running_loop()
     try:
-        model_id = parse_hf_model_id(url)
-        info = fetch_hf_model_info(model_id, token=token)
-        immediate_base = detect_base_model(info)
-        base_model = resolve_base_model(info, token=token)
-        quant = detect_quant(info)
-        if quant not in ALLOWED_QUANTS:
-            return JSONResponse(
-                {
-                    "error": (
-                        f"detected quant '{quant}' is not supported "
-                        f"(allowed: {', '.join(sorted(ALLOWED_QUANTS))})"
-                    )
-                },
-                status_code=400,
-            )
-        tier = detect_tier(info)
-
-        mtp_keys: list[str] = []
-        if base_model:
-            mtp_keys = detect_mtp_keys(base_model, token=token)
-        assistant_model_repo: str | None = None
-        if not mtp_keys:
-            assistant_model_repo = find_assistant_model(
-                [model_id, immediate_base, base_model], token=token
-            )
-
-        key_slug = derive_key_slug(model_id, quant)
-        artifact_slug = derive_artifact_slug(model_id, quant)
-        effective_key = f"foxlight/{key_slug}"
-        hf_repo_new = f"FoxlightAI/{artifact_slug}-vindex"
-        output_name_new = f"{artifact_slug}.vindex"
-
-        entries = load_catalogue_view().entries
-        if effective_key in {e.key for e in entries}:
-            return JSONResponse(
-                {"error": f"'{effective_key}' already exists in the catalog"},
-                status_code=409,
-            )
-        if hf_repo_new in {e.hf_repo for e in entries}:
-            return JSONResponse(
-                {"error": f"hf_repo '{hf_repo_new}' already exists in the catalog"},
-                status_code=409,
-            )
-        if output_name_new in {e.output_name for e in entries}:
-            return JSONResponse(
-                {
-                    "error": (
-                        f"output_name '{output_name_new}' already exists "
-                        "in the catalog"
-                    )
-                },
-                status_code=409,
-            )
-
-        entry_block = build_entry_block(
-            key_slug=key_slug,
-            artifact_slug=artifact_slug,
-            source_model=model_id,
-            quant=quant,
-            tier=tier,
-            base_model=base_model,
-            mtp_keys=mtp_keys,
-            assistant_model_repo=assistant_model_repo,
-        )
-        catalog_path = find_builtin_catalog_path()
-        with open(catalog_path, "a", encoding="utf-8") as fh:
-            fh.write(entry_block)
-
-        return {
-            "ok": True,
-            "key": effective_key,
-            "assistant_model_repo": assistant_model_repo,
-            "catalog_path": str(catalog_path),
-            "entry_block": entry_block,
-        }
+        # Same as /api/detect: several sequential HF API calls — keep them off
+        # the event loop.
+        return await loop.run_in_executor(None, _register_impl, url, token)
+    except _ApiError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=exc.status_code)
     except CatalogAddError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     except Exception as exc:  # noqa: BLE001
@@ -374,7 +445,8 @@ async def register(body: RegisterBody) -> Any:
 async def stream(job_id: str) -> Any:
     """SSE stream of live log output for a running publish job."""
     _evict_stale_jobs()
-    q = _jobs.get(job_id)
+    with _jobs_lock:
+        q = _jobs.get(job_id)
     if q is None:
         return JSONResponse({"error": "job not found"}, status_code=404)
 
@@ -396,8 +468,9 @@ async def stream(job_id: str) -> Any:
             # rather than orphaning a running publish (and risking a duplicate).
             # Jobs whose client never reconnects are reaped by _evict_stale_jobs.
             if completed:
-                _jobs.pop(job_id, None)
-                _jobs_finished_at.pop(job_id, None)
+                with _jobs_lock:
+                    _jobs.pop(job_id, None)
+                    _jobs_finished_at.pop(job_id, None)
 
     return StreamingResponse(
         _event_gen(),
