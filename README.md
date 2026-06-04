@@ -300,6 +300,8 @@ slug. Set `SKULK_WEIGHTS_COLLECTION` to one of `none`, `0`, `false`, `no`,
 HuggingFace model URL, review the detected metadata, and click Publish — no
 catalog knowledge required.
 
+![skulk-ui publishing the MTP sidecar of a 120B Nemotron model, with live stage and upload progress](website/static/img/skulk-ui/07-publish-uploading.png)
+
 **Prerequisites**
 
 - A **source checkout** of this repo. `skulk-ui` serves the React app from the

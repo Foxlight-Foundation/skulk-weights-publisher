@@ -88,6 +88,23 @@ full precision (bf16, unquantized) as `mtp.safetensors` to the target repo.
 Progress streams live in the log panel, stage by stage (finding shards →
 downloading → extracting → saving → uploading).
 
+The walkthrough below publishes the MTP heads of
+[`nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16)
+— a 120B model whose 1,040-tensor MoE drafter lives in just 2 of its 50
+shards, so SWP downloads ~8 GB instead of ~240 GB.
+
+![Publish log with the downloading stage active and shard progress](/img/skulk-ui/05-publish-downloading.png)
+
+Extraction streams tensors to disk one at a time (peak memory stays bounded
+regardless of model size), then the upload reports live byte-level progress:
+
+![Publish log uploading the sidecar with live percentage and GB progress](/img/skulk-ui/07-publish-uploading.png)
+
+When the upload lands, the sidecar repo gets `mtp.safetensors` plus an
+auto-generated model card, and every stage shows complete:
+
+![Publish log with all stages complete after a successful publish](/img/skulk-ui/08-publish-done.png)
+
 :::note
 Real extraction is pure-numpy and cross-platform — it needs only `numpy`,
 `safetensors`, and `huggingface_hub` (all pulled in by `uv sync --extra ui`),
