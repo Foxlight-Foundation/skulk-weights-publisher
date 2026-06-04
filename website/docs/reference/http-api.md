@@ -131,10 +131,12 @@ Appends a catalog entry for a model **without uploading anything** — the GUI's
 there is nothing to extract. Mirrors `skulk-weights catalog add`: detect, build
 the entry block, collision-check, append to the built-in `foxlight.yaml`.
 
-Request:
+Request (the example model is **not** in the shipped catalog — registering an
+already-catalogued model such as `google/gemma-4-31B-it` returns the `409`
+described below instead):
 
 ```json
-{ "url": "https://huggingface.co/google/gemma-4-31B-it" }
+{ "url": "https://huggingface.co/google/gemma-4-12B-it" }
 ```
 
 Response:
@@ -142,10 +144,10 @@ Response:
 ```json
 {
   "ok": true,
-  "key": "foxlight/gemma-4-31b-full-q4-k",
-  "assistant_model_repo": "google/gemma-4-31B-it-assistant",
+  "key": "foxlight/gemma-4-12b-full-q4-k",
+  "assistant_model_repo": "google/gemma-4-12B-it-assistant",
   "catalog_path": "/path/to/foxlight.yaml",
-  "entry_block": "  - key: gemma-4-31b-full-q4-k\n    ..."
+  "entry_block": "  - key: gemma-4-12b-full-q4-k\n    ..."
 }
 ```
 
