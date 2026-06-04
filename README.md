@@ -109,11 +109,13 @@ with `mtp_source_repo` / `mtp_sidecar_repo`):
     assistant_model_repo: google/gemma-4-31B-it-assistant
 ```
 
-`skulk-weights catalog add` detects the assistant automatically:
+`skulk-weights catalog add` detects the assistant automatically (the example
+uses `gemma-4-12B-it`, which is not yet in the catalog — `catalog add` rejects
+models whose entry already exists, like the shipped `gemma-4-31B`):
 
 ```bash
-skulk-weights catalog add google/gemma-4-31B-it
-# Gemma 4 companion assistant detected: google/gemma-4-31B-it-assistant
+skulk-weights catalog add google/gemma-4-12B-it
+# Gemma 4 companion assistant detected: google/gemma-4-12B-it-assistant
 # This model uses Google's companion-assistant pattern for speculative decoding.
 # The assistant is already published — no tensor extraction needed.
 ```
