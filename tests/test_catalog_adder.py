@@ -324,7 +324,8 @@ def test_detect_mtp_keys_returns_matching_keys() -> None:
     assert keys == ["mtp.fc.weight"]
 
 
-def test_detect_mtp_keys_returns_empty_on_http_error() -> None:
+def test_detect_mtp_keys_returns_empty_on_404() -> None:
+    """A definitive 404 means no sharded index — legitimately no detectable keys."""
     with patch(
         "urllib.request.urlopen",
         side_effect=urllib.error.HTTPError(None, 404, "Not Found", {}, None),  # type: ignore[arg-type]
@@ -332,9 +333,29 @@ def test_detect_mtp_keys_returns_empty_on_http_error() -> None:
         assert detect_mtp_keys("some/model") == []
 
 
-def test_detect_mtp_keys_returns_empty_on_generic_error() -> None:
-    with patch("urllib.request.urlopen", side_effect=OSError("network")):
-        assert detect_mtp_keys("some/model") == []
+def test_detect_mtp_keys_raises_on_auth_error() -> None:
+    """A 401/403 must NOT read as 'no MTP heads' — it would silently disable
+    publishing for a model that has them."""
+    from skulk_weights_publisher.catalog_adder import CatalogAddError
+
+    with (
+        patch(
+            "urllib.request.urlopen",
+            side_effect=urllib.error.HTTPError(None, 401, "Unauthorized", {}, None),  # type: ignore[arg-type]
+        ),
+        pytest.raises(CatalogAddError, match="check your HF token"),
+    ):
+        detect_mtp_keys("some/model")
+
+
+def test_detect_mtp_keys_raises_on_network_error() -> None:
+    from skulk_weights_publisher.catalog_adder import CatalogAddError
+
+    with (
+        patch("urllib.request.urlopen", side_effect=OSError("network")),
+        pytest.raises(CatalogAddError, match="could not inspect"),
+    ):
+        detect_mtp_keys("some/model")
 
 
 # ── detect_assistant_model ───────────────────────────────────────────────────
@@ -365,9 +386,29 @@ def test_detect_assistant_model_returns_none_on_404() -> None:
         assert detect_assistant_model("google/gemma-4-27b-it") is None
 
 
-def test_detect_assistant_model_returns_none_on_network_error() -> None:
-    with patch("urllib.request.urlopen", side_effect=OSError("timeout")):
-        assert detect_assistant_model("google/gemma-4-27b-it") is None
+def test_detect_assistant_model_raises_on_network_error() -> None:
+    """A transient failure must NOT read as 'no assistant' — it would
+    mis-register a Gemma 4 model as having nothing to pair with."""
+    from skulk_weights_publisher.catalog_adder import CatalogAddError
+
+    with (
+        patch("urllib.request.urlopen", side_effect=OSError("timeout")),
+        pytest.raises(CatalogAddError, match="could not check"),
+    ):
+        detect_assistant_model("google/gemma-4-27b-it")
+
+
+def test_detect_assistant_model_raises_on_auth_error() -> None:
+    from skulk_weights_publisher.catalog_adder import CatalogAddError
+
+    with (
+        patch(
+            "urllib.request.urlopen",
+            side_effect=urllib.error.HTTPError(None, 403, "Forbidden", {}, None),  # type: ignore[arg-type]
+        ),
+        pytest.raises(CatalogAddError, match="check your HF token"),
+    ):
+        detect_assistant_model("google/gemma-4-27b-it")
 
 
 def test_detect_assistant_model_constructs_candidate_correctly() -> None:

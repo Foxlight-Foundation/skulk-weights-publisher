@@ -296,6 +296,9 @@ def _find_mtp_shards(
             return sorted(shards), "mtp."
 
         # Old style: model.layers.{num_hidden_layers}.* extra MTP layer.
+        # Only a missing config.json means "nothing to detect old-style from" —
+        # auth/network failures must propagate, or a transient error would be
+        # indistinguishable from "no MTP heads".
         try:
             config_path = hf_hub_download(
                 repo_id=source_repo,
@@ -305,7 +308,7 @@ def _find_mtp_shards(
             )
             with open(config_path, encoding="utf-8") as fh:
                 config = json.load(fh)
-        except (EntryNotFoundError, Exception):  # noqa: BLE001
+        except EntryNotFoundError:
             return [], "mtp."
 
         num_hidden: int = config.get("num_hidden_layers", 0)
