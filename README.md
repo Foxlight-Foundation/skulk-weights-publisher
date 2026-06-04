@@ -47,14 +47,42 @@ MTP publishing flow via `skulk-ui`.
 ## Published artifacts
 
 Everything SWP publishes lands in the
-[FoxlightAI Hugging Face organization](https://huggingface.co/FoxlightAI).
-Today that is a fleet of MTP sidecars — the DeepSeek family (V3.2-Exp-Base,
-V4-Flash, V4-Pro), the Qwen3.5 / Qwen3.6 / Qwen3-Next families, and NVIDIA
-Nemotron 3 Super — each with a self-describing model card recording its
-provenance (see [model cards](#self-describing-model-cards)). Vindex
-publication is pending its first production run: the catalog below defines the
-planned vindex set, and the `Vindexes` collection exists but is not yet
-populated.
+[FoxlightAI Hugging Face organization](https://huggingface.co/FoxlightAI),
+with MTP sidecars filed in the
+[MTP Sidecars collection](https://huggingface.co/collections/FoxlightAI/mtp-sidecars-6a20f81f5f31c9b1d909080e).
+Each sidecar carries a self-describing model card recording its provenance
+(see [model cards](#self-describing-model-cards)) and inherits the source
+model's license unchanged.
+
+Currently published MTP sidecars:
+
+| Sidecar | Extracted from | License |
+|---|---|---|
+| [`deepseek-v3-2-exp-base-mtp`](https://huggingface.co/FoxlightAI/deepseek-v3-2-exp-base-mtp) | [`deepseek-ai/DeepSeek-V3.2-Exp-Base`](https://huggingface.co/deepseek-ai/DeepSeek-V3.2-Exp-Base) | MIT |
+| [`deepseek-v4-flash-mtp`](https://huggingface.co/FoxlightAI/deepseek-v4-flash-mtp) | [`deepseek-ai/DeepSeek-V4-Flash`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) | MIT |
+| [`deepseek-v4-pro-mtp`](https://huggingface.co/FoxlightAI/deepseek-v4-pro-mtp) | [`deepseek-ai/DeepSeek-V4-Pro`](https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro) | MIT |
+| [`nvidia-nemotron-3-super-120b-a12b-bf16-mtp`](https://huggingface.co/FoxlightAI/nvidia-nemotron-3-super-120b-a12b-bf16-mtp) | [`nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16) | other (NVIDIA) |
+| [`qwen3-5-0-8b-base-mtp`](https://huggingface.co/FoxlightAI/qwen3-5-0-8b-base-mtp) | [`Qwen/Qwen3.5-0.8B-Base`](https://huggingface.co/Qwen/Qwen3.5-0.8B-Base) | Apache-2.0 |
+| [`qwen3-5-2b-base-mtp`](https://huggingface.co/FoxlightAI/qwen3-5-2b-base-mtp) | [`Qwen/Qwen3.5-2B-Base`](https://huggingface.co/Qwen/Qwen3.5-2B-Base) | Apache-2.0 |
+| [`qwen3-5-4b-base-mtp`](https://huggingface.co/FoxlightAI/qwen3-5-4b-base-mtp) | [`Qwen/Qwen3.5-4B-Base`](https://huggingface.co/Qwen/Qwen3.5-4B-Base) | Apache-2.0 |
+| [`qwen3-5-9b-base-mtp`](https://huggingface.co/FoxlightAI/qwen3-5-9b-base-mtp) | [`Qwen/Qwen3.5-9B-Base`](https://huggingface.co/Qwen/Qwen3.5-9B-Base) | Apache-2.0 |
+| [`qwen3-5-27b-mtp`](https://huggingface.co/FoxlightAI/qwen3-5-27b-mtp) | [`Qwen/Qwen3.5-27B`](https://huggingface.co/Qwen/Qwen3.5-27B) | Apache-2.0 |
+| [`qwen3-5-35b-a3b-base-mtp`](https://huggingface.co/FoxlightAI/qwen3-5-35b-a3b-base-mtp) | [`Qwen/Qwen3.5-35B-A3B-Base`](https://huggingface.co/Qwen/Qwen3.5-35B-A3B-Base) | Apache-2.0 |
+| [`qwen3-5-122b-a10b-mtp`](https://huggingface.co/FoxlightAI/qwen3-5-122b-a10b-mtp) | [`Qwen/Qwen3.5-122B-A10B`](https://huggingface.co/Qwen/Qwen3.5-122B-A10B) | Apache-2.0 |
+| [`qwen3-5-397b-a17b-mtp`](https://huggingface.co/FoxlightAI/qwen3-5-397b-a17b-mtp) | [`Qwen/Qwen3.5-397B-A17B`](https://huggingface.co/Qwen/Qwen3.5-397B-A17B) | Apache-2.0 |
+| [`qwen3-6-27b-mtp`](https://huggingface.co/FoxlightAI/qwen3-6-27b-mtp) | [`Qwen/Qwen3.6-27B`](https://huggingface.co/Qwen/Qwen3.6-27B) | Apache-2.0 |
+| [`qwen3-6-35b-a3b-mtp`](https://huggingface.co/FoxlightAI/qwen3-6-35b-a3b-mtp) | [`Qwen/Qwen3.6-35B-A3B`](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) | Apache-2.0 |
+| [`qwen3-next-80b-a3b-instruct-mtp`](https://huggingface.co/FoxlightAI/qwen3-next-80b-a3b-instruct-mtp) | [`Qwen/Qwen3-Next-80B-A3B-Instruct`](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct) | Apache-2.0 |
+| [`qwen3-next-80b-a3b-thinking-mtp`](https://huggingface.co/FoxlightAI/qwen3-next-80b-a3b-thinking-mtp) | [`Qwen/Qwen3-Next-80B-A3B-Thinking`](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking) | Apache-2.0 |
+
+The "Extracted from" and license values come from each sidecar's model-card
+provenance. The
+[collection](https://huggingface.co/collections/FoxlightAI/mtp-sidecars-6a20f81f5f31c9b1d909080e)
+is the live source of truth — new publishes are filed there automatically.
+
+Vindex publication is pending its first production run: the catalog below
+defines the planned vindex set, and the `Vindexes` collection exists but is
+not yet populated.
 
 The Foxlight catalog is included automatically and publishes to `FoxlightAI`.
 Each catalog publish is filed into a per-artifact-type Hugging Face collection —
