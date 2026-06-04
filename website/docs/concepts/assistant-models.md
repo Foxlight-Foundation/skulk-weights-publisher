@@ -41,13 +41,13 @@ The naming convention is `{base_model}-assistant`:
 
 | Instruction-tuned model | Companion assistant |
 |---|---|
-| `google/gemma-4-27b-it` | `google/gemma-4-27b-it-assistant` |
+| `google/gemma-4-31B-it` | `google/gemma-4-31B-it-assistant` |
 | `google/gemma-4-26B-A4B-it` | `google/gemma-4-26B-A4B-it-assistant` |
 
 Catalog field for this pattern:
 
 ```yaml
-assistant_model_repo: google/gemma-4-27b-it-assistant
+assistant_model_repo: google/gemma-4-31B-it-assistant
 ```
 
 `assistant_model_repo` is mutually exclusive with `mtp_source_repo` and
@@ -83,7 +83,7 @@ mtp_source_repo: owner/model-bf16
 mtp_sidecar_repo: FoxlightAI/model-mtp
 
 # Companion assistant (Gemma 4)
-assistant_model_repo: google/gemma-4-27b-it-assistant
+assistant_model_repo: google/gemma-4-31B-it-assistant
 ```
 
 Both groups are optional and mutually exclusive. An entry with neither is a

@@ -154,6 +154,13 @@ The command exits 1 if the detected quant scheme is not supported, or if the
 generated key, `output_name`, or `hf_repo` would collide with an existing entry.
 Always use `--dry-run` first to review the generated block before writing.
 
+:::warning 8-bit models are currently rejected
+Detection recognizes 8-bit models and labels them `q8k`, but validation only
+allows `q4k` (`ALLOWED_QUANTS` is q4k-only). Adding an 8-bit model therefore
+fails with a quant error — `catalog add` exits 1 reporting that the detected
+quant is not supported. Only 4-bit (`q4k`) entries can be added today.
+:::
+
 Setting `HF_TOKEN` in the environment is recommended — it allows the MTP key
 scan to access gated base model repos without hitting rate limits.
 

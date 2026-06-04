@@ -97,7 +97,7 @@ artifact: vindex
 source model: google/gemma-3-4b-it
 output path: .scratch/gemma-3-4b-it-full-q4-k.vindex
 target repo: hf://FoxlightAI/gemma-3-4b-it-full-q4-k-vindex
-collection: https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051
+vindex collection: https://huggingface.co/collections/FoxlightAI/vindexes-6a124406dd5fb439c431b051
 extract command: larql extract ...
 publish command: larql publish ...
 ```

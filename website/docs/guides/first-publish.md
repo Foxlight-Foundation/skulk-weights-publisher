@@ -30,11 +30,11 @@ uv run skulk-weights doctor --publish
 This checks the pieces needed for a real **vindex** publish: `larql`, `PyYAML`,
 `HF_TOKEN`, `huggingface_hub`, scratch storage, and the catalog.
 
-It does **not** check `mlx` or `safetensors`, so a passing `doctor --publish`
+It does **not** check `numpy` or `safetensors`, so a passing `doctor --publish`
 does not guarantee MTP or vision real-publish readiness. Those artifacts need
-the `mtp` extras (`uv sync --extra mtp`); MTP additionally needs a macOS Apple
-Silicon host for `mlx`. See the [MTP sidecar](mtp-sidecar.md) and
-[Vision sidecar](vision-sidecar.md) guides.
+the `mtp` extras (`uv sync --extra mtp`). MTP extraction is pure-numpy and
+cross-platform — no `mlx` and no macOS Apple Silicon host is required. See the
+[MTP sidecar](mtp-sidecar.md) and [Vision sidecar](vision-sidecar.md) guides.
 
 ## 3. Review The Dry-Run
 

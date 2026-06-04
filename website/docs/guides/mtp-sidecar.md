@@ -18,6 +18,10 @@ step re-extracts them from the original checkpoint and publishes them at
 repository. Tensors stored in quantised formats (FP8/INT8) are dequantised to
 BF16 during extraction.
 
+Extraction is **pure-numpy and cross-platform** — it requires only `numpy`,
+`safetensors`, and `huggingface_hub`, with no `mlx` dependency, so it runs the
+same on Linux/x86 as on macOS.
+
 The heads are **not** quantized. They are the speculative *drafter*, and their
 only job is to maximize draft *acceptance*—the entire point of the feature.
 Quantizing them would degrade acceptance to save only tens of MB on a multi-GB
@@ -29,17 +33,20 @@ sidecar per base model, quant-independent.
 ## Prerequisites
 
 The same prerequisites as regular vindex publishing apply, plus the `mtp`
-extras (`huggingface_hub`, `safetensors`, `mlx`):
+extras (`numpy`, `safetensors`, on top of the base `huggingface_hub`):
 
 ```bash
 uv sync --extra mtp
 ```
 
-- `huggingface_hub` Python package
-- `safetensors` Python package
-- `mlx` Python package (used for safetensors I/O)
+- `huggingface_hub` Python package (base dependency)
+- `numpy` Python package (FP8/INT8 decode and BF16 encode)
+- `safetensors` Python package (single-file checkpoint inspection)
 - Read access to the source BF16 checkpoint on Hugging Face
 - Write access to the sidecar repository on Hugging Face
+
+There is no `mlx` requirement and no platform restriction — extraction is
+pure-numpy and runs on Linux/x86 as well as macOS.
 
 ## Catalog Entry
 
@@ -108,18 +115,79 @@ The extractor:
 2. Downloads only those shards into the scratch directory (`.scratch/_hf_cache/`
    by default). Large models ship dozens of shards; the extractor avoids downloading
    the entire 60–70 GB by filtering on the index.
-3. Reads the MTP tensors out of each shard. Tensors in quantised formats (FP8 E4M3
-   with E8M0 or F32 block scales, INT8 with E8M0 scales) are dequantised to BF16
-   on the fly. BF16, F16, and F32 tensors are passed through directly.
-4. Saves the result as a single `mtp.safetensors` file at full precision (bf16,
-   unquantized). Preserving fidelity is what keeps draft acceptance high.
-5. Uploads it to `mtp_sidecar_repo` on Hugging Face, alongside a self-describing
-   `README.md` model card. The card inherits the source model's license
-   unchanged and carries a Foxlight provenance block pinning the source SHA.
+3. Reads the MTP tensors out of each shard and dequantises any quantised formats
+   to BF16 on the fly (see [Dequantisation](#dequantisation) below). BF16, F16,
+   and F32 tensors are converted to BF16 directly.
+4. Streams the result into a single `mtp.safetensors` file at full precision
+   (bf16, unquantized), **one tensor at a time** (see
+   [Streaming extraction](#streaming-extraction) below). Preserving fidelity is
+   what keeps draft acceptance high.
+5. Uploads it to `mtp_sidecar_repo` on Hugging Face, emitting byte-level progress
+   lines during the LFS transfer (see [Upload progress](#upload-progress) below),
+   alongside a self-describing `README.md` model card. The card inherits the
+   source model's license unchanged and carries a Foxlight provenance block
+   pinning the source SHA.
 6. Files the repo into the `MTP Sidecars` Hugging Face collection (unless
    `SKULK_WEIGHTS_COLLECTION` is set to a disabling value).
 7. Deletes the local `.safetensors` file and shard cache from scratch. Skulk
    owns the artifact lifecycle; SWP's job ends when the push completes.
+
+### Already-published skip
+
+Because one bf16 sidecar covers every quantization of a base model, extraction
+is **skipped** when `mtp.safetensors` already exists on the sidecar repo. The
+extractor checks the Hub up front and, if the file is present, prints a message
+that the sidecar already covers the source model and exits without
+re-downloading or re-uploading. Pass `--force` to re-extract and overwrite it.
+The check is best-effort: any lookup failure (repo absent, no network) is
+treated as "not published" so extraction proceeds normally.
+
+### Streaming extraction
+
+Tensors are streamed from the source shards into the output file **one at a
+time**, so peak memory is bounded to a single tensor regardless of how many
+tensors there are or how large the source shards are. Shards are read via
+memory-friendly per-tensor access (the extractor seeks to each tensor's byte
+range in the shard rather than loading the whole file), and the output
+`mtp.safetensors` is written incrementally. This is what makes extraction safe
+for very large models (DeepSeek V4-Pro, V3, etc.) where accumulating every
+dequantised tensor in a dict before saving would need tens of GB of RAM.
+
+### Upload progress
+
+During the LFS upload pass the extractor emits byte-level progress lines so the
+CLI and GUI can track the real network transfer:
+
+```
+mtp: uploading 12% (1.3 GB / 10.6 GB)
+mtp: uploading 14% (1.5 GB / 10.6 GB)
+```
+
+Progress is armed only on the actual upload pass, not the fast CPU hash pass
+that precedes it, so the percentage reflects bytes pushed to Hugging Face.
+
+### Dequantisation
+
+The extractor handles a broad range of quantised source dtypes, always producing
+BF16 output:
+
+- **FP8 E4M3** weights, paired with a block scale stored as **F8 E8M0**, **F32**
+  `_scale_inv` (DeepSeek V3 — the stored value is `1/scale`, so the reciprocal is
+  taken), or **BF16**.
+- **INT8** weights, paired with an **F8 E8M0** block scale.
+- **BF16 / F16 / F32** tensors pass straight through (converted to BF16).
+
+Block scales are applied in one of two layouts:
+
+- **2D MX tiled** — for a 2D weight `[R, C]`, one scale per `B×B` tile, with
+  `ceil(R/B) × ceil(C/B)` scales. The tile size `B` is inferred from the scale
+  count (tried in order 128, 64, 256, 32); partial right/bottom-edge tiles are
+  zero-padded to a full block boundary, scaled, then stripped. This 2D layout is
+  checked first so axis-aligned tile boundaries are respected even when the flat
+  layout would also divide evenly.
+- **1D flat** — `n_weight` divisible by the scale count, with
+  `block_size = n_weight / n_scale`. Used by DeepSeek V3 (`_scale_inv`) and
+  V4-Flash/Pro (`.scale`), or as the fallback when no 2D tiling matches.
 
 ## Publishing Only The MTP Sidecar
 
@@ -164,10 +232,11 @@ or when the model genuinely does not have MTP heads.
 ```
 huggingface_hub is required for MTP extraction
 safetensors is required for single-file model inspection
-mlx is required for reading MTP weights
 ```
 
-Install the extras with `uv sync --extra mtp`.
+Install the extras with `uv sync --extra mtp` (`numpy` + `safetensors`, on top
+of the base `huggingface_hub`). `safetensors` is needed only for the single-file
+checkpoint fallback; sharded checkpoints inspect their index directly.
 
 ## Scratch Storage
 

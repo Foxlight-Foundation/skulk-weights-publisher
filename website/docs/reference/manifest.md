@@ -46,7 +46,7 @@ my-org/gemma-3-4b-full-q4-k
 |---|---|
 | `key` | Stable short selector before the catalog namespace is added |
 | `source_model` | Hugging Face model ID passed to `larql extract` |
-| `quant` | Quantization passed to LARQL |
+| `quant` | Quantization passed to LARQL; currently only `q4k` is accepted by validation (8-bit models are auto-detected as `q8k` but rejected — see below) |
 | `tier` | Publication group, currently `smoke` or `moe` |
 | `slices` | LARQL slice mode, currently `full` or `expert-server`; this is the runtime placement shape |
 | `output_name` | Local vindex directory basename under scratch storage |
@@ -130,7 +130,10 @@ models:
 - `key` must be lowercase kebab-case and unique within its source
 - effective catalog keys must be unique after namespaces are applied
 - `source_model` must look like `owner/name`
-- `quant` currently supports `q4k`
+- `quant` currently supports `q4k` only (`ALLOWED_QUANTS` is q4k-only). 8-bit
+  models are auto-detected as `q8k` by `catalog add`, but validation rejects
+  them — adding an 8-bit model fails with a quant error until 8-bit support is
+  enabled
 - `tier` must be `smoke` or `moe`
 - `slices` must be non-empty
 - each slice must be one of `full` or `expert-server`

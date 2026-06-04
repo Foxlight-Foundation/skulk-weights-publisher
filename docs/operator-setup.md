@@ -6,9 +6,11 @@ writes large local files before upload. SWP publishes three artifact types:
 - **LARQL vindexes** (`--artifact vindex`) via `larql extract` + `larql publish`
   — lets Skulk keep expensive GPU memory focused on the attention path while
   CPU/high-memory LARQL servers host the weight-heavy FFN and expert pieces.
-- **MTP sidecars** (`--artifact mtp`) — extracts and quantizes native
-  multi-token prediction heads (`mtp.*` tensor keys) from the BF16 checkpoint
-  and publishes them as `mtp.safetensors` to a dedicated Hugging Face repo.
+- **MTP sidecars** (`--artifact mtp`) — extracts native multi-token prediction
+  heads from the BF16 checkpoint (new-style `mtp.*` keys or old-style DeepSeek
+  `model.layers.{N}.*` heads) and publishes them at full precision (bf16,
+  unquantized) as `mtp.safetensors` to a dedicated Hugging Face repo. Any
+  FP8/INT8 tensors are dequantised to BF16; the heads are never re-quantized.
 - **Vision sidecars** (`--artifact vision`) — mirrors a third-party vision
   encoder into a Foxlight-owned repo **byte-for-byte** (no quantization, no
   dtype conversion) so the published encoder is numerically identical to
@@ -71,11 +73,10 @@ First-publish capacity targets:
 - `HF_TOKEN` must have read access to the MTP source repo (usually the same
   upstream model as the vindex entry)
 - install the `mtp` extras on the extraction runner: `uv sync --extra mtp`;
-  this installs `safetensors` on all platforms and `mlx` on macOS Apple Silicon
-  only (platform-gated in pyproject.toml — Linux runners will not get mlx)
-- real MTP extraction requires macOS (Apple Silicon); the standard Linux runner
-  (`self-hosted, linux, larql, vindex`) cannot run mlx — a separate macOS
-  Apple Silicon runner or step is needed for MTP publication
+  this installs `numpy` and `safetensors` (on top of the base `huggingface_hub`)
+- real MTP extraction is pure-numpy and cross-platform — the standard Linux
+  runner (`self-hosted, linux, larql, vindex`) can run it; no `mlx` and no macOS
+  Apple Silicon host is required
 
 The runner does not need to be the eventual runtime server. It needs enough disk
 and network to extract and upload safely. MoE-tier entries are manual by default
@@ -122,10 +123,11 @@ needed for dry-run — the download and quantization are skipped):
 skulk-weights publish --model my-org/my-model --artifact mtp --dry-run
 ```
 
-For real MTP extraction, run the publish command directly on a macOS (Apple
-Silicon) machine — the GitHub Actions workflow is pinned to the Linux vindex
-runner and does not install `.[mtp]` or support MTP extraction. MTP publication
-is a CLI-only operation until a separate macOS workflow path is added:
+For real MTP extraction, install the `mtp` extras and run the publish command.
+Extraction is pure-numpy and cross-platform, so any host — including the Linux
+vindex runner — can perform it; no macOS Apple Silicon machine is required. The
+GitHub Actions workflow does not yet install `.[mtp]`, so MTP publication is
+currently a CLI-only operation until a workflow step is added:
 
 ```bash
 uv sync --extra mtp

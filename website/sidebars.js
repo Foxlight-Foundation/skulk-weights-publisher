@@ -35,6 +35,7 @@ module.exports = {
       items: [
         "reference/cli",
         "reference/manifest",
+        "reference/http-api",
         "reference/environment",
         "reference/workflows",
         "reference/errors",

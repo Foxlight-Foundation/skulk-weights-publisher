@@ -29,8 +29,8 @@ same catalog entries and sidecar uploads you'd get from `skulk-weights`.
   `pip install` of a published wheel. (Set `SKULK_UI_DIST` to point at a
   prebuilt `dist/` elsewhere if you need to.)
 - The `[ui]` extras installed (FastAPI, uvicorn, and the MTP deps).
-- Node.js 18+ and Yarn on `PATH` — needed only on the first launch, which builds
-  the React app automatically and caches it in `ui/dist/`.
+- Node.js 20+ and Yarn (Yarn 1 classic) on `PATH` — needed only on the first
+  launch, which builds the React app automatically and caches it in `ui/dist/`.
 - A HuggingFace token with write access to the target org (for publishing).
 
 ## Install and run
@@ -88,11 +88,30 @@ full precision (bf16, unquantized) as `mtp.safetensors` to the target repo.
 Progress streams live in the log panel, stage by stage (finding shards →
 downloading → extracting → saving → uploading).
 
+The walkthrough below publishes the MTP heads of
+[`nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16)
+— a 120B model whose 1,040-tensor MoE drafter lives in just 2 of its 50
+shards, so SWP downloads ~8 GB instead of ~240 GB.
+
+![Publish log with the downloading stage active and shard progress](/img/skulk-ui/05-publish-downloading.png)
+
+Extraction streams tensors to disk one at a time (peak memory stays bounded
+regardless of model size), then the upload reports live byte-level progress:
+
+![Publish log uploading the sidecar with live percentage and GB progress](/img/skulk-ui/07-publish-uploading.png)
+
+When the upload lands, the sidecar repo gets `mtp.safetensors` plus an
+auto-generated model card, and every stage shows complete:
+
+![Publish log with all stages complete after a successful publish](/img/skulk-ui/08-publish-done.png)
+
 :::note
-Real extraction requires `mlx` (Apple Silicon). If `mlx` isn't available the GUI
-shows an error banner and disables publishing — install with
-`uv sync --extra ui` (the `ui` extra already includes the mtp deps). See the
-[MTP sidecar guide](./mtp-sidecar.md).
+Real extraction is pure-numpy and cross-platform — it needs only `numpy`,
+`safetensors`, and `huggingface_hub` (all pulled in by `uv sync --extra ui`),
+with no `mlx` dependency. The GUI still shows a legacy "mlx is not installed"
+warning banner (driven by `/api/status` `mlx_available`); this gate is stale —
+it does **not** block real extraction and is slated for removal in a follow-up
+release. See the [MTP sidecar guide](./mtp-sidecar.md).
 :::
 
 ## Gemma 4 assistant models
@@ -128,8 +147,11 @@ publishing it again.
 - **"cannot find the ui/ directory"** — `skulk-ui` is being run outside the
   source tree. Run it from a clone, or set `SKULK_UI_DIST` to a prebuilt
   `dist/`.
-- **"mlx is not installed"** — install the MTP extras
-  (`uv sync --extra ui --extra mtp`); real extraction is Apple-Silicon only.
+- **"mlx is not installed"** — a stale legacy warning banner that does not block
+  real extraction (which is pure-numpy and cross-platform). Installing the extras
+  with `uv sync --extra ui` provides everything extraction needs (`numpy`,
+  `safetensors`, `huggingface_hub`); the banner itself is slated for removal in a
+  follow-up release.
 - **No assistant / no MTP detected** — the model has neither native MTP heads
   nor a published `{model}-assistant`. It can't be published as a sidecar; this
   is expected for models without speculative-decoding support.
