@@ -12,6 +12,7 @@ from typing import cast
 
 from skulk_weights_publisher.card_publish import publish_model_card
 from skulk_weights_publisher.collection_publish import (
+    COLLECTION_DISABLE_VALUES,
     COLLECTION_TITLES,
     file_artifact_in_collection,
 )
@@ -195,7 +196,7 @@ def resolve_publish_collection(
     if override is None or not override.strip():
         return entry.hf_collection
     normalized_override = override.strip()
-    if normalized_override.lower() in {"0", "false", "no", "none", "off", "disabled"}:
+    if normalized_override.lower() in COLLECTION_DISABLE_VALUES:
         return None
     if not HF_COLLECTION_PATTERN.fullmatch(normalized_override):
         raise PublishError(

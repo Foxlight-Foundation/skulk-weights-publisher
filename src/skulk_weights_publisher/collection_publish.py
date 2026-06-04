@@ -14,6 +14,10 @@ its items.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
+
+from skulk_weights_publisher.defaults import COLLECTION_ENV_VAR
 from skulk_weights_publisher.model_card import ArtifactType
 
 # One collection per artifact type, addressed by title (HF assigns the slug).
@@ -22,6 +26,22 @@ COLLECTION_TITLES: dict[ArtifactType, str] = {
     "mtp-sidecar": "MTP Sidecars",
     "vision-sidecar": "Vision Sidecars",
 }
+
+# SKULK_WEIGHTS_COLLECTION values that disable collection filing for a run.
+# Shared by the CLI's resolve_publish_collection and the GUI publish path so
+# the documented kill-switch behaves identically everywhere.
+COLLECTION_DISABLE_VALUES = frozenset(
+    {"0", "false", "no", "none", "off", "disabled"}
+)
+
+
+def collections_disabled(environ: Mapping[str, str] | None = None) -> bool:
+    """Return True when the collection-filing kill-switch is set."""
+    env = os.environ if environ is None else environ
+    override = env.get(COLLECTION_ENV_VAR)
+    if override is None:
+        return False
+    return override.strip().lower() in COLLECTION_DISABLE_VALUES
 
 
 class CollectionError(RuntimeError):
