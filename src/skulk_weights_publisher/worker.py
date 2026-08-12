@@ -7,6 +7,7 @@ import re
 import shutil
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,11 @@ from uuid import uuid4
 import httpx
 
 from skulk_weights_publisher.catalog_adder import base_model_slug
+from skulk_weights_publisher.collection_publish import (
+    CollectionError,
+    collections_disabled,
+    file_artifact_in_collection,
+)
 from skulk_weights_publisher.defaults import DEFAULT_FOXLIGHT_HF_OWNER
 from skulk_weights_publisher.mtp_extractor import MtpPublication, extract_mtp
 
@@ -194,8 +200,23 @@ def _report_failure_best_effort(
 
     try:
         return client.fail(job_id, error)
-    except httpx.HTTPError:
+    except (httpx.HTTPError, ValueError):
         return None
+
+
+def _file_mtp_collection_best_effort(
+    repository: str, token: str, emit: Callable[[str], None]
+) -> None:
+    """Index a published sidecar without making collection health authoritative."""
+
+    if collections_disabled():
+        emit("mtp: collection filing disabled")
+        return
+    try:
+        file_artifact_in_collection(repository, "mtp-sidecar", token=token)
+        emit("mtp: filed in the MTP Sidecars collection")
+    except CollectionError as error:
+        emit(f"mtp: warning: could not file into collection: {error}")
 
 
 def run_forever() -> None:
@@ -243,6 +264,13 @@ def run_forever() -> None:
                     heartbeat.join(timeout=5)
                 if result is None:
                     raise RuntimeError("pinned SWP publication returned no result")
+                _file_mtp_collection_best_effort(
+                    result.repository,
+                    hub_token,
+                    lambda message, active_job_id=job_id: client.progress(
+                        active_job_id, message
+                    ),
+                )
                 client.complete(job, result)
                 shutil.rmtree(job_root, ignore_errors=True)
             except Exception as error:  # noqa: BLE001 - report and retry remotely

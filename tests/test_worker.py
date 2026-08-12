@@ -12,6 +12,7 @@ from skulk_weights_publisher.worker import (
     RegistryWorkerClient,
     SidecarJob,
     _cleanup_failed_job,
+    _file_mtp_collection_best_effort,
     _lease_best_effort,
     _preflight_scratch,
     _report_failure_best_effort,
@@ -121,3 +122,35 @@ def test_failure_reporting_preserves_job_during_registry_interruption() -> None:
     client.fail.side_effect = httpx.ReadTimeout("temporary")
 
     assert _report_failure_best_effort(client, "job", "upload failed") is None
+
+
+def test_malformed_failure_response_preserves_worker_retry() -> None:
+    """Invalid failure JSON behaves like an unavailable reporting endpoint."""
+    client = MagicMock()
+    client.fail.side_effect = ValueError("invalid JSON")
+
+    assert _report_failure_best_effort(client, "job", "upload failed") is None
+
+
+def test_worker_files_published_sidecar_in_mtp_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Registry-driven publications remain visible in the standard collection."""
+    filed: list[tuple[str, str, str | None]] = []
+    messages: list[str] = []
+    monkeypatch.setattr(
+        "skulk_weights_publisher.worker.collections_disabled", lambda: False
+    )
+    monkeypatch.setattr(
+        "skulk_weights_publisher.worker.file_artifact_in_collection",
+        lambda repository, artifact_type, token: filed.append(
+            (repository, artifact_type, token)
+        ),
+    )
+
+    _file_mtp_collection_best_effort(
+        "FoxlightAI/qwen3-8-mtp", "hf_token", messages.append
+    )
+
+    assert filed == [("FoxlightAI/qwen3-8-mtp", "mtp-sidecar", "hf_token")]
+    assert messages == ["mtp: filed in the MTP Sidecars collection"]
