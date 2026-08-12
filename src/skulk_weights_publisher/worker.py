@@ -174,10 +174,15 @@ def _heartbeat_loop(
 
 
 def _preflight_scratch(path: Path, minimum_free_bytes: int) -> None:
-    """Refuse extraction before the configured scratch safety floor is crossed."""
+    """Admit new work while crediting bytes retained for this exact retry."""
 
     path.mkdir(parents=True, exist_ok=True)
-    if shutil.disk_usage(path).free < minimum_free_bytes:
+    retained_cache_bytes = sum(
+        item.stat().st_size
+        for item in (path / "_hf_cache").rglob("*")
+        if item.is_file() and not item.is_symlink()
+    )
+    if shutil.disk_usage(path).free + retained_cache_bytes < minimum_free_bytes:
         raise RuntimeError(
             f"scratch volume has less than {minimum_free_bytes} free bytes"
         )

@@ -96,6 +96,20 @@ def test_preflight_scratch_rejects_capacity_below_floor(tmp_path: Path) -> None:
         _preflight_scratch(tmp_path / "scratch", 2**63)
 
 
+def test_preflight_credits_retained_cache_for_exact_job_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A resumable job is judged against its pre-download effective capacity."""
+    job_root = tmp_path / "job"
+    cache = job_root / "_hf_cache"
+    cache.mkdir(parents=True)
+    (cache / "shard.partial").write_bytes(b"x" * 60)
+    usage = MagicMock(free=50)
+    monkeypatch.setattr("shutil.disk_usage", lambda path: usage)
+
+    _preflight_scratch(job_root, 100)
+
+
 def test_failed_job_cleanup_retains_retry_cache_and_removes_terminal_scratch(
     tmp_path: Path,
 ) -> None:
