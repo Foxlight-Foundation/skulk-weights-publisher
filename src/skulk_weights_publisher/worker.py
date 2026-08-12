@@ -132,6 +132,8 @@ class RegistryWorkerClient:
     def complete(self, job: SidecarJob, result: MtpPublication) -> None:
         """Commit an immutable publication result to the owning campaign."""
 
+        if result.source_revision != job.source_revision:
+            raise ValueError("publication source revision does not match leased job")
         response = self._client.post(
             f"/api/v1/swp/jobs/{job.job_id}/complete",
             json={

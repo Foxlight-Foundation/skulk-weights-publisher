@@ -28,7 +28,7 @@ class MtpPublication:
 
     repository: str
     filename: str
-    source_revision: str
+    source_revision: str | None
     sidecar_revision: str
 
 
@@ -716,8 +716,6 @@ def extract_mtp(
             source_repo, token=token, revision=source_revision
         )
         effective_source_revision = source_revision or provenance.revision
-        if effective_source_revision is None:
-            raise MtpExtractionError("could not resolve an immutable source revision")
         readme = render_model_card(
             CardInfo(
                 artifact_type="mtp-sidecar",
@@ -744,7 +742,12 @@ def extract_mtp(
                 repo_type="model",
                 token=token,
                 commit_message=(
-                    f"Add MTP sidecar from {source_repo}@{effective_source_revision}"
+                    f"Add MTP sidecar from {source_repo}"
+                    + (
+                        f"@{effective_source_revision}"
+                        if effective_source_revision is not None
+                        else ""
+                    )
                 ),
                 operations=[
                     CommitOperationAdd(

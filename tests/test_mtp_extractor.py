@@ -93,8 +93,9 @@ def test_extract_mtp_rejects_mutable_source_revision(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.parametrize("pinned", [True, False])
 def test_extract_mtp_atomically_publishes_weights_and_card(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, pinned: bool
 ) -> None:
     from skulk_weights_publisher.card_publish import SourceProvenance
 
@@ -103,8 +104,10 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
     shard.write_bytes(b"source")
     captured: dict[str, Any] = {}
     logs: list[str] = []
+    requested_revision = revision if pinned else None
 
     monkeypatch.setattr(mtp_mod, "_matching_sidecar_revision", lambda *a, **k: None)
+    monkeypatch.setattr(mtp_mod, "_sidecar_already_published", lambda *a, **k: False)
     monkeypatch.setattr(
         mtp_mod, "_find_mtp_shards", lambda *a, **k: (["source.safetensors"], "mtp.")
     )
@@ -118,12 +121,16 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
     monkeypatch.setattr(mtp_mod, "_write_mtp_streaming", fake_write)
     monkeypatch.setattr(
         "skulk_weights_publisher.card_publish.resolve_source_provenance",
-        lambda *a, **k: SourceProvenance(revision=revision, license="apache-2.0"),
+        lambda *a, **k: (
+            SourceProvenance(revision=revision, license="apache-2.0")
+            if pinned
+            else SourceProvenance()
+        ),
     )
     monkeypatch.setattr("huggingface_hub.create_repo", lambda *a, **k: None)
 
     def fake_download(**kwargs: Any) -> str:
-        assert kwargs["revision"] == revision
+        assert kwargs["revision"] == requested_revision
         cache = Path(kwargs["cache_dir"])
         cache.mkdir(parents=True, exist_ok=True)
         (cache / "partial").write_bytes(b"cached")
@@ -137,7 +144,7 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
             for operation in kwargs["operations"]:
                 if operation.path_in_repo == "README.md":
                     readme = operation.path_or_fileobj.read().decode("utf-8")
-                    assert f"source_revision: {revision}" in readme
+                    assert (f"source_revision: {revision}" in readme) is pinned
                     assert "extracted_with: skulk-weights-publisher" in readme
                     assert "generated_at:" in readme
                 elif operation.path_in_repo == "mtp.safetensors":
@@ -154,12 +161,13 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
         "Qwen/Qwen3.8",
         "FoxlightAI/qwen3-8-mtp",
         tmp_path / "job",
-        source_revision=revision,
+        source_revision=requested_revision,
         token="hf_tok",
         log=logs.append,
     )
 
     assert result is not None
+    assert result.source_revision == requested_revision
     assert result.sidecar_revision == "b" * 40
     assert captured["repo_id"] == "FoxlightAI/qwen3-8-mtp"
     assert {operation.path_in_repo for operation in captured["operations"]} == {
