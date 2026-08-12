@@ -182,6 +182,17 @@ def _lease_best_effort(client: RegistryWorkerClient) -> SidecarJob | None:
         return None
 
 
+def _report_failure_best_effort(
+    client: RegistryWorkerClient, job_id: str, error: str
+) -> bool | None:
+    """Report failure when reachable while preserving retry state on outage."""
+
+    try:
+        return client.fail(job_id, error)
+    except httpx.HTTPError:
+        return None
+
+
 def run_forever() -> None:
     """Lease and publish sidecars serially until the process is stopped."""
 
@@ -230,8 +241,9 @@ def run_forever() -> None:
                 client.complete(job, result)
                 shutil.rmtree(job_root, ignore_errors=True)
             except Exception as error:  # noqa: BLE001 - report and retry remotely
-                terminal = client.fail(job_id, str(error))
-                _cleanup_failed_job(job_root, terminal=terminal)
+                terminal = _report_failure_best_effort(client, job_id, str(error))
+                if terminal is not None:
+                    _cleanup_failed_job(job_root, terminal=terminal)
                 time.sleep(30)
     finally:
         client.close()

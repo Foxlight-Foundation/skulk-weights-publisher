@@ -14,6 +14,7 @@ from skulk_weights_publisher.worker import (
     _cleanup_failed_job,
     _lease_best_effort,
     _preflight_scratch,
+    _report_failure_best_effort,
 )
 
 
@@ -90,3 +91,11 @@ def test_lease_is_retried_after_registry_interruption() -> None:
     client.lease.side_effect = httpx.ReadTimeout("temporary")
 
     assert _lease_best_effort(client) is None
+
+
+def test_failure_reporting_preserves_job_during_registry_interruption() -> None:
+    """An unavailable failure endpoint cannot terminate or clean retry state."""
+    client = MagicMock()
+    client.fail.side_effect = httpx.ReadTimeout("temporary")
+
+    assert _report_failure_best_effort(client, "job", "upload failed") is None
