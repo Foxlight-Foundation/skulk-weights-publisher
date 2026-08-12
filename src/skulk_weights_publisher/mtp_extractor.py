@@ -10,9 +10,12 @@ import sys
 from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+
+from skulk_weights_publisher import __version__
 
 _REVISION_LENGTH = 40
 
@@ -723,6 +726,8 @@ def extract_mtp(
                 license_name=provenance.license_name,
                 license_link=provenance.license_link,
                 catalog_key=catalog_key,
+                tool_version=__version__,
+                generated_at=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 weight_filename="mtp.safetensors",
             )
         )

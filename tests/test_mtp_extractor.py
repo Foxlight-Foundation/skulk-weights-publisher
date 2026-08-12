@@ -136,6 +136,8 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
                 if operation.path_in_repo == "README.md":
                     readme = operation.path_or_fileobj.read().decode("utf-8")
                     assert f"source_revision: {revision}" in readme
+                    assert "extracted_with: skulk-weights-publisher" in readme
+                    assert "generated_at:" in readme
                 elif operation.path_in_repo == "mtp.safetensors":
                     assert Path(operation.path_or_fileobj).read_bytes() == b"sidecar"
             return type("Commit", (), {"oid": "b" * 40})()

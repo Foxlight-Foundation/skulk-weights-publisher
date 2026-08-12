@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
 from skulk_weights_publisher.worker import (
+    RegistryWorkerClient,
     SidecarJob,
     _cleanup_failed_job,
     _preflight_scratch,
@@ -69,3 +72,12 @@ def test_failed_job_cleanup_retains_retry_cache_and_removes_terminal_scratch(
 
     _cleanup_failed_job(job_root, terminal=True)
     assert not job_root.exists()
+
+
+def test_progress_is_best_effort_during_registry_interruption() -> None:
+    """A telemetry timeout cannot fail an otherwise healthy extraction."""
+    client = RegistryWorkerClient("https://registry.example", "token", "worker")
+    client._client = MagicMock()  # pyright: ignore[reportPrivateUsage]
+    client._client.post.side_effect = httpx.ReadTimeout("temporary")
+
+    client.progress("job", "downloading")

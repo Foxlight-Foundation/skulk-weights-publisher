@@ -103,11 +103,16 @@ class RegistryWorkerClient:
     def progress(self, job_id: str, message: str) -> None:
         """Persist bounded, payload-free operator progress."""
 
-        response = self._client.post(
-            f"/api/v1/swp/jobs/{job_id}/progress",
-            json={"owner": self._owner, "message": message[:1000]},
-        )
-        response.raise_for_status()
+        try:
+            response = self._client.post(
+                f"/api/v1/swp/jobs/{job_id}/progress",
+                json={"owner": self._owner, "message": message[:1000]},
+            )
+            response.raise_for_status()
+        except httpx.HTTPError:
+            # Progress is observability, not a publication precondition. The
+            # independent heartbeat and lease-bound completion retain safety.
+            return
 
     def complete(self, job: SidecarJob, result: MtpPublication) -> None:
         """Commit an immutable publication result to the owning campaign."""
