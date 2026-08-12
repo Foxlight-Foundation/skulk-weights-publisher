@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 
 import skulk_weights_publisher.mtp_extractor as mtp_mod
+from skulk_weights_publisher.model_card import CardInfo, render_model_card
 from skulk_weights_publisher.mtp_extractor import (
     MtpExtractionError,
     MtpPublication,
@@ -218,11 +219,14 @@ def test_matching_sidecar_requires_exact_source_repository(
     sidecar_revision = "b" * 40
     readme = tmp_path / "README.md"
     readme.write_text(
-        "---\n"
-        "provenance:\n"
-        f"  source_repo: {card_source}\n"
-        f"  source_revision: {revision}\n"
-        "---\n",
+        render_model_card(
+            CardInfo(
+                artifact_type="mtp-sidecar",
+                repo_id="FoxlightAI/qwen3-8-mtp",
+                source_repo=card_source,
+                source_revision=revision,
+            )
+        ),
         encoding="utf-8",
     )
 

@@ -820,7 +820,7 @@ def _matching_sidecar_revision(
         metadata = yaml.safe_load(frontmatter)
         if not isinstance(metadata, dict):
             return None
-        provenance = metadata.get("provenance")
+        provenance = metadata.get("foxlight")
         if not isinstance(provenance, dict):
             return None
         matches_source = (
