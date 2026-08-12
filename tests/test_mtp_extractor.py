@@ -296,10 +296,13 @@ def test_matching_sidecar_reuses_historical_source_generation(
             return True
 
     monkeypatch.setattr("huggingface_hub.HfApi", FakeApi)
-    monkeypatch.setattr(
-        "huggingface_hub.hf_hub_download",
-        lambda **kwargs: str(cards[kwargs["revision"]]),
-    )
+
+    def download_card(**kwargs: Any) -> str:
+        if kwargs["revision"] == current_revision:
+            raise FileNotFoundError("newer commit has no README")
+        return str(cards[kwargs["revision"]])
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", download_card)
 
     assert (
         mtp_mod._matching_sidecar_revision(

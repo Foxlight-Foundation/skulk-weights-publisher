@@ -802,39 +802,64 @@ def _matching_sidecar_revision(
             sidecar_revision = getattr(commit, "commit_id", None)
             if not isinstance(sidecar_revision, str):
                 continue
-            if not api.file_exists(
-                repo_id=sidecar_repo,
-                filename="mtp.safetensors",
-                repo_type="model",
-                revision=sidecar_revision,
-                token=token,
-            ):
-                continue
-            readme_path = hf_hub_download(
-                repo_id=sidecar_repo,
-                filename="README.md",
-                revision=sidecar_revision,
+            if _sidecar_commit_matches(
+                api,
+                hf_hub_download,
+                sidecar_repo=sidecar_repo,
+                sidecar_revision=sidecar_revision,
+                source_repo=source_repo,
+                source_revision=source_revision,
                 token=token,
                 cache_dir=cache_dir,
-            )
-            content = Path(readme_path).read_text(encoding="utf-8")
-            if not content.startswith("---\n"):
-                continue
-            frontmatter = content.split("---", maxsplit=2)[1]
-            metadata = yaml.safe_load(frontmatter)
-            if not isinstance(metadata, dict):
-                continue
-            provenance = metadata.get("foxlight")
-            if not isinstance(provenance, dict):
-                continue
-            if (
-                provenance.get("source_repo") == source_repo
-                and provenance.get("source_revision") == source_revision
             ):
                 return sidecar_revision
         return None
     except Exception:  # noqa: BLE001 - absence and lookup failure both mean publish
         return None
+
+
+def _sidecar_commit_matches(
+    api: Any,
+    download: Callable[..., str],
+    *,
+    sidecar_repo: str,
+    sidecar_revision: str,
+    source_repo: str,
+    source_revision: str,
+    token: str | None,
+    cache_dir: str,
+) -> bool:
+    """Check one immutable generation without aborting the history walk."""
+    try:
+        if not api.file_exists(
+            repo_id=sidecar_repo,
+            filename="mtp.safetensors",
+            repo_type="model",
+            revision=sidecar_revision,
+            token=token,
+        ):
+            return False
+        readme_path = download(
+            repo_id=sidecar_repo,
+            filename="README.md",
+            revision=sidecar_revision,
+            token=token,
+            cache_dir=cache_dir,
+        )
+        content = Path(readme_path).read_text(encoding="utf-8")
+        if not content.startswith("---\n"):
+            return False
+        frontmatter = content.split("---", maxsplit=2)[1]
+        metadata = yaml.safe_load(frontmatter)
+        if not isinstance(metadata, dict):
+            return False
+        provenance = metadata.get("foxlight")
+        return isinstance(provenance, dict) and (
+            provenance.get("source_repo") == source_repo
+            and provenance.get("source_revision") == source_revision
+        )
+    except Exception:  # noqa: BLE001 - one damaged generation is not repository failure
+        return False
 
 
 def _sidecar_filename(sidecar_repo: str) -> str:
