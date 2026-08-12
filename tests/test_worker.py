@@ -24,6 +24,7 @@ from skulk_weights_publisher.worker import (
 def test_sidecar_job_accepts_exact_revision_and_deterministic_destination() -> None:
     job = SidecarJob.from_json(
         {
+            "kind": "mtp_sidecar",
             "job_id": "job-1",
             "source_repository": "Qwen/Qwen3.8-Base",
             "source_revision": "a" * 40,
@@ -39,6 +40,7 @@ def test_sidecar_job_rejects_mutable_or_noncanonical_revision(revision: str) -> 
     with pytest.raises(ValueError, match="mutable source revision"):
         SidecarJob.from_json(
             {
+                "kind": "mtp_sidecar",
                 "job_id": "job-1",
                 "source_repository": "Qwen/Qwen3.8-Base",
                 "source_revision": revision,
@@ -51,6 +53,7 @@ def test_sidecar_job_rejects_destination_outside_allowlist() -> None:
     with pytest.raises(ValueError, match="does not match allowed"):
         SidecarJob.from_json(
             {
+                "kind": "mtp_sidecar",
                 "job_id": "job-1",
                 "source_repository": "Qwen/Qwen3.8-Base",
                 "source_revision": "a" * 40,
@@ -65,7 +68,22 @@ def test_sidecar_job_rejects_unsafe_path_components(job_id: str) -> None:
     with pytest.raises(ValueError, match="unsafe sidecar job ID"):
         SidecarJob.from_json(
             {
+                "kind": "mtp_sidecar",
                 "job_id": job_id,
+                "source_repository": "Qwen/Qwen3.8-Base",
+                "source_revision": "a" * 40,
+                "destination_repository": "FoxlightAI/qwen3-8-base-mtp",
+            }
+        )
+
+
+def test_sidecar_job_rejects_other_job_kinds() -> None:
+    """The dedicated worker cannot consume a future or misrouted job type."""
+    with pytest.raises(ValueError, match="non-MTP sidecar job"):
+        SidecarJob.from_json(
+            {
+                "kind": "full_model_conversion",
+                "job_id": "job-1",
                 "source_repository": "Qwen/Qwen3.8-Base",
                 "source_revision": "a" * 40,
                 "destination_repository": "FoxlightAI/qwen3-8-base-mtp",

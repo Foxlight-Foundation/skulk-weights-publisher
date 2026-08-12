@@ -41,6 +41,8 @@ class SidecarJob:
     def from_json(cls, raw: dict[str, Any]) -> SidecarJob:
         """Validate a registry job without accepting arbitrary destinations."""
 
+        if raw.get("kind") != "mtp_sidecar":
+            raise ValueError("registry returned a non-MTP sidecar job")
         values = {
             key: raw.get(key)
             for key in (
