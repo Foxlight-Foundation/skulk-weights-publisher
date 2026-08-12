@@ -193,12 +193,58 @@ def test_matching_sidecar_requires_weights_at_exact_sidecar_revision(
     assert (
         mtp_mod._matching_sidecar_revision(
             "FoxlightAI/qwen3-8-mtp",
+            source_repo="Qwen/Qwen3.8",
             source_revision=revision,
             token="hf_tok",
             cache_dir=str(tmp_path),
         )
         is None
     )
+
+
+@pytest.mark.parametrize(
+    ("card_source", "reusable"),
+    [("Qwen/Qwen3.8", True), ("fork/Qwen3.8", False)],
+)
+def test_matching_sidecar_requires_exact_source_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    card_source: str,
+    *,
+    reusable: bool,
+) -> None:
+    """A shared destination and SHA cannot cross source provenance."""
+    revision = "a" * 40
+    sidecar_revision = "b" * 40
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "---\n"
+        "provenance:\n"
+        f"  source_repo: {card_source}\n"
+        f"  source_revision: {revision}\n"
+        "---\n",
+        encoding="utf-8",
+    )
+
+    class FakeApi:
+        def model_info(self, *args: Any, **kwargs: Any) -> Any:
+            return type("Info", (), {"sha": sidecar_revision})()
+
+        def file_exists(self, **kwargs: Any) -> bool:
+            return True
+
+    monkeypatch.setattr("huggingface_hub.HfApi", FakeApi)
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", lambda **kwargs: str(readme))
+
+    result = mtp_mod._matching_sidecar_revision(
+        "FoxlightAI/qwen3-8-mtp",
+        source_repo="Qwen/Qwen3.8",
+        source_revision=revision,
+        token="hf_tok",
+        cache_dir=str(tmp_path),
+    )
+
+    assert (result == sidecar_revision) is reusable
 
 
 # ---------------------------------------------------------------------------

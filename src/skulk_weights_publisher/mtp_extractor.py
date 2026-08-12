@@ -15,6 +15,8 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, cast
 
+import yaml
+
 from skulk_weights_publisher import __version__
 
 _REVISION_LENGTH = 40
@@ -608,6 +610,7 @@ def extract_mtp(
     # tell the operator it already covers this model and skip.
     existing_revision = _matching_sidecar_revision(
         sidecar_repo,
+        source_repo=source_repo,
         source_revision=source_revision,
         token=token,
         cache_dir=str(scratch_root / "_hf_cache"),
@@ -778,6 +781,7 @@ def extract_mtp(
 def _matching_sidecar_revision(
     sidecar_repo: str,
     *,
+    source_repo: str,
     source_revision: str | None,
     token: str | None,
     cache_dir: str,
@@ -810,8 +814,20 @@ def _matching_sidecar_revision(
             cache_dir=cache_dir,
         )
         content = Path(readme_path).read_text(encoding="utf-8")
-        marker = f"source_revision: {source_revision}"
-        return sidecar_revision if marker in content else None
+        if not content.startswith("---\n"):
+            return None
+        frontmatter = content.split("---", maxsplit=2)[1]
+        metadata = yaml.safe_load(frontmatter)
+        if not isinstance(metadata, dict):
+            return None
+        provenance = metadata.get("provenance")
+        if not isinstance(provenance, dict):
+            return None
+        matches_source = (
+            provenance.get("source_repo") == source_repo
+            and provenance.get("source_revision") == source_revision
+        )
+        return sidecar_revision if matches_source else None
     except Exception:  # noqa: BLE001 - absence and lookup failure both mean publish
         return None
 
