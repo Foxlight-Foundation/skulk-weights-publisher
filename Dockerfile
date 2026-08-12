@@ -7,6 +7,7 @@ RUN uv sync --frozen --no-dev --extra mtp --no-editable
 
 FROM python:3.13-slim
 RUN useradd --system --uid 10001 --create-home swp
+RUN install -d -o swp -g swp /var/lib/swp
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 USER 10001
