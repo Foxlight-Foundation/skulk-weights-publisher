@@ -12,6 +12,7 @@ from skulk_weights_publisher.worker import (
     RegistryWorkerClient,
     SidecarJob,
     _cleanup_failed_job,
+    _lease_best_effort,
     _preflight_scratch,
 )
 
@@ -81,3 +82,11 @@ def test_progress_is_best_effort_during_registry_interruption() -> None:
     client._client.post.side_effect = httpx.ReadTimeout("temporary")
 
     client.progress("job", "downloading")
+
+
+def test_lease_is_retried_after_registry_interruption() -> None:
+    """A transient lease request failure keeps the serial worker alive."""
+    client = MagicMock()
+    client.lease.side_effect = httpx.ReadTimeout("temporary")
+
+    assert _lease_best_effort(client) is None

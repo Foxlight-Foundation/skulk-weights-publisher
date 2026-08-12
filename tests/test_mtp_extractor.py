@@ -101,6 +101,7 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
     shard = tmp_path / "source.safetensors"
     shard.write_bytes(b"source")
     captured: dict[str, Any] = {}
+    logs: list[str] = []
 
     monkeypatch.setattr(mtp_mod, "_matching_sidecar_revision", lambda *a, **k: None)
     monkeypatch.setattr(
@@ -139,7 +140,11 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
                     assert "extracted_with: skulk-weights-publisher" in readme
                     assert "generated_at:" in readme
                 elif operation.path_in_repo == "mtp.safetensors":
-                    assert Path(operation.path_or_fileobj).read_bytes() == b"sidecar"
+                    # Mirror the Hub client's hash and LFS upload read passes.
+                    operation.path_or_fileobj.seek(0)
+                    operation.path_or_fileobj.read()
+                    operation.path_or_fileobj.seek(0)
+                    assert operation.path_or_fileobj.read() == b"sidecar"
             return type("Commit", (), {"oid": "b" * 40})()
 
     monkeypatch.setattr("huggingface_hub.HfApi", FakeApi)
@@ -150,6 +155,7 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
         tmp_path / "job",
         source_revision=revision,
         token="hf_tok",
+        log=logs.append,
     )
 
     assert result is not None
@@ -160,6 +166,39 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
         "mtp.safetensors",
     }
     assert not (tmp_path / "job" / "_hf_cache").exists()
+    assert any("mtp: uploading" in message for message in logs)
+
+
+def test_matching_sidecar_requires_weights_at_exact_sidecar_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """README provenance cannot make a missing weight artifact reusable."""
+    revision = "a" * 40
+    sidecar_revision = "b" * 40
+    readme = tmp_path / "README.md"
+    readme.write_text(f"source_revision: {revision}\n", encoding="utf-8")
+
+    class FakeApi:
+        def model_info(self, *args: Any, **kwargs: Any) -> Any:
+            return type("Info", (), {"sha": sidecar_revision})()
+
+        def file_exists(self, **kwargs: Any) -> bool:
+            assert kwargs["revision"] == sidecar_revision
+            assert kwargs["filename"] == "mtp.safetensors"
+            return False
+
+    monkeypatch.setattr("huggingface_hub.HfApi", FakeApi)
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", lambda **kwargs: str(readme))
+
+    assert (
+        mtp_mod._matching_sidecar_revision(
+            "FoxlightAI/qwen3-8-mtp",
+            source_revision=revision,
+            token="hf_tok",
+            cache_dir=str(tmp_path),
+        )
+        is None
+    )
 
 
 # ---------------------------------------------------------------------------

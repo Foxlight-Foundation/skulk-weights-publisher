@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO, cast
 
 from skulk_weights_publisher import __version__
 
@@ -732,23 +732,28 @@ def extract_mtp(
             )
         )
         emit(f"mtp: atomically publishing weights and card to hf://{sidecar_repo}")
-        commit = HfApi().create_commit(
-            repo_id=sidecar_repo,
-            repo_type="model",
-            token=token,
-            commit_message=(
-                f"Add MTP sidecar from {source_repo}@{effective_source_revision}"
-            ),
-            operations=[
-                CommitOperationAdd(
-                    path_in_repo="mtp.safetensors", path_or_fileobj=str(output_path)
+        # A single Hub commit keeps the card and weights atomic. The file object
+        # preserves byte-level progress through the Hub client's hashing and LFS
+        # upload passes without splitting publication into separate commits.
+        with _ProgressFile(output_path, emit) as weights:
+            commit = HfApi().create_commit(
+                repo_id=sidecar_repo,
+                repo_type="model",
+                token=token,
+                commit_message=(
+                    f"Add MTP sidecar from {source_repo}@{effective_source_revision}"
                 ),
-                CommitOperationAdd(
-                    path_in_repo="README.md",
-                    path_or_fileobj=BytesIO(readme.encode("utf-8")),
-                ),
-            ],
-        )
+                operations=[
+                    CommitOperationAdd(
+                        path_in_repo="mtp.safetensors",
+                        path_or_fileobj=cast("BinaryIO", weights),
+                    ),
+                    CommitOperationAdd(
+                        path_in_repo="README.md",
+                        path_or_fileobj=BytesIO(readme.encode("utf-8")),
+                    ),
+                ],
+            )
         sidecar_revision = str(commit.oid)
         emit(
             f"mtp: published hf://{sidecar_repo}/mtp.safetensors at {sidecar_revision}"
@@ -784,9 +789,18 @@ def _matching_sidecar_revision(
     try:
         from huggingface_hub import HfApi, hf_hub_download
 
-        info = HfApi().model_info(sidecar_repo, token=token)
+        api = HfApi()
+        info = api.model_info(sidecar_repo, token=token)
         sidecar_revision = getattr(info, "sha", None)
         if not isinstance(sidecar_revision, str):
+            return None
+        if not api.file_exists(
+            repo_id=sidecar_repo,
+            filename="mtp.safetensors",
+            repo_type="model",
+            revision=sidecar_revision,
+            token=token,
+        ):
             return None
         readme_path = hf_hub_download(
             repo_id=sidecar_repo,

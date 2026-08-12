@@ -173,6 +173,15 @@ def _cleanup_failed_job(path: Path, *, terminal: bool) -> None:
         shutil.rmtree(path, ignore_errors=True)
 
 
+def _lease_best_effort(client: RegistryWorkerClient) -> SidecarJob | None:
+    """Treat a transient registry outage as an empty poll, not worker exit."""
+
+    try:
+        return client.lease()
+    except httpx.HTTPError:
+        return None
+
+
 def run_forever() -> None:
     """Lease and publish sidecars serially until the process is stopped."""
 
@@ -187,7 +196,7 @@ def run_forever() -> None:
     client = RegistryWorkerClient(base_url, ingestion_token, owner)
     try:
         while True:
-            job = client.lease()
+            job = _lease_best_effort(client)
             if job is None:
                 time.sleep(30)
                 continue
