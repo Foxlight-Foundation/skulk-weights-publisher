@@ -59,6 +59,9 @@ def test_extract_mtp_reuses_matching_pinned_sidecar(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     revision = "a" * 40
+    cache = tmp_path / "_hf_cache"
+    cache.mkdir()
+    (cache / "README.md").write_text("cached", encoding="utf-8")
     monkeypatch.setattr(mtp_mod, "_matching_sidecar_revision", lambda *a, **k: "b" * 40)
 
     result = extract_mtp(
@@ -75,6 +78,7 @@ def test_extract_mtp_reuses_matching_pinned_sidecar(
         source_revision=revision,
         sidecar_revision="b" * 40,
     )
+    assert not cache.exists()
 
 
 def test_extract_mtp_rejects_mutable_source_revision(tmp_path: Path) -> None:
@@ -118,6 +122,9 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
 
     def fake_download(**kwargs: Any) -> str:
         assert kwargs["revision"] == revision
+        cache = Path(kwargs["cache_dir"])
+        cache.mkdir(parents=True, exist_ok=True)
+        (cache / "partial").write_bytes(b"cached")
         return str(shard)
 
     monkeypatch.setattr("huggingface_hub.hf_hub_download", fake_download)
@@ -150,6 +157,7 @@ def test_extract_mtp_atomically_publishes_weights_and_card(
         "README.md",
         "mtp.safetensors",
     }
+    assert not (tmp_path / "job" / "_hf_cache").exists()
 
 
 # ---------------------------------------------------------------------------

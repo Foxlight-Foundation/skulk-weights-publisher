@@ -610,6 +610,7 @@ def extract_mtp(
         cache_dir=str(scratch_root / "_hf_cache"),
     )
     if not force and existing_revision is not None and source_revision is not None:
+        shutil.rmtree(scratch_root / "_hf_cache", ignore_errors=True)
         emit(
             f"mtp: sidecar already exists at hf://{sidecar_repo}/mtp.safetensors "
             f"for source revision {source_revision}; reusing {existing_revision}."
@@ -655,6 +656,7 @@ def extract_mtp(
     )
 
     cache_dir = str(scratch_root / "_hf_cache")
+    completed = False
     try:
         # Identify which shards contain MTP tensors and what key prefix they use.
         shard_files, key_prefix = _find_mtp_shards(
@@ -746,6 +748,7 @@ def extract_mtp(
         emit(
             f"mtp: published hf://{sidecar_repo}/mtp.safetensors at {sidecar_revision}"
         )
+        completed = True
         return MtpPublication(
             repository=sidecar_repo,
             filename="mtp.safetensors",
@@ -754,11 +757,11 @@ def extract_mtp(
         )
     finally:
         # The derived output is never a resume boundary. Exact-revision workers
-        # retain the Hub cache so a registry retry can resume shard downloads;
-        # legacy unpinned CLI runs keep their historical eager cleanup behavior.
+        # retain the Hub cache only after failure so a registry retry can resume
+        # shard downloads; successful and legacy runs clean up immediately.
         output_path.unlink(missing_ok=True)
         hf_cache = scratch_root / "_hf_cache"
-        if hf_cache.exists() and source_revision is None:
+        if hf_cache.exists() and (source_revision is None or completed):
             shutil.rmtree(hf_cache)
 
 
