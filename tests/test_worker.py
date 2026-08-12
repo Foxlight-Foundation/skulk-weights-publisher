@@ -12,6 +12,7 @@ from skulk_weights_publisher.worker import (
     RegistryWorkerClient,
     SidecarJob,
     _cleanup_failed_job,
+    _execute_leased_publication,
     _file_mtp_collection_best_effort,
     _lease_best_effort,
     _preflight_scratch,
@@ -168,3 +169,51 @@ def test_worker_files_published_sidecar_in_mtp_collection(
 
     assert filed == [("FoxlightAI/qwen3-8-mtp", "mtp-sidecar", "hf_token")]
     assert messages == ["mtp: filed in the MTP Sidecars collection"]
+
+
+def test_heartbeat_covers_collection_filing_and_registry_completion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Lease renewal stops only after every publication effect is acknowledged."""
+    active = False
+    observed: list[str] = []
+
+    class FakeThread:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def start(self) -> None:
+            nonlocal active
+            active = True
+
+        def join(self, timeout: int) -> None:
+            nonlocal active
+            assert timeout == 5
+            active = False
+
+    publication = MagicMock(repository="FoxlightAI/qwen3-8-base-mtp")
+    monkeypatch.setattr("skulk_weights_publisher.worker.threading.Thread", FakeThread)
+    monkeypatch.setattr(
+        "skulk_weights_publisher.worker.extract_mtp",
+        lambda **_kwargs: publication if active else None,
+    )
+    monkeypatch.setattr(
+        "skulk_weights_publisher.worker._file_mtp_collection_best_effort",
+        lambda *_args: observed.append("collection-active" if active else "stopped"),
+    )
+    client = MagicMock()
+    client.progress.return_value = True
+    client.complete.side_effect = lambda *_args: observed.append(
+        "completion-active" if active else "stopped"
+    )
+    job = SidecarJob(
+        job_id="job-1",
+        source_repository="Qwen/Qwen3.8-Base",
+        source_revision="a" * 40,
+        destination_repository="FoxlightAI/qwen3-8-base-mtp",
+    )
+
+    _execute_leased_publication(client, job, tmp_path, "hf_token")
+
+    assert observed == ["collection-active", "completion-active"]
+    assert active is False

@@ -235,6 +235,43 @@ def _file_mtp_collection_best_effort(
         emit(f"mtp: warning: could not file into collection: {error}")
 
 
+def _execute_leased_publication(
+    client: RegistryWorkerClient,
+    job: SidecarJob,
+    job_root: Path,
+    hub_token: str,
+) -> None:
+    """Keep one lease alive through extraction, filing, and completion."""
+    stop = threading.Event()
+    heartbeat = threading.Thread(
+        target=_heartbeat_loop,
+        args=(client, job.job_id, stop),
+        daemon=True,
+    )
+    heartbeat.start()
+    report_progress = _progress_reporter(client, job.job_id)
+    try:
+        result = extract_mtp(
+            source_repo=job.source_repository,
+            source_revision=job.source_revision,
+            sidecar_repo=job.destination_repository,
+            scratch_root=job_root,
+            token=hub_token,
+            log=report_progress,
+        )
+        if result is None:
+            raise RuntimeError("pinned SWP publication returned no result")
+        _file_mtp_collection_best_effort(
+            result.repository,
+            hub_token,
+            report_progress,
+        )
+        client.complete(job, result)
+    finally:
+        stop.set()
+        heartbeat.join(timeout=5)
+
+
 def run_forever() -> None:
     """Lease and publish sidecars serially until the process is stopped."""
 
@@ -257,34 +294,7 @@ def run_forever() -> None:
             job_root = scratch_root / "jobs" / job_id
             try:
                 _preflight_scratch(job_root, minimum_free_bytes)
-                stop = threading.Event()
-                heartbeat = threading.Thread(
-                    target=_heartbeat_loop,
-                    args=(client, job_id, stop),
-                    daemon=True,
-                )
-                heartbeat.start()
-                report_progress = _progress_reporter(client, job_id)
-                try:
-                    result = extract_mtp(
-                        source_repo=job.source_repository,
-                        source_revision=job.source_revision,
-                        sidecar_repo=job.destination_repository,
-                        scratch_root=job_root,
-                        token=hub_token,
-                        log=report_progress,
-                    )
-                finally:
-                    stop.set()
-                    heartbeat.join(timeout=5)
-                if result is None:
-                    raise RuntimeError("pinned SWP publication returned no result")
-                _file_mtp_collection_best_effort(
-                    result.repository,
-                    hub_token,
-                    report_progress,
-                )
-                client.complete(job, result)
+                _execute_leased_publication(client, job, job_root, hub_token)
                 shutil.rmtree(job_root, ignore_errors=True)
             except Exception as error:  # noqa: BLE001 - report and retry remotely
                 terminal = _report_failure_best_effort(client, job_id, str(error))
