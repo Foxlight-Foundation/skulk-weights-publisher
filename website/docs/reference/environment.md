@@ -81,3 +81,16 @@ Optional.
 Overrides the directory that `skulk-ui` serves the built UI from. Set this when
 the UI assets live somewhere other than the default bundled `dist` directory —
 for example when serving a locally rebuilt UI during development.
+
+## Headless SWP worker
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `SWP_REGISTRY_INGESTION_URL` | yes | Registry ingestion base URL |
+| `SWP_REGISTRY_INGESTION_TOKEN` | yes | Bearer token accepted only by SWP job endpoints |
+| `HF_TOKEN` | yes | Token able to read the pinned source and write under `FoxlightAI` |
+| `SWP_SCRATCH` | no | Persistent cache/scratch root; default `/var/lib/swp` |
+| `SWP_MINIMUM_FREE_BYTES` | no | Free-space floor before extraction; default 20 GiB |
+
+The worker derives the only allowed `FoxlightAI/<source-slug>-mtp` destination
+from the source repository and rejects mismatched jobs before downloading.

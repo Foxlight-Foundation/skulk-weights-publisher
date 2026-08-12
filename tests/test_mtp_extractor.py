@@ -14,8 +14,10 @@ import numpy as np
 import pytest
 
 import skulk_weights_publisher.mtp_extractor as mtp_mod
+from skulk_weights_publisher.model_card import CardInfo, render_model_card
 from skulk_weights_publisher.mtp_extractor import (
     MtpExtractionError,
+    MtpPublication,
     _apply_block_scale,
     _build_fp8_e4m3fn_lut,
     _decode_e8m0,
@@ -52,6 +54,266 @@ def test_extract_mtp_skips_when_sidecar_already_published(
     assert "every quantization" in joined
     # It returned before doing any extraction work — no shards downloaded.
     assert not (tmp_path / "_hf_cache").exists()
+
+
+def test_extract_mtp_reuses_matching_pinned_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    revision = "a" * 40
+    cache = tmp_path / "_hf_cache"
+    cache.mkdir()
+    (cache / "README.md").write_text("cached", encoding="utf-8")
+    monkeypatch.setattr(mtp_mod, "_matching_sidecar_revision", lambda *a, **k: "b" * 40)
+
+    result = extract_mtp(
+        "Qwen/Qwen3.8",
+        "FoxlightAI/qwen3-8-mtp",
+        tmp_path,
+        source_revision=revision,
+        token="hf_tok",
+    )
+
+    assert result == MtpPublication(
+        repository="FoxlightAI/qwen3-8-mtp",
+        filename="mtp.safetensors",
+        source_revision=revision,
+        sidecar_revision="b" * 40,
+    )
+    assert not cache.exists()
+
+
+def test_extract_mtp_rejects_mutable_source_revision(tmp_path: Path) -> None:
+    with pytest.raises(MtpExtractionError, match="full lowercase commit SHA"):
+        extract_mtp(
+            "Qwen/Qwen3.8",
+            "FoxlightAI/qwen3-8-mtp",
+            tmp_path,
+            source_revision="main",
+            token=None,
+        )
+
+
+@pytest.mark.parametrize("pinned", [True, False])
+def test_extract_mtp_atomically_publishes_weights_and_card(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, pinned: bool
+) -> None:
+    from skulk_weights_publisher.card_publish import SourceProvenance
+
+    revision = "a" * 40
+    shard = tmp_path / "source.safetensors"
+    shard.write_bytes(b"source")
+    captured: dict[str, Any] = {}
+    logs: list[str] = []
+    requested_revision = revision if pinned else None
+
+    monkeypatch.setattr(mtp_mod, "_matching_sidecar_revision", lambda *a, **k: None)
+    monkeypatch.setattr(mtp_mod, "_sidecar_already_published", lambda *a, **k: False)
+    monkeypatch.setattr(
+        mtp_mod, "_find_mtp_shards", lambda *a, **k: (["source.safetensors"], "mtp.")
+    )
+
+    def fake_write(shards: list[Path], output: Path, prefix: str, log: Any) -> int:
+        assert shards == [shard]
+        assert prefix == "mtp."
+        output.write_bytes(b"sidecar")
+        return 1
+
+    monkeypatch.setattr(mtp_mod, "_write_mtp_streaming", fake_write)
+    monkeypatch.setattr(
+        "skulk_weights_publisher.card_publish.resolve_source_provenance",
+        lambda *a, **k: (
+            SourceProvenance(revision=revision, license="apache-2.0")
+            if pinned
+            else SourceProvenance()
+        ),
+    )
+    monkeypatch.setattr("huggingface_hub.create_repo", lambda *a, **k: None)
+
+    def fake_download(**kwargs: Any) -> str:
+        assert kwargs["revision"] == requested_revision
+        cache = Path(kwargs["cache_dir"])
+        cache.mkdir(parents=True, exist_ok=True)
+        (cache / "partial").write_bytes(b"cached")
+        return str(shard)
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", fake_download)
+
+    class FakeApi:
+        def create_commit(self, **kwargs: Any) -> Any:
+            captured.update(kwargs)
+            for operation in kwargs["operations"]:
+                if operation.path_in_repo == "README.md":
+                    readme = operation.path_or_fileobj.read().decode("utf-8")
+                    assert (f"source_revision: {revision}" in readme) is pinned
+                    assert "extracted_with: skulk-weights-publisher" in readme
+                    assert "generated_at:" in readme
+                elif operation.path_in_repo == "mtp.safetensors":
+                    # Mirror the Hub client's hash and LFS upload read passes.
+                    operation.path_or_fileobj.seek(0)
+                    operation.path_or_fileobj.read()
+                    operation.path_or_fileobj.seek(0)
+                    assert operation.path_or_fileobj.read() == b"sidecar"
+            return type("Commit", (), {"oid": "b" * 40})()
+
+    monkeypatch.setattr("huggingface_hub.HfApi", FakeApi)
+
+    result = extract_mtp(
+        "Qwen/Qwen3.8",
+        "FoxlightAI/qwen3-8-mtp",
+        tmp_path / "job",
+        source_revision=requested_revision,
+        token="hf_tok",
+        log=logs.append,
+    )
+
+    assert result is not None
+    assert result.source_revision == requested_revision
+    assert result.sidecar_revision == "b" * 40
+    assert captured["repo_id"] == "FoxlightAI/qwen3-8-mtp"
+    assert {operation.path_in_repo for operation in captured["operations"]} == {
+        "README.md",
+        "mtp.safetensors",
+    }
+    assert not (tmp_path / "job" / "_hf_cache").exists()
+    assert any("mtp: uploading" in message for message in logs)
+
+
+def test_matching_sidecar_requires_weights_at_exact_sidecar_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """README provenance cannot make a missing weight artifact reusable."""
+    revision = "a" * 40
+    sidecar_revision = "b" * 40
+    readme = tmp_path / "README.md"
+    readme.write_text(f"source_revision: {revision}\n", encoding="utf-8")
+
+    class FakeApi:
+        def list_repo_commits(self, *args: Any, **kwargs: Any) -> list[Any]:
+            return [type("Commit", (), {"commit_id": sidecar_revision})()]
+
+        def file_exists(self, **kwargs: Any) -> bool:
+            assert kwargs["revision"] == sidecar_revision
+            assert kwargs["filename"] == "mtp.safetensors"
+            return False
+
+    monkeypatch.setattr("huggingface_hub.HfApi", FakeApi)
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", lambda **kwargs: str(readme))
+
+    assert (
+        mtp_mod._matching_sidecar_revision(
+            "FoxlightAI/qwen3-8-mtp",
+            source_repo="Qwen/Qwen3.8",
+            source_revision=revision,
+            token="hf_tok",
+            cache_dir=str(tmp_path),
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("card_source", "reusable"),
+    [("Qwen/Qwen3.8", True), ("fork/Qwen3.8", False)],
+)
+def test_matching_sidecar_requires_exact_source_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    card_source: str,
+    *,
+    reusable: bool,
+) -> None:
+    """A shared destination and SHA cannot cross source provenance."""
+    revision = "a" * 40
+    sidecar_revision = "b" * 40
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        render_model_card(
+            CardInfo(
+                artifact_type="mtp-sidecar",
+                repo_id="FoxlightAI/qwen3-8-mtp",
+                source_repo=card_source,
+                source_revision=revision,
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeApi:
+        def list_repo_commits(self, *args: Any, **kwargs: Any) -> list[Any]:
+            return [type("Commit", (), {"commit_id": sidecar_revision})()]
+
+        def file_exists(self, **kwargs: Any) -> bool:
+            return True
+
+    monkeypatch.setattr("huggingface_hub.HfApi", FakeApi)
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", lambda **kwargs: str(readme))
+
+    result = mtp_mod._matching_sidecar_revision(
+        "FoxlightAI/qwen3-8-mtp",
+        source_repo="Qwen/Qwen3.8",
+        source_revision=revision,
+        token="hf_tok",
+        cache_dir=str(tmp_path),
+    )
+
+    assert (result == sidecar_revision) is reusable
+
+
+def test_matching_sidecar_reuses_historical_source_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pinned older source reuses its immutable historical sidecar commit."""
+    requested_revision = "a" * 40
+    current_revision = "c" * 40
+    historical_revision = "b" * 40
+    cards: dict[str, Path] = {}
+    for sidecar_revision, source_revision in (
+        (current_revision, "d" * 40),
+        (historical_revision, requested_revision),
+    ):
+        readme = tmp_path / f"README-{sidecar_revision}.md"
+        readme.write_text(
+            render_model_card(
+                CardInfo(
+                    artifact_type="mtp-sidecar",
+                    repo_id="FoxlightAI/qwen3-8-mtp",
+                    source_repo="Qwen/Qwen3.8",
+                    source_revision=source_revision,
+                )
+            ),
+            encoding="utf-8",
+        )
+        cards[sidecar_revision] = readme
+
+    class FakeApi:
+        def list_repo_commits(self, *args: Any, **kwargs: Any) -> list[Any]:
+            return [
+                type("Commit", (), {"commit_id": current_revision})(),
+                type("Commit", (), {"commit_id": historical_revision})(),
+            ]
+
+        def file_exists(self, **kwargs: Any) -> bool:
+            return True
+
+    monkeypatch.setattr("huggingface_hub.HfApi", FakeApi)
+
+    def download_card(**kwargs: Any) -> str:
+        if kwargs["revision"] == current_revision:
+            raise FileNotFoundError("newer commit has no README")
+        return str(cards[kwargs["revision"]])
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", download_card)
+
+    assert (
+        mtp_mod._matching_sidecar_revision(
+            "FoxlightAI/qwen3-8-mtp",
+            source_repo="Qwen/Qwen3.8",
+            source_revision=requested_revision,
+            token="hf_tok",
+            cache_dir=str(tmp_path),
+        )
+        == historical_revision
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -290,10 +552,13 @@ def test_apply_block_scale_2d() -> None:
     weights = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], dtype=np.float32)
     scales = np.array([2.0, 1.0, 0.5, 1.0], dtype=np.float32)
     result = _apply_block_scale(weights, scales, [2, 4])
-    expected = np.array([
-        [1.0 * 2.0, 2.0 * 2.0, 3.0 * 1.0, 4.0 * 1.0],
-        [5.0 * 0.5, 6.0 * 0.5, 7.0 * 1.0, 8.0 * 1.0],
-    ], dtype=np.float32)
+    expected = np.array(
+        [
+            [1.0 * 2.0, 2.0 * 2.0, 3.0 * 1.0, 4.0 * 1.0],
+            [5.0 * 0.5, 6.0 * 0.5, 7.0 * 1.0, 8.0 * 1.0],
+        ],
+        dtype=np.float32,
+    )
     np.testing.assert_allclose(result, expected)
 
 
@@ -330,10 +595,10 @@ def test_apply_block_scale_2d_exact_tiles() -> None:
     scales = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
     result = _apply_block_scale(weights.ravel(), scales, [256, 256])
     assert result.shape == (256, 256)
-    np.testing.assert_allclose(result[:128, :128], 1.0)   # tile (0,0)
-    np.testing.assert_allclose(result[:128, 128:], 2.0)   # tile (0,1)
-    np.testing.assert_allclose(result[128:, :128], 3.0)   # tile (1,0)
-    np.testing.assert_allclose(result[128:, 128:], 4.0)   # tile (1,1)
+    np.testing.assert_allclose(result[:128, :128], 1.0)  # tile (0,0)
+    np.testing.assert_allclose(result[:128, 128:], 2.0)  # tile (0,1)
+    np.testing.assert_allclose(result[128:, :128], 3.0)  # tile (1,0)
+    np.testing.assert_allclose(result[128:, 128:], 4.0)  # tile (1,1)
 
 
 def test_apply_block_scale_2d_partial_col_block() -> None:
@@ -429,14 +694,14 @@ def test_f32_to_bf16_bytes_rounds_not_truncates() -> None:
 
     # 0x3F808000: halfway between BF16 0x3F80 and 0x3F81.
     # BF16 LSB is 0 (even) → round down → 0x3F80.
-    assert _bf16(b'\x00\x80\x80\x3f') == 0x3F80
+    assert _bf16(b"\x00\x80\x80\x3f") == 0x3F80
 
     # 0x3F818000: halfway between BF16 0x3F81 and 0x3F82.
     # BF16 LSB is 1 (odd) → round up to even → 0x3F82.
-    assert _bf16(b'\x00\x80\x81\x3f') == 0x3F82
+    assert _bf16(b"\x00\x80\x81\x3f") == 0x3F82
 
     # Just past midpoint: always round up regardless of LSB.
-    assert _bf16(b'\x01\x80\x80\x3f') == 0x3F81
+    assert _bf16(b"\x01\x80\x80\x3f") == 0x3F81
 
 
 # ---------------------------------------------------------------------------
@@ -473,11 +738,11 @@ def test_progress_file_only_emits_on_second_read_pass(tmp_path: Path) -> None:
     with _ProgressFile(p, logs.append, pct_step=1) as pf:
         # Simulate HF Hub: seek(0) → hash read → seek(0) → upload read
         pf.seek(0)
-        pf.read()   # hash pass — must emit nothing
+        pf.read()  # hash pass — must emit nothing
         assert logs == [], "no progress should fire during the hash pass"
 
         pf.seek(0)
-        pf.read()   # upload pass — must emit progress
+        pf.read()  # upload pass — must emit progress
         assert any("mtp: uploading" in line for line in logs)
 
 
@@ -532,11 +797,14 @@ def test_write_mtp_streaming_fp8_with_e8m0_scale(tmp_path: Path) -> None:
     from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
 
     weight_bytes = bytes([0x38, 0x40])  # FP8: 1.0, 2.0
-    scale_bytes = bytes([128])          # E8M0 128 → 2^1 = 2.0
-    shard = _make_shard(tmp_path, [
-        ("mtp.0.w.weight", "F8_E4M3", [2], weight_bytes),
-        ("mtp.0.w.scale",  "F8_E8M0", [1], scale_bytes),
-    ])
+    scale_bytes = bytes([128])  # E8M0 128 → 2^1 = 2.0
+    shard = _make_shard(
+        tmp_path,
+        [
+            ("mtp.0.w.weight", "F8_E4M3", [2], weight_bytes),
+            ("mtp.0.w.scale", "F8_E8M0", [1], scale_bytes),
+        ],
+    )
     out = tmp_path / "out.safetensors"
 
     n = _write_mtp_streaming([shard], out, "mtp.", [].append)
@@ -553,10 +821,13 @@ def test_write_mtp_streaming_i8_with_e8m0_scale(tmp_path: Path) -> None:
 
     weight_bytes = struct.pack("<2b", 3, 4)
     scale_bytes = bytes([127])  # E8M0 127 → 2^0 = 1.0
-    shard = _make_shard(tmp_path, [
-        ("mtp.0.ffn.w1.weight", "I8",      [2], weight_bytes),
-        ("mtp.0.ffn.w1.scale",  "F8_E8M0", [1], scale_bytes),
-    ])
+    shard = _make_shard(
+        tmp_path,
+        [
+            ("mtp.0.ffn.w1.weight", "I8", [2], weight_bytes),
+            ("mtp.0.ffn.w1.scale", "F8_E8M0", [1], scale_bytes),
+        ],
+    )
     out = tmp_path / "out.safetensors"
 
     _write_mtp_streaming([shard], out, "mtp.", [].append)
@@ -570,12 +841,15 @@ def test_write_mtp_streaming_v3_scale_inv(tmp_path: Path) -> None:
     """F8_E4M3 + F32 weight_scale_inv → dequantised BF16 (V3 style)."""
     from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
 
-    weight_bytes = bytes([0x38, 0x40])        # FP8: 1.0, 2.0
+    weight_bytes = bytes([0x38, 0x40])  # FP8: 1.0, 2.0
     scale_inv_bytes = struct.pack("<f", 0.5)  # 1/scale → scale = 2.0
-    shard = _make_shard(tmp_path, [
-        ("model.layers.61.attn.w.weight",           "F8_E4M3", [2], weight_bytes),
-        ("model.layers.61.attn.w.weight_scale_inv", "F32",     [1], scale_inv_bytes),
-    ])
+    shard = _make_shard(
+        tmp_path,
+        [
+            ("model.layers.61.attn.w.weight", "F8_E4M3", [2], weight_bytes),
+            ("model.layers.61.attn.w.weight_scale_inv", "F32", [1], scale_inv_bytes),
+        ],
+    )
     out = tmp_path / "out.safetensors"
 
     n = _write_mtp_streaming([shard], out, "model.layers.61.", [].append)
@@ -596,12 +870,15 @@ def test_write_mtp_streaming_bf16_scale_excluded(tmp_path: Path) -> None:
     """
     from skulk_weights_publisher.mtp_extractor import _write_mtp_streaming
 
-    weight_bytes = bytes([0x38, 0x40])         # FP8: 1.0, 2.0
-    scale_bytes = struct.pack("<H", 0x4000)    # BF16 2.0 (not F8_E8M0)
-    shard = _make_shard(tmp_path, [
-        ("mtp.0.attn.w.weight", "F8_E4M3", [2], weight_bytes),
-        ("mtp.0.attn.w.scale",  "BF16",    [1], scale_bytes),
-    ])
+    weight_bytes = bytes([0x38, 0x40])  # FP8: 1.0, 2.0
+    scale_bytes = struct.pack("<H", 0x4000)  # BF16 2.0 (not F8_E8M0)
+    shard = _make_shard(
+        tmp_path,
+        [
+            ("mtp.0.attn.w.weight", "F8_E4M3", [2], weight_bytes),
+            ("mtp.0.attn.w.scale", "BF16", [1], scale_bytes),
+        ],
+    )
     out = tmp_path / "out.safetensors"
 
     n = _write_mtp_streaming([shard], out, "mtp.", [].append)
@@ -661,10 +938,13 @@ def test_write_mtp_streaming_2d_block_scale(tmp_path: Path) -> None:
     # All I8 weights = 1; all E8M0 scales = byte 127 → 2^0 = 1.0
     weight_bytes = struct.pack(f"<{R * C}b", *([1] * (R * C)))
     scale_bytes = bytes([127] * 9)  # 9 scales (Rb*Cb=3*3), each = 1.0
-    shard = _make_shard(tmp_path, [
-        ("model.layers.61.w.weight", "I8",      [R, C], weight_bytes),
-        ("model.layers.61.w.weight_scale_inv", "F8_E8M0", [9], scale_bytes),
-    ])
+    shard = _make_shard(
+        tmp_path,
+        [
+            ("model.layers.61.w.weight", "I8", [R, C], weight_bytes),
+            ("model.layers.61.w.weight_scale_inv", "F8_E8M0", [9], scale_bytes),
+        ],
+    )
     out = tmp_path / "out.safetensors"
 
     n = _write_mtp_streaming([shard], out, "model.layers.61.", [].append)

@@ -91,6 +91,26 @@ jobs:
             scripts/publish-weights.sh "${catalog_args[@]}" --model "$key" --dry-run
           done
 
+  worker-container:
+    name: Build headless SWP worker image
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build worker image without publishing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: foxlight/skulk-weights-publisher:pr-check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   publish:
     name: Publish selected vindexes
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'

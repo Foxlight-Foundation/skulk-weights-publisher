@@ -61,6 +61,7 @@ def resolve_source_provenance(
     source_repo: str,
     *,
     token: str | None,
+    revision: str | None = None,
 ) -> SourceProvenance:
     """Resolve the source repo's commit SHA and license from the Hub.
 
@@ -75,7 +76,7 @@ def resolve_source_provenance(
         return SourceProvenance()
 
     try:
-        info = HfApi().model_info(source_repo, token=token)
+        info = HfApi().model_info(source_repo, revision=revision, token=token)
     except Exception:  # noqa: BLE001 - provenance is best-effort
         return SourceProvenance()
 
@@ -92,7 +93,7 @@ def resolve_source_provenance(
     if not isinstance(card, dict):
         return SourceProvenance(revision=sha)
     return SourceProvenance(
-        revision=sha,
+        revision=revision or sha,
         license=_as_str(card.get("license")),
         license_name=_as_str(card.get("license_name")),
         license_link=_as_str(card.get("license_link")),
@@ -109,6 +110,7 @@ def publish_model_card(
     quant: str | None = None,
     catalog_key: str | None = None,
     weight_filename: str | None = None,
+    source_revision: str | None = None,
     log: Callable[[str], None] | None = None,
 ) -> None:
     """Render a self-describing card for a published artifact and upload it.
@@ -127,7 +129,9 @@ def publish_model_card(
         emit("card: huggingface_hub unavailable; skipping model card")
         return
 
-    provenance = resolve_source_provenance(source_repo, token=token)
+    provenance = resolve_source_provenance(
+        source_repo, token=token, revision=source_revision
+    )
     info = CardInfo(
         artifact_type=artifact_type,
         repo_id=repo_id,

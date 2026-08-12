@@ -3,6 +3,12 @@
 Publish Skulk model weights: MTP sidecars, LARQL vindexes, and vision encoder
 sidecars.
 
+SWP also ships a headless, lease-driven worker for the Foxlight model registry.
+It accepts only typed MTP jobs pinned to full Hugging Face commit SHAs,
+publishes only to deterministic repositories in `FoxlightAI`, and uploads the
+weights and self-describing model card in one atomic Hub commit. It never needs
+registry database, signing, Cloudflare, object-storage, or LLM credentials.
+
 Documentation: <https://foxlight-foundation.github.io/skulk-weights-publisher/>
 
 Skulk is a distributed LLM inference system. SWP publishes three kinds of model

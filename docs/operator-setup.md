@@ -97,6 +97,30 @@ Configure this GitHub Actions secret:
 
 Do not commit tokens to this repository.
 
+## Registry-leased worker
+
+The production campaign path uses `skulk-swp-worker` or the repository's
+container image. It leases one `mtp_sidecar` job at a time from registry
+ingestion. Every job names an exact 40-character source commit; that revision is
+used for config discovery, shard selection, downloads, provenance, and the
+resulting card. `mtp.safetensors` and `README.md` are committed atomically. A
+completed sidecar with matching provenance is reused, while a new source
+revision produces a new immutable sidecar commit.
+
+| Variable | Purpose |
+|---|---|
+| `SWP_REGISTRY_INGESTION_URL` | Registry ingestion base URL |
+| `SWP_REGISTRY_INGESTION_TOKEN` | Dedicated SWP queue credential |
+| `HF_TOKEN` | FoxlightAI-scoped Hugging Face write token with source read access |
+| `SWP_SCRATCH` | Persistent scratch/cache root; defaults to `/var/lib/swp` |
+| `SWP_MINIMUM_FREE_BYTES` | Capacity floor checked before extraction; defaults to 20 GiB |
+
+Run the container with a read-only root filesystem, a writable bounded volume at
+`/var/lib/swp`, dropped Linux capabilities, and one replica. Retriable failures
+preserve Hugging Face cache data; success or terminal failure removes that
+job's scratch data. The worker image is published to Docker Hub as `latest` and an immutable
+`sha-<commit>` tag after the main-branch quality gate.
+
 ## Validation
 
 Before enabling the scheduled workflow, install the package and run the local
