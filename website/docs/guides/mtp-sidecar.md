@@ -191,6 +191,19 @@ Block scales are applied in one of two layouts:
 
 ## Publishing Only The MTP Sidecar
 
+### Automated registry campaigns
+
+Registry campaigns use `skulk-swp-worker` instead of the local catalog command.
+The registry leases a typed job containing an immutable source revision and
+deterministic destination. SWP uses that revision for every Hub read, writes
+`mtp.safetensors` plus its provenance-bearing `README.md` in one commit, and
+returns the resulting immutable sidecar revision. Repeating the job reuses a
+commit whose card pins the source revision; changing the source produces a new
+sidecar generation without changing older registry-card pins.
+
+The worker creates MTP sidecars only. It does not convert or manufacture full
+MLX, GGUF, FP8, NVFP4, AWQ, or other model artifacts.
+
 The `--artifact mtp` flag publishes the MTP sidecar without re-running vindex
 extraction or publication. This is useful when the vindex already exists on HF
 and you only need to add the sidecar:

@@ -8,8 +8,23 @@ import shutil
 import struct
 import sys
 from collections.abc import Callable
+from contextlib import ExitStack
+from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Any
+
+_REVISION_LENGTH = 40
+
+
+@dataclass(frozen=True)
+class MtpPublication:
+    """Immutable result of one sidecar publication or idempotent reuse."""
+
+    repository: str
+    filename: str
+    source_revision: str
+    sidecar_revision: str
 
 
 class MtpExtractionError(RuntimeError):
@@ -112,7 +127,7 @@ def _build_fp8_e4m3fn_lut() -> list[float]:
         if exp == 0xF and man == 0x7:
             val: float = float("nan")
         elif exp == 0:
-            val = (man / 8.0) * (2.0 ** -6)
+            val = (man / 8.0) * (2.0**-6)
         else:
             val = (1.0 + man / 8.0) * (2.0 ** (exp - 7))
         lut.append(-val if sign else val)
@@ -138,9 +153,7 @@ def _decode_e8m0(raw: bytes) -> Any:
     """Decode F8_E8M0 block-exponent bytes to float32 scale values (2^(b−127))."""
     import numpy as np
 
-    return np.power(
-        2.0, np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 127.0
-    )
+    return np.power(2.0, np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 127.0)
 
 
 def _decode_bf16_as_f32(raw: bytes) -> Any:
@@ -208,8 +221,11 @@ def _apply_block_scale(
             # [Rb, B, Cb, B]: each tile is contiguous in the last two axes.
             tiles = w_pad.reshape(Rb, B, Cb, B)
             s = scales_f32.reshape(Rb, 1, Cb, 1)
-            return (tiles * s).reshape(R_pad, C_pad)[:R, :C].reshape(shape).astype(
-                np.float32
+            return (
+                (tiles * s)
+                .reshape(R_pad, C_pad)[:R, :C]
+                .reshape(shape)
+                .astype(np.float32)
             )
 
     # ── Flat 1D block quantisation ────────────────────────────────────────────
@@ -256,6 +272,7 @@ def _find_mtp_shards(
     *,
     token: str | None,
     cache_dir: str | None = None,
+    source_revision: str | None = None,
 ) -> tuple[list[str], str]:
     """Return ``(shard_filenames, key_prefix)`` for the MTP tensors in source_repo.
 
@@ -282,6 +299,7 @@ def _find_mtp_shards(
             filename="model.safetensors.index.json",
             token=token,
             cache_dir=cache_dir,
+            revision=source_revision,
         )
         with open(index_path, encoding="utf-8") as fh:
             index = json.load(fh)
@@ -305,6 +323,7 @@ def _find_mtp_shards(
                 filename="config.json",
                 token=token,
                 cache_dir=cache_dir,
+                revision=source_revision,
             )
             with open(config_path, encoding="utf-8") as fh:
                 config = json.load(fh)
@@ -339,6 +358,7 @@ def _find_mtp_shards(
             filename="model.safetensors",
             token=token,
             cache_dir=cache_dir,
+            revision=source_revision,
         )
     except EntryNotFoundError:
         return [], "mtp."
@@ -352,9 +372,7 @@ def _find_mtp_shards(
 # ── Tensor reading ────────────────────────────────────────────────────────────
 
 
-def _find_scale_key(
-    weight_key: str, header: dict[str, Any]
-) -> tuple[str, bool] | None:
+def _find_scale_key(weight_key: str, header: dict[str, Any]) -> tuple[str, bool] | None:
     """Return ``(scale_key, is_inverse)`` for a quantised weight tensor, or None.
 
     Two pairing conventions:
@@ -453,11 +471,9 @@ def _write_mtp_streaming(
 
     # ── Pass 2: stream one tensor at a time into the output file ─────────
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    shard_fhs = [  # noqa: SIM115 — closed in the finally block below
-        open(path, "rb") for path, _, _ in shard_meta  # noqa: SIM115
-    ]
-    try:
-        with open(output_path, "wb") as out_fh:
+    with ExitStack() as stack:
+        shard_fhs = [stack.enter_context(path.open("rb")) for path, _, _ in shard_meta]
+        with output_path.open("wb") as out_fh:
             out_fh.write(struct.pack("<Q", len(hdr_json)))
             out_fh.write(hdr_json)
 
@@ -495,23 +511,20 @@ def _write_mtp_streaming(
                     if src_dtype == "F8_E4M3":
                         weights_f32 = _decode_fp8_e4m3fn(raw)
                     else:  # I8
-                        weights_f32 = np.frombuffer(
-                            raw, dtype=np.int8
-                        ).astype(np.float32)
+                        weights_f32 = np.frombuffer(raw, dtype=np.int8).astype(
+                            np.float32
+                        )
 
                     scale_dtype = scale_meta["dtype"]
                     if scale_dtype == "F8_E8M0":
                         scales_f32 = _decode_e8m0(scale_raw)
                     elif scale_dtype == "F32":
-                        scales_f32 = np.frombuffer(
-                            scale_raw, dtype=np.float32
-                        ).copy()
+                        scales_f32 = np.frombuffer(scale_raw, dtype=np.float32).copy()
                     elif scale_dtype == "BF16":
                         scales_f32 = _decode_bf16_as_f32(scale_raw)
                     else:
                         raise MtpExtractionError(
-                            f"unsupported scale dtype {scale_dtype!r} for "
-                            f"{scale_key!r}"
+                            f"unsupported scale dtype {scale_dtype!r} for {scale_key!r}"
                         )
 
                     if is_inverse:
@@ -524,10 +537,6 @@ def _write_mtp_streaming(
                     raise MtpExtractionError(
                         f"unsupported MTP tensor dtype {src_dtype!r} for {key!r}"
                     )
-    finally:
-        for fh in shard_fhs:
-            fh.close()
-
     return len(output_entries)
 
 
@@ -540,11 +549,12 @@ def extract_mtp(
     scratch_root: Path,
     *,
     token: str | None,
+    source_revision: str | None = None,
     dry_run: bool = False,
     force: bool = False,
     catalog_key: str | None = None,
     log: Callable[[str], None] | None = None,
-) -> None:
+) -> MtpPublication | None:
     """Extract MTP weights from source_repo and publish them to sidecar_repo.
 
     Downloads only the safetensors shards that contain MTP head tensors, reads
@@ -578,26 +588,57 @@ def extract_mtp(
     """
 
     emit = log if log is not None else _stderr_log
+    if source_revision is not None and (
+        len(source_revision) != _REVISION_LENGTH
+        or any(character not in "0123456789abcdef" for character in source_revision)
+    ):
+        raise MtpExtractionError("source_revision must be a full lowercase commit SHA")
 
     output_path = scratch_root / _sidecar_filename(sidecar_repo)
 
     if dry_run:
         _print_dry_run_plan(source_repo, sidecar_repo, output_path)
-        return
+        return None
 
     # The heads belong to the base model, so one sidecar serves every
     # quantization of it. If it's already published, don't silently re-extract —
     # tell the operator it already covers this model and skip.
-    if not force and _sidecar_already_published(sidecar_repo, token=token):
+    existing_revision = _matching_sidecar_revision(
+        sidecar_repo,
+        source_revision=source_revision,
+        token=token,
+        cache_dir=str(scratch_root / "_hf_cache"),
+    )
+    if not force and existing_revision is not None and source_revision is not None:
+        emit(
+            f"mtp: sidecar already exists at hf://{sidecar_repo}/mtp.safetensors "
+            f"for source revision {source_revision}; reusing {existing_revision}."
+        )
+        return MtpPublication(
+            repository=sidecar_repo,
+            filename="mtp.safetensors",
+            source_revision=source_revision,
+            sidecar_revision=existing_revision,
+        )
+    if (
+        not force
+        and source_revision is None
+        and _sidecar_already_published(sidecar_repo, token=token)
+    ):
         emit(
             f"mtp: sidecar already exists at hf://{sidecar_repo}/mtp.safetensors "
             f"— it already covers {source_repo} and every quantization of it. "
             "Skipping (pass --force to re-extract)."
         )
-        return
+        return None
 
     try:
-        from huggingface_hub import create_repo, hf_hub_download, upload_file
+        from huggingface_hub import (
+            CommitOperationAdd,
+            HfApi,
+            create_repo,
+            hf_hub_download,
+        )
         from huggingface_hub.utils.tqdm import (
             disable_progress_bars,  # type: ignore[import-untyped]
         )
@@ -617,7 +658,10 @@ def extract_mtp(
     try:
         # Identify which shards contain MTP tensors and what key prefix they use.
         shard_files, key_prefix = _find_mtp_shards(
-            source_repo, token=token, cache_dir=cache_dir
+            source_repo,
+            token=token,
+            cache_dir=cache_dir,
+            source_revision=source_revision,
         )
         if not shard_files:
             raise MtpExtractionError(
@@ -642,6 +686,7 @@ def extract_mtp(
                     filename=shard,
                     token=token,
                     cache_dir=cache_dir,
+                    revision=source_revision,
                 )
             )
             local_shards.append(local)
@@ -654,49 +699,99 @@ def extract_mtp(
         # saving would OOM.
         emit("mtp: streaming tensors to disk (bf16, unquantized)...")
         n_tensors = _write_mtp_streaming(local_shards, output_path, key_prefix, emit)
-        emit(
-            f"mtp: saved {n_tensors} tensor(s) at bf16 (unquantized) "
-            f"to {output_path}"
-        )
+        emit(f"mtp: saved {n_tensors} tensor(s) at bf16 (unquantized) to {output_path}")
 
-        # Upload.
-        emit(f"mtp: uploading to hf://{sidecar_repo}/mtp.safetensors")
-        with _ProgressFile(output_path, emit) as pf:
-            upload_file(
-                path_or_fileobj=pf,  # type: ignore[arg-type]
-                path_in_repo="mtp.safetensors",
+        from skulk_weights_publisher.card_publish import resolve_source_provenance
+        from skulk_weights_publisher.model_card import CardInfo, render_model_card
+
+        provenance = resolve_source_provenance(
+            source_repo, token=token, revision=source_revision
+        )
+        effective_source_revision = source_revision or provenance.revision
+        if effective_source_revision is None:
+            raise MtpExtractionError("could not resolve an immutable source revision")
+        readme = render_model_card(
+            CardInfo(
+                artifact_type="mtp-sidecar",
                 repo_id=sidecar_repo,
-                repo_type="model",
-                token=token,
-                commit_message=(
-                    f"Add MTP sidecar from {source_repo} (bf16, unquantized)"
-                ),
+                source_repo=source_repo,
+                source_revision=effective_source_revision,
+                target_model=source_repo,
+                license=provenance.license,
+                license_name=provenance.license_name,
+                license_link=provenance.license_link,
+                catalog_key=catalog_key,
+                weight_filename="mtp.safetensors",
             )
-        emit(f"mtp: published to hf://{sidecar_repo}/mtp.safetensors")
+        )
+        emit(f"mtp: atomically publishing weights and card to hf://{sidecar_repo}")
+        commit = HfApi().create_commit(
+            repo_id=sidecar_repo,
+            repo_type="model",
+            token=token,
+            commit_message=(
+                f"Add MTP sidecar from {source_repo}@{effective_source_revision}"
+            ),
+            operations=[
+                CommitOperationAdd(
+                    path_in_repo="mtp.safetensors", path_or_fileobj=str(output_path)
+                ),
+                CommitOperationAdd(
+                    path_in_repo="README.md",
+                    path_or_fileobj=BytesIO(readme.encode("utf-8")),
+                ),
+            ],
+        )
+        sidecar_revision = str(commit.oid)
+        emit(
+            f"mtp: published hf://{sidecar_repo}/mtp.safetensors at {sidecar_revision}"
+        )
+        return MtpPublication(
+            repository=sidecar_repo,
+            filename="mtp.safetensors",
+            source_revision=effective_source_revision,
+            sidecar_revision=sidecar_revision,
+        )
     finally:
-        # Skulk owns artifact lifecycle — discard everything we staged locally,
-        # success or failure. A failed run would otherwise leak the partial
-        # output plus tens of GB of cached shards (the server gives each job a
-        # fresh scratch dir, so a leaked cache is never reused or reclaimed).
+        # The derived output is never a resume boundary. Exact-revision workers
+        # retain the Hub cache so a registry retry can resume shard downloads;
+        # legacy unpinned CLI runs keep their historical eager cleanup behavior.
         output_path.unlink(missing_ok=True)
         hf_cache = scratch_root / "_hf_cache"
-        if hf_cache.exists():
+        if hf_cache.exists() and source_revision is None:
             shutil.rmtree(hf_cache)
 
-    # Publish a self-describing model card so the sidecar carries its provenance
-    # (source repo + revision), target, and inherited license.
-    from skulk_weights_publisher.card_publish import publish_model_card
 
-    publish_model_card(
-        repo_id=sidecar_repo,
-        artifact_type="mtp-sidecar",
-        source_repo=source_repo,
-        token=token,
-        target_model=source_repo,
-        catalog_key=catalog_key,
-        weight_filename="mtp.safetensors",
-        log=emit,
-    )
+def _matching_sidecar_revision(
+    sidecar_repo: str,
+    *,
+    source_revision: str | None,
+    token: str | None,
+    cache_dir: str,
+) -> str | None:
+    """Return the current sidecar commit when its card pins the requested source."""
+
+    if source_revision is None:
+        return None
+    try:
+        from huggingface_hub import HfApi, hf_hub_download
+
+        info = HfApi().model_info(sidecar_repo, token=token)
+        sidecar_revision = getattr(info, "sha", None)
+        if not isinstance(sidecar_revision, str):
+            return None
+        readme_path = hf_hub_download(
+            repo_id=sidecar_repo,
+            filename="README.md",
+            revision=sidecar_revision,
+            token=token,
+            cache_dir=cache_dir,
+        )
+        content = Path(readme_path).read_text(encoding="utf-8")
+        marker = f"source_revision: {source_revision}"
+        return sidecar_revision if marker in content else None
+    except Exception:  # noqa: BLE001 - absence and lookup failure both mean publish
+        return None
 
 
 def _sidecar_filename(sidecar_repo: str) -> str:
