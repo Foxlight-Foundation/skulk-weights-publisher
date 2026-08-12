@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import threading
 import time
@@ -18,6 +19,7 @@ from skulk_weights_publisher.defaults import DEFAULT_FOXLIGHT_HF_OWNER
 from skulk_weights_publisher.mtp_extractor import MtpPublication, extract_mtp
 
 _REVISION_LENGTH = 40
+_SAFE_JOB_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$")
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,9 @@ class SidecarJob:
         }
         if not all(isinstance(value, str) and value for value in values.values()):
             raise ValueError("registry returned an incomplete sidecar job")
+        job_id = str(values["job_id"])
+        if _SAFE_JOB_ID.fullmatch(job_id) is None:
+            raise ValueError("registry returned an unsafe sidecar job ID")
         revision = str(values["source_revision"])
         if len(revision) != _REVISION_LENGTH or any(
             character not in "0123456789abcdef" for character in revision
@@ -57,7 +62,7 @@ class SidecarJob:
                 f"destination {destination!r} does not match allowed {expected!r}"
             )
         return cls(
-            job_id=str(values["job_id"]),
+            job_id=job_id,
             source_repository=source,
             source_revision=revision,
             destination_repository=destination,
@@ -178,7 +183,7 @@ def _lease_best_effort(client: RegistryWorkerClient) -> SidecarJob | None:
 
     try:
         return client.lease()
-    except httpx.HTTPError:
+    except (httpx.HTTPError, ValueError):
         return None
 
 

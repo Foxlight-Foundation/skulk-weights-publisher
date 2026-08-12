@@ -56,6 +56,20 @@ def test_sidecar_job_rejects_destination_outside_allowlist() -> None:
         )
 
 
+@pytest.mark.parametrize("job_id", ["../outside", "/var/lib/swp", "..", "job/child"])
+def test_sidecar_job_rejects_unsafe_path_components(job_id: str) -> None:
+    """Registry queue data can never escape the bounded scratch root."""
+    with pytest.raises(ValueError, match="unsafe sidecar job ID"):
+        SidecarJob.from_json(
+            {
+                "job_id": job_id,
+                "source_repository": "Qwen/Qwen3.8-Base",
+                "source_revision": "a" * 40,
+                "destination_repository": "FoxlightAI/qwen3-8-base-mtp",
+            }
+        )
+
+
 def test_preflight_scratch_rejects_capacity_below_floor(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="scratch volume"):
         _preflight_scratch(tmp_path / "scratch", 2**63)
@@ -89,6 +103,14 @@ def test_lease_is_retried_after_registry_interruption() -> None:
     """A transient lease request failure keeps the serial worker alive."""
     client = MagicMock()
     client.lease.side_effect = httpx.ReadTimeout("temporary")
+
+    assert _lease_best_effort(client) is None
+
+
+def test_malformed_lease_response_is_retried_without_worker_exit() -> None:
+    """Invalid queue data behaves as a failed poll instead of crashing startup."""
+    client = MagicMock()
+    client.lease.side_effect = ValueError("malformed sidecar job")
 
     assert _lease_best_effort(client) is None
 
