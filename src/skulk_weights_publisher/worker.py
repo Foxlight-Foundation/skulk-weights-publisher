@@ -111,19 +111,21 @@ class RegistryWorkerClient:
         )
         response.raise_for_status()
 
-    def progress(self, job_id: str, message: str) -> None:
-        """Persist bounded, payload-free operator progress."""
+    def progress(self, job_id: str, message: str) -> bool:
+        """Persist progress with a short timeout and report endpoint health."""
 
         try:
             response = self._client.post(
                 f"/api/v1/swp/jobs/{job_id}/progress",
                 json={"owner": self._owner, "message": message[:1000]},
+                timeout=2,
             )
             response.raise_for_status()
         except httpx.HTTPError:
             # Progress is observability, not a publication precondition. The
             # independent heartbeat and lease-bound completion retain safety.
-            return
+            return False
+        return True
 
     def complete(self, job: SidecarJob, result: MtpPublication) -> None:
         """Commit an immutable publication result to the owning campaign."""
@@ -204,6 +206,20 @@ def _report_failure_best_effort(
         return None
 
 
+def _progress_reporter(
+    client: RegistryWorkerClient, job_id: str
+) -> Callable[[str], None]:
+    """Disable job telemetry after its first failed short-timeout request."""
+    enabled = True
+
+    def emit(message: str) -> None:
+        nonlocal enabled
+        if enabled:
+            enabled = client.progress(job_id, message)
+
+    return emit
+
+
 def _file_mtp_collection_best_effort(
     repository: str, token: str, emit: Callable[[str], None]
 ) -> None:
@@ -248,6 +264,7 @@ def run_forever() -> None:
                     daemon=True,
                 )
                 heartbeat.start()
+                report_progress = _progress_reporter(client, job_id)
                 try:
                     result = extract_mtp(
                         source_repo=job.source_repository,
@@ -255,9 +272,7 @@ def run_forever() -> None:
                         sidecar_repo=job.destination_repository,
                         scratch_root=job_root,
                         token=hub_token,
-                        log=lambda message, active_job_id=job_id: client.progress(
-                            active_job_id, message
-                        ),
+                        log=report_progress,
                     )
                 finally:
                     stop.set()
@@ -267,9 +282,7 @@ def run_forever() -> None:
                 _file_mtp_collection_best_effort(
                     result.repository,
                     hub_token,
-                    lambda message, active_job_id=job_id: client.progress(
-                        active_job_id, message
-                    ),
+                    report_progress,
                 )
                 client.complete(job, result)
                 shutil.rmtree(job_root, ignore_errors=True)

@@ -15,6 +15,7 @@ from skulk_weights_publisher.worker import (
     _file_mtp_collection_best_effort,
     _lease_best_effort,
     _preflight_scratch,
+    _progress_reporter,
     _report_failure_best_effort,
 )
 
@@ -97,7 +98,20 @@ def test_progress_is_best_effort_during_registry_interruption() -> None:
     client._client = MagicMock()  # pyright: ignore[reportPrivateUsage]
     client._client.post.side_effect = httpx.ReadTimeout("temporary")
 
-    client.progress("job", "downloading")
+    assert client.progress("job", "downloading") is False
+    assert client._client.post.call_args.kwargs["timeout"] == 2  # pyright: ignore[reportPrivateUsage]
+
+
+def test_progress_reporter_opens_circuit_after_first_failure() -> None:
+    """Repeated upload increments never accumulate registry timeout stalls."""
+    client = MagicMock()
+    client.progress.return_value = False
+    report = _progress_reporter(client, "job")
+
+    report("uploading 2%")
+    report("uploading 4%")
+
+    client.progress.assert_called_once_with("job", "uploading 2%")
 
 
 def test_lease_is_retried_after_registry_interruption() -> None:
