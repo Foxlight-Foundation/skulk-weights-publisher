@@ -794,40 +794,42 @@ def _matching_sidecar_revision(
         from huggingface_hub import HfApi, hf_hub_download
 
         api = HfApi()
-        info = api.model_info(sidecar_repo, token=token)
-        sidecar_revision = getattr(info, "sha", None)
-        if not isinstance(sidecar_revision, str):
-            return None
-        if not api.file_exists(
-            repo_id=sidecar_repo,
-            filename="mtp.safetensors",
-            repo_type="model",
-            revision=sidecar_revision,
-            token=token,
-        ):
-            return None
-        readme_path = hf_hub_download(
-            repo_id=sidecar_repo,
-            filename="README.md",
-            revision=sidecar_revision,
-            token=token,
-            cache_dir=cache_dir,
-        )
-        content = Path(readme_path).read_text(encoding="utf-8")
-        if not content.startswith("---\n"):
-            return None
-        frontmatter = content.split("---", maxsplit=2)[1]
-        metadata = yaml.safe_load(frontmatter)
-        if not isinstance(metadata, dict):
-            return None
-        provenance = metadata.get("foxlight")
-        if not isinstance(provenance, dict):
-            return None
-        matches_source = (
-            provenance.get("source_repo") == source_repo
-            and provenance.get("source_revision") == source_revision
-        )
-        return sidecar_revision if matches_source else None
+        commits = api.list_repo_commits(sidecar_repo, repo_type="model", token=token)
+        for commit in commits:
+            sidecar_revision = getattr(commit, "commit_id", None)
+            if not isinstance(sidecar_revision, str):
+                continue
+            if not api.file_exists(
+                repo_id=sidecar_repo,
+                filename="mtp.safetensors",
+                repo_type="model",
+                revision=sidecar_revision,
+                token=token,
+            ):
+                continue
+            readme_path = hf_hub_download(
+                repo_id=sidecar_repo,
+                filename="README.md",
+                revision=sidecar_revision,
+                token=token,
+                cache_dir=cache_dir,
+            )
+            content = Path(readme_path).read_text(encoding="utf-8")
+            if not content.startswith("---\n"):
+                continue
+            frontmatter = content.split("---", maxsplit=2)[1]
+            metadata = yaml.safe_load(frontmatter)
+            if not isinstance(metadata, dict):
+                continue
+            provenance = metadata.get("foxlight")
+            if not isinstance(provenance, dict):
+                continue
+            if (
+                provenance.get("source_repo") == source_repo
+                and provenance.get("source_revision") == source_revision
+            ):
+                return sidecar_revision
+        return None
     except Exception:  # noqa: BLE001 - absence and lookup failure both mean publish
         return None
 

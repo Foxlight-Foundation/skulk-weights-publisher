@@ -180,8 +180,8 @@ def test_matching_sidecar_requires_weights_at_exact_sidecar_revision(
     readme.write_text(f"source_revision: {revision}\n", encoding="utf-8")
 
     class FakeApi:
-        def model_info(self, *args: Any, **kwargs: Any) -> Any:
-            return type("Info", (), {"sha": sidecar_revision})()
+        def list_repo_commits(self, *args: Any, **kwargs: Any) -> list[Any]:
+            return [type("Commit", (), {"commit_id": sidecar_revision})()]
 
         def file_exists(self, **kwargs: Any) -> bool:
             assert kwargs["revision"] == sidecar_revision
@@ -231,8 +231,8 @@ def test_matching_sidecar_requires_exact_source_repository(
     )
 
     class FakeApi:
-        def model_info(self, *args: Any, **kwargs: Any) -> Any:
-            return type("Info", (), {"sha": sidecar_revision})()
+        def list_repo_commits(self, *args: Any, **kwargs: Any) -> list[Any]:
+            return [type("Commit", (), {"commit_id": sidecar_revision})()]
 
         def file_exists(self, **kwargs: Any) -> bool:
             return True
@@ -249,6 +249,60 @@ def test_matching_sidecar_requires_exact_source_repository(
     )
 
     assert (result == sidecar_revision) is reusable
+
+
+def test_matching_sidecar_reuses_historical_source_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pinned older source reuses its immutable historical sidecar commit."""
+    requested_revision = "a" * 40
+    current_revision = "c" * 40
+    historical_revision = "b" * 40
+    cards: dict[str, Path] = {}
+    for sidecar_revision, source_revision in (
+        (current_revision, "d" * 40),
+        (historical_revision, requested_revision),
+    ):
+        readme = tmp_path / f"README-{sidecar_revision}.md"
+        readme.write_text(
+            render_model_card(
+                CardInfo(
+                    artifact_type="mtp-sidecar",
+                    repo_id="FoxlightAI/qwen3-8-mtp",
+                    source_repo="Qwen/Qwen3.8",
+                    source_revision=source_revision,
+                )
+            ),
+            encoding="utf-8",
+        )
+        cards[sidecar_revision] = readme
+
+    class FakeApi:
+        def list_repo_commits(self, *args: Any, **kwargs: Any) -> list[Any]:
+            return [
+                type("Commit", (), {"commit_id": current_revision})(),
+                type("Commit", (), {"commit_id": historical_revision})(),
+            ]
+
+        def file_exists(self, **kwargs: Any) -> bool:
+            return True
+
+    monkeypatch.setattr("huggingface_hub.HfApi", FakeApi)
+    monkeypatch.setattr(
+        "huggingface_hub.hf_hub_download",
+        lambda **kwargs: str(cards[kwargs["revision"]]),
+    )
+
+    assert (
+        mtp_mod._matching_sidecar_revision(
+            "FoxlightAI/qwen3-8-mtp",
+            source_repo="Qwen/Qwen3.8",
+            source_revision=requested_revision,
+            token="hf_tok",
+            cache_dir=str(tmp_path),
+        )
+        == historical_revision
+    )
 
 
 # ---------------------------------------------------------------------------
