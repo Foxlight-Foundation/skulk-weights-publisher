@@ -25,6 +25,9 @@ automatically: new-style `mtp.*` tensor keys (Qwen3, DeepSeek V4-Flash,
 Nemotron 3) and old-style DeepSeek `model.layers.{N}.*` heads stored as the
 extra transformer layer beyond `num_hidden_layers` (detected via
 `num_nextn_predict_layers` in `config.json`, e.g. DeepSeek V3/V3.2).
+The official Qwen 3.8 layout is covered by the new-style path: its pinned
+Safetensors index places the `mtp.*` namespace in the final model shard, so the
+worker downloads that shard only and records the exact source revision.
 FP8/INT8-quantised heads are dequantised to BF16 during extraction. Publishing
 an MTP sidecar through [skulk-ui](#skulk-ui-local-gui) needs **no catalog
 entry** — paste a model URL and everything else is derived. (The CLI's

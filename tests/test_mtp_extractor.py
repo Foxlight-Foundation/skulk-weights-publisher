@@ -388,6 +388,52 @@ def test_find_mtp_shards_sharded_index(tmp_path: Path) -> None:
     assert prefix == "mtp."
 
 
+def test_find_mtp_shards_qwen38_layout_uses_explicit_mtp_namespace(
+    tmp_path: Path,
+) -> None:
+    """Qwen 3.8 keeps its MTP block in the final shard under ``mtp.*`` keys."""
+    from skulk_weights_publisher.mtp_extractor import _find_mtp_shards
+
+    index = {
+        "weight_map": {
+            "model.language_model.layers.63.self_attn.q_proj.weight": (
+                "model-00018-of-00018.safetensors"
+            ),
+            "mtp.fc.weight": "model-00018-of-00018.safetensors",
+            "mtp.layers.0.self_attn.q_proj.weight": (
+                "model-00018-of-00018.safetensors"
+            ),
+            "mtp.pre_fc_norm_hidden.weight": "model-00018-of-00018.safetensors",
+        }
+    }
+    config = {
+        "model_type": "qwen3_5",
+        "text_config": {
+            "model_type": "qwen3_5_text",
+            "num_hidden_layers": 64,
+            "mtp_num_hidden_layers": 1,
+        },
+    }
+    index_path = tmp_path / "model.safetensors.index.json"
+    config_path = tmp_path / "config.json"
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    def fake_download(repo_id: str, filename: str, **kw: Any) -> str:
+        del repo_id, kw
+        if filename == "model.safetensors.index.json":
+            return str(index_path)
+        if filename == "config.json":
+            return str(config_path)
+        raise FileNotFoundError(filename)
+
+    with patch("huggingface_hub.hf_hub_download", side_effect=fake_download):
+        shards, prefix = _find_mtp_shards("Qwen/Qwen3.8-27B", token=None)
+
+    assert shards == ["model-00018-of-00018.safetensors"]
+    assert prefix == "mtp."
+
+
 def test_find_mtp_shards_no_mtp_keys_in_index(tmp_path: Path) -> None:
     from skulk_weights_publisher.mtp_extractor import _find_mtp_shards
 
