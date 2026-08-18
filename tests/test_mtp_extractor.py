@@ -418,9 +418,12 @@ def test_find_mtp_shards_qwen38_layout_uses_explicit_mtp_namespace(
     config_path = tmp_path / "config.json"
     index_path.write_text(json.dumps(index), encoding="utf-8")
     config_path.write_text(json.dumps(config), encoding="utf-8")
+    source_revision = "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+    metadata_downloads: list[tuple[str, str | None]] = []
 
     def fake_download(repo_id: str, filename: str, **kw: Any) -> str:
-        del repo_id, kw
+        del repo_id
+        metadata_downloads.append((filename, kw.get("revision")))
         if filename == "model.safetensors.index.json":
             return str(index_path)
         if filename == "config.json":
@@ -428,10 +431,17 @@ def test_find_mtp_shards_qwen38_layout_uses_explicit_mtp_namespace(
         raise FileNotFoundError(filename)
 
     with patch("huggingface_hub.hf_hub_download", side_effect=fake_download):
-        shards, prefix = _find_mtp_shards("Qwen/Qwen3.8-27B", token=None)
+        shards, prefix = _find_mtp_shards(
+            "Qwen/Qwen3.8-27B",
+            token=None,
+            source_revision=source_revision,
+        )
 
     assert shards == ["model-00018-of-00018.safetensors"]
     assert prefix == "mtp."
+    assert metadata_downloads == [
+        ("model.safetensors.index.json", source_revision)
+    ]
 
 
 def test_find_mtp_shards_no_mtp_keys_in_index(tmp_path: Path) -> None:
