@@ -118,8 +118,10 @@ revision produces a new immutable sidecar commit.
 Run the container with a read-only root filesystem, a writable bounded volume at
 `/var/lib/swp`, dropped Linux capabilities, and one replica. Retriable failures
 preserve Hugging Face cache data; success or terminal failure removes that
-job's scratch data. The worker image is published to Docker Hub as `latest` and an immutable
-`sha-<commit>` tag after the main-branch quality gate.
+job's scratch data. The worker also confines Hugging Face and Xet transport
+caches to that mounted scratch volume, so its read-only home directory is never
+a download target. The worker image is published to Docker Hub as `latest` and
+an immutable `sha-<commit>` tag after the main-branch quality gate.
 
 ## Validation
 
