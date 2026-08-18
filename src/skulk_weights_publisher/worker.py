@@ -188,6 +188,22 @@ def _preflight_scratch(path: Path, minimum_free_bytes: int) -> None:
         )
 
 
+def _configure_hub_runtime_cache(
+    scratch_root: Path, environ: dict[str, str] | None = None
+) -> None:
+    """Keep Hugging Face and Xet runtime caches on the writable scratch volume."""
+
+    target = os.environ if environ is None else environ
+    runtime_root = scratch_root / "_hf_runtime"
+    xet_cache = runtime_root / "xet"
+    xdg_cache = scratch_root / "_xdg_cache"
+    for path in (runtime_root, xet_cache, xdg_cache):
+        path.mkdir(parents=True, exist_ok=True)
+    target["HF_HOME"] = str(runtime_root)
+    target["HF_XET_CACHE"] = str(xet_cache)
+    target["XDG_CACHE_HOME"] = str(xdg_cache)
+
+
 def _cleanup_failed_job(path: Path, *, terminal: bool) -> None:
     """Retain resumable cache for retries and remove terminal job scratch."""
 
@@ -288,6 +304,7 @@ def run_forever() -> None:
     ingestion_token = os.environ["SWP_REGISTRY_INGESTION_TOKEN"]
     hub_token = os.environ["HF_TOKEN"]
     scratch_root = Path(os.environ.get("SWP_SCRATCH", "/var/lib/swp"))
+    _configure_hub_runtime_cache(scratch_root)
     minimum_free_bytes = int(
         os.environ.get("SWP_MINIMUM_FREE_BYTES", str(20 * 1024**3))
     )

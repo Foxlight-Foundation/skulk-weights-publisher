@@ -12,6 +12,7 @@ from skulk_weights_publisher.worker import (
     RegistryWorkerClient,
     SidecarJob,
     _cleanup_failed_job,
+    _configure_hub_runtime_cache,
     _execute_leased_publication,
     _file_mtp_collection_best_effort,
     _lease_best_effort,
@@ -94,6 +95,26 @@ def test_sidecar_job_rejects_other_job_kinds() -> None:
 def test_preflight_scratch_rejects_capacity_below_floor(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="scratch volume"):
         _preflight_scratch(tmp_path / "scratch", 2**63)
+
+
+def test_hub_runtime_cache_is_confined_to_worker_scratch(tmp_path: Path) -> None:
+    """Read-only worker homes cannot receive Hub or Xet cache writes."""
+    scratch = tmp_path / "scratch"
+    environ = {
+        "HF_HOME": "/home/swp/.cache/huggingface",
+        "HF_XET_CACHE": "/home/swp/.cache/huggingface/xet",
+        "XDG_CACHE_HOME": "/home/swp/.cache",
+    }
+
+    _configure_hub_runtime_cache(scratch, environ)
+
+    assert environ == {
+        "HF_HOME": str(scratch / "_hf_runtime"),
+        "HF_XET_CACHE": str(scratch / "_hf_runtime" / "xet"),
+        "XDG_CACHE_HOME": str(scratch / "_xdg_cache"),
+    }
+    assert (scratch / "_hf_runtime" / "xet").is_dir()
+    assert (scratch / "_xdg_cache").is_dir()
 
 
 def test_preflight_credits_retained_cache_for_exact_job_retry(

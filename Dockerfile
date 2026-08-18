@@ -8,6 +8,9 @@ RUN uv sync --frozen --no-dev --extra mtp --no-editable
 FROM python:3.13-slim
 RUN useradd --system --uid 10001 --create-home swp
 RUN install -d -o swp -g swp /var/lib/swp
+ENV HF_HOME=/var/lib/swp/_hf_runtime \
+    HF_XET_CACHE=/var/lib/swp/_hf_runtime/xet \
+    XDG_CACHE_HOME=/var/lib/swp/_xdg_cache
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 USER 10001
