@@ -9,6 +9,12 @@ publishes only to deterministic repositories in `FoxlightAI`, and uploads the
 weights and self-describing model card in one atomic Hub commit. It never needs
 registry database, signing, Cloudflare, object-storage, or LLM credentials.
 
+The worker image uses Python 3.13.17, pip 26.2.2, uv 0.13.5, and certifi
+2026.10.19 or newer for the October 2026 CA security update. The image build
+verifies the pip bootstrap artifact and checks the worker's CA bundle for the
+removed trust paths. Rebuild and redeploy the immutable worker image to apply
+the update.
+
 Documentation: <https://foxlight-foundation.github.io/skulk-weights-publisher/>
 
 Skulk is a distributed LLM inference system. SWP publishes three kinds of model
