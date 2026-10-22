@@ -9,6 +9,7 @@ description = "Build and publish weight artifacts for Skulk."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "certifi>=2026.10.19",
   "huggingface_hub>=1.0.0,<2",
   "httpx>=0.28,<1",
   "PyYAML>=6.0.2,<7",
